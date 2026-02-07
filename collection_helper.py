@@ -1,12 +1,152 @@
+import json
+import logging
+import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 import chromadb
 import click
-from chromadb.api.client import Client
 from chromadb.config import Settings
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from loguru import logger
+
+
+def load_app_config() -> dict:
+    config_path = Path("./configs/") / "appconf.json"
+    if not config_path.exists():
+        return {}
+    with config_path.open() as f:
+        return json.load(f)
+
+
+def configure_logging(app_config: dict) -> None:
+    show_logs = bool(app_config.get("SHOW_LOGS", True))
+    log_level = str(app_config.get("LOG_LEVEL", "DEBUG")).upper()
+    if show_logs:
+        logging.basicConfig(level=log_level)
+        logger.remove()
+        logger.add(sys.stderr, level=log_level)
+    else:
+        logging.disable(logging.CRITICAL)
+        logger.remove()
+
+
+@dataclass
+class TestContext:
+    client: chromadb.PersistentClient
+    persist_directory: str
+    embedder: HuggingFaceEmbeddings
+    key_storage: str
+
+
+def create_db(
+    client: chromadb.PersistentClient,
+    persist_directory: str,
+    embedder: HuggingFaceEmbeddings,
+    target_collection: str,
+) -> Chroma:
+    return Chroma(
+        client=client,
+        collection_name=target_collection,
+        persist_directory=persist_directory,
+        embedding_function=embedder,
+    )
+
+
+def normalize_keyfile(raw_keys: object) -> list[dict[str, object]]:
+    if isinstance(raw_keys, dict) and "Content" in raw_keys:
+        raw_keys = raw_keys["Content"]
+    if not isinstance(raw_keys, list):
+        return []
+    return [item for item in raw_keys if isinstance(item, dict)]
+
+
+def extract_key_matches(keys: list[dict[str, object]], text: str) -> list[dict[str, str]]:
+    if not text:
+        return []
+    text_lower = text.lower()
+    matches: list[dict[str, str]] = []
+    text_keys = ("text", "text_fields", "text_field", "content", "value")
+    for item in keys:
+        uuid = item.get("uuid")
+        if not isinstance(uuid, str):
+            continue
+
+        value = None
+        for key in text_keys:
+            candidate = item.get(key)
+            if isinstance(candidate, str):
+                value = candidate
+                break
+        if value is None:
+            for key, candidate in item.items():
+                if key == "uuid":
+                    continue
+                if isinstance(candidate, str):
+                    value = candidate
+                    break
+
+        if not isinstance(value, str):
+            continue
+        if value.lower() in text_lower:
+            matches.append({uuid: value})
+    return matches
+
+
+def build_where_filters(matches: list[dict[str, str]]) -> list[dict[str, object]]:
+    if not matches:
+        return [{}]
+    if len(matches) == 1:
+        return [matches[0]]
+    return [{"$and": matches}, {"$or": matches}]
+
+
+def run_test_search(
+    target_collection: str,
+    query: str,
+    filters: list[dict[str, object]],
+    context: TestContext,
+) -> None:
+    db = create_db(context.client, context.persist_directory, context.embedder, target_collection)
+    k_buffer = 7
+    for where in filters:
+        docs = db.similarity_search_with_score(query=query, k=k_buffer, filter=where)
+        if docs or where == {}:
+            logger.info(f"{target_collection}: fetched {len(docs)} documents")
+            if docs:
+                logger.info(docs[0])
+            return
+    logger.info(f"{target_collection}: fetched 0 documents")
+
+
+def run_test_command(
+    collection_name: str,
+    query: str,
+    context: TestContext,
+) -> None:
+    logger.info("Testing fetch")
+    if not query:
+        logger.warning("No query provided. Use --query to supply a search string.")
+        return
+
+    keyfile_path = Path(context.key_storage) / f"{collection_name}.json"
+    if not keyfile_path.exists():
+        logger.warning(f"Keyfile not found at {keyfile_path}. Using unfiltered search.")
+        filters = [{}]
+    else:
+        with keyfile_path.open(encoding="utf-8") as key_file:
+            key_data = json.load(key_file)
+        keys = normalize_keyfile(key_data)
+        matches = extract_key_matches(keys, query)
+        if matches:
+            logger.info(f"Matched metadata keys from query: {matches}")
+        else:
+            logger.info("No metadata keys matched the query")
+        filters = build_where_filters(matches)
+
+    run_test_search(collection_name, query, filters, context)
+    run_test_search(f"{collection_name}_mes", query, filters, context)
 
 
 @click.command()
@@ -22,29 +162,53 @@ from loguru import logger
     "--persist-directory",
     "-p",
     "persist_directory",
-    default="./character_storage/",
+    default=None,
     help="The directory where you want to store the Chroma collection",
+)
+@click.option(
+    "--key-storage",
+    "-ks",
+    "key_storage",
+    default=None,
+    help="The directory where the keyfile JSON is stored",
+)
+@click.option(
+    "--query",
+    "-q",
+    "query",
+    default="",
+    help="Query text to search the collection(s) during test",
 )
 # TODO add option to specify the embedding model
 def main(
     collection_name: str,
     persist_directory: str,
+    key_storage: str,
+    query: str,
     command: str,
 ) -> None:
-    model_kwargs = {"device": "cpu"}
+    app_config = load_app_config()
+    configure_logging(app_config)
+    if persist_directory is None:
+        persist_directory = app_config.get("PERSIST_DIRECTORY", "./character_storage/")
+    if key_storage is None:
+        key_storage = app_config.get("KEY_STORAGE", "./rag_data/")
+    embedding_device = str(app_config.get("EMBEDDING_DEVICE", "cpu"))
+    embedding_cache = str(app_config.get("EMBEDDING_CACHE", "./embedding_models/"))
+    model_kwargs = {"device": embedding_device}
     encode_kwargs = {"normalize_embeddings": False}
-    cache_folder = str(Path("./embedding_models"))
+    cache_folder = str(Path(embedding_cache))
     embedder = HuggingFaceEmbeddings(
         model_kwargs=model_kwargs,
         encode_kwargs=encode_kwargs,
         cache_folder=cache_folder,
     )
-    client: Client = chromadb.PersistentClient(path=persist_directory, settings=Settings(anonymized_telemetry=False))
-    db = Chroma(
+    client = chromadb.PersistentClient(path=persist_directory, settings=Settings(anonymized_telemetry=False))
+    context = TestContext(
         client=client,
-        collection_name=collection_name,
         persist_directory=persist_directory,
-        embedding_function=embedder,
+        embedder=embedder,
+        key_storage=key_storage,
     )
     match command:
         case "list":
@@ -57,20 +221,7 @@ def main(
             client.delete_collection(collection_name)
             logger.info(f"{collection_name} deleted")
         case "test":
-            logger.info("Testing fetch")
-            k_buffer = 7
-            """
-            where={
-                    "$and": [
-                        {'1ae139a7-8d9f-4c75-8167-84f1a6583593': 'Edward Diego'},
-                        {'46a6a095-52c5-4a64-9c3d-bd7362261e09': 'Cyberspace'},
-                    ],
-                }
-            """
-            where={'1ae139a7-8d9f-4c75-8167-84f1a6583593': 'Edward Diego'}
-            docs = db.similarity_search_with_score(query="Shodan talks to Diego", k=k_buffer, filter=where)
-            logger.info(f"Fetched {len(docs)} documents")
-            print(docs[0])
+            run_test_command(collection_name, query, context)
         case _:
             collections = client.list_collections()
             logger.info("Available collections:")
