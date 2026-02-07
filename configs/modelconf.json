@@ -1,0 +1,16 @@
+{
+  "MODEL": "mistral_v0.1/mistral-7b-instruct-v0.1.Q4_K_M.gguf",
+  "MODEL_TYPE": "mistral",
+  "CHARACTER_CARD": "Shodan-specV2.json",
+  "PROMPT_TEMPLATE": "conversation_template.json",
+  "LAMBDA_MULT": 0.75,
+  "LAYERS": 15,
+  "TEMPERATURE": 0.7,
+  "TOP_P": 0.95,
+  "REPEAT_PENALTY": 1.1,
+  "TOP_K": 50,
+  "LAST_N_TOKENS_SIZE": 256,
+  "N_CTX": 32768,
+  "N_BATCH": 256,
+  "MAX_TOKENS": 4096
+}

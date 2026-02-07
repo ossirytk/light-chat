@@ -1,0 +1,10 @@
+.vscode
+.env
+.env_test*
+dist/
+site/
+models/
+embedding_models/
+character_storage/
+__pycache__/
+
