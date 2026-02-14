@@ -1,9 +1,6 @@
 {
   "MODEL": "mistral_v0.1/mistral-7b-instruct-v0.1.Q4_K_M.gguf",
   "MODEL_TYPE": "mistral",
-  "CHARACTER_CARD": "Shodan-specV2.json",
-  "PROMPT_TEMPLATE": "conversation_template.json",
-  "LAMBDA_MULT": 0.75,
   "LAYERS": 15,
   "TEMPERATURE": 0.7,
   "TOP_P": 0.95,
