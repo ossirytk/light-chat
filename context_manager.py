@@ -57,9 +57,7 @@ class ApproximateTokenCounter:
         char_based_estimate = len(text) // 4
 
         # Count special tokens (rough estimate)
-        special_token_count = (
-            text.count("\n") // 2 + text.count("<|") + text.count("[INST]") * 2 + text.count("<s>")
-        )
+        special_token_count = text.count("\n") // 2 + text.count("<|") + text.count("[INST]") * 2 + text.count("<s>")
 
         # Combine estimates
         return max(1, char_based_estimate + special_token_count)
@@ -214,10 +212,7 @@ class ContextManager:
         context_allocation = self._allocate_content(vector_context, remaining_budget)
 
         total_allocated = (
-            input_tokens
-            + history_allocation["tokens"]
-            + examples_allocation["tokens"]
-            + context_allocation["tokens"]
+            input_tokens + history_allocation["tokens"] + examples_allocation["tokens"] + context_allocation["tokens"]
         )
 
         logger.debug(

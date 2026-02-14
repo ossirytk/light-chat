@@ -61,20 +61,20 @@ lint.unfixable = [
 
 ### Running Python Code
 
-```bash
+```fish
 # Using uv run (handles venv automatically)
 uv run python script.py
 uv run python -m module_name
 
-# Or activate venv and use python directly
-source .venv/bin/activate
+# Or activate venv and use python directly (fish)
+. .venv/bin/activate.fish
 python script.py
 deactivate
 ```
 
 ### Linting and Formatting
 
-```bash
+```fish
 # Format code (in-place)
 uv run ruff format .
 
@@ -90,7 +90,7 @@ uv run ruff check path/to/file.py
 
 ### Installing Dependencies
 
-```bash
+```fish
 # Add new dependency
 uv add package_name
 
@@ -106,7 +106,7 @@ uv pip install -e .
 
 ### Managing Python Versions
 
-```bash
+```fish
 # Check Python version used by uv
 uv python list
 
