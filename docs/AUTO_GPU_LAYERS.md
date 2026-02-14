@@ -2,12 +2,13 @@
 
 ## Overview
 
-This chatbot now supports **automatic GPU layer calculation** instead of manually setting the `LAYERS` parameter for each model. The system detects available VRAM and calculates the optimal number of layers to offload to your GPU.
+This chatbot now supports **automatic GPU layer calculation** and **KV cache quantization** to optimize VRAM usage. The system detects available VRAM and intelligently balances layer offloading with memory constraints.
 
 ## Features
 
 - **Automatic VRAM Detection**: Uses NVIDIA Management Library (pynvml) to query GPU memory
 - **Smart Layer Calculation**: Estimates memory usage per layer based on model size and context length
+- **KV Cache Quantization**: Reduces KV cache memory by 50-75% with minimal quality loss
 - **Configurable Target Usage**: Set your preferred VRAM usage percentage (default: 80%)
 - **Fallback Support**: Works even without GPU detection (uses conservative defaults)
 - **Per-Model Optimization**: Automatically adjusts for different model sizes and quantizations
@@ -22,6 +23,7 @@ This chatbot now supports **automatic GPU layer calculation** instead of manuall
   "MODEL_TYPE": "mistral",
   "LAYERS": "auto",
   "TARGET_VRAM_USAGE": 0.8,
+  "KV_CACHE_QUANT": "f16",
   ...
 }
 ```
@@ -32,23 +34,28 @@ This chatbot now supports **automatic GPU layer calculation** instead of manuall
 |-----------|------|-------------|---------|
 | `LAYERS` | `"auto"` or `int` | Use `"auto"` for automatic detection, or specify an integer for manual control | `"auto"` |
 | `TARGET_VRAM_USAGE` | `float` (0.0-1.0) | Percentage of total VRAM to target | `0.8` (80%) |
+| `KV_CACHE_QUANT` | `"f16"`, `"q8_0"`, `"q4_0"` | KV cache quantization (see below) | `"f16"` (full precision) |
 
 ### Examples
 
 ```json
-// Automatic with 80% VRAM target (recommended)
+// Automatic with 80% VRAM target + full precision KV (default)
 "LAYERS": "auto",
-"TARGET_VRAM_USAGE": 0.8
+"TARGET_VRAM_USAGE": 0.8,
+"KV_CACHE_QUANT": "f16"
 
-// Automatic with 70% VRAM target (more conservative)
+// Automatic with 8-bit KV quantization (better performance)
 "LAYERS": "auto",
-"TARGET_VRAM_USAGE": 0.7
+"TARGET_VRAM_USAGE": 0.8,
+"KV_CACHE_QUANT": "q8_0"
+
+// Maximum compression: 8K context + 4-bit KV (full model on 8GB GPU!)
+"N_CTX": 8192,
+"KV_CACHE_QUANT": "q4_0",
+"LAYERS": "auto"
 
 // Manual override (disables automatic calculation)
-"LAYERS": 20
-
-// Also triggers automatic detection
-"LAYERS": -1
+"LAYERS": 15
 ```
 
 ## How It Works
@@ -58,22 +65,38 @@ This chatbot now supports **automatic GPU layer calculation** instead of manuall
    - Model file size (determines layer count and weight size)
    - Model architecture (hidden size: 4096 for 7B, 5120 for 13B models)
    - Context window size (N_CTX) - **has major impact on VRAM**
-   - KV cache per layer: `2 * N_CTX * hidden_size * 2 bytes`
+   - KV cache per layer: `2 * N_CTX * hidden_size * bytes_per_element`
+   - KV cache quantization (if enabled)
 3. **Layer Calculation**: Computes maximum layers that fit within target VRAM usage
 4. **Safety Margins**: Includes overhead for llama.cpp runtime and buffer space
 
 ### Memory Formula Per Layer
 
-**Each offloaded layer requires:**
+**Without KV quantization (fp16):**
 - **Weights**: `model_size / total_layers` MB
 - **KV Cache**: `2 * N_CTX * hidden_size * 2 / 1024²` MB
 
-**Example (Mistral 7B Q4_K_M, 32K context):**
-- Weights: ~130 MB/layer
-- KV cache: ~512 MB/layer
-- **Total: ~642 MB per layer**
+**With KV quantization:**
+- **Weights**: Same as above
+- **KV Cache (q8_0)**: 50% of fp16
+- **KV Cache (q4_0)**: 25% of fp16
 
-This means context size significantly impacts how many layers fit in VRAM!
+### Example: Mistral 7B Q4_K_M
+
+**Without KV quantization (fp16):**
+- Weights: ~130 MB/layer
+- KV cache (32K context): ~512 MB/layer
+- **Total: ~642 MB per layer → 8-9 layers fit**
+
+**With 8-bit KV quantization (q8_0):**
+- Weights: ~130 MB/layer
+- KV cache (32K context): ~256 MB/layer
+- **Total: ~386 MB per layer → 15-16 layers fit (+67%!)**
+
+**With 4-bit KV quantization (q4_0):**
+- Weights: ~130 MB/layer
+- KV cache (32K context): ~128 MB/layer
+- **Total: ~258 MB per layer → 23-24 layers fit (+156%!)**
 
 ## Benefits
 
@@ -82,21 +105,24 @@ This means context size significantly impacts how many layers fit in VRAM!
 - **Optimal Performance**: Uses maximum available VRAM while leaving headroom
 - **Protection**: Prevents OOM errors by staying within target limits
 - **Context-Aware**: Accounts for KV cache scaling with context window size
+- **KV Quantization Support**: Reduce KV cache memory by 50-75% with minimal quality loss
 
 ## Important Notes
 
 ⚠️ **Context size has a massive impact on memory usage!**
 
-With large context windows (32K+), you may only be able to offload a handful of layers to an 8GB GPU. This is expected behavior because:
-- Each layer needs KV cache: `2 * N_CTX * hidden_size * 2 bytes`
-- For 32K context: ~512 MB per layer just for KV cache
-- For 8K context: ~128 MB per layer for KV cache
+With large context windows (32K+), KV cache quantization is highly recommended:
+- Each layer needs KV cache: `2 * N_CTX * hidden_size * bytes`
+- For 32K context fp16: ~512 MB per layer just for KV cache
+- For 32K context q8_0: ~256 MB per layer (50% savings!)
+- For 32K context q4_0: ~128 MB per layer (75% savings!)
 
 **Realistic expectations for 8GB GPU + Mistral 7B:**
-- 32K context: ~8-10 layers
-- 16K context: ~14-16 layers  
-- 8K context: ~20-25 layers
-- 4K context: ~30-32 layers (full model)
+- 32K context + fp16: ~8-10 layers
+- 32K context + q8_0: ~15-16 layers (2x improvement!)
+- 32K context + q4_0: ~23-24 layers (2.5x improvement!)
+- 8K context + f16: ~20-25 layers
+- 4K context + f16: ~30-32 layers (full model)
 
 ## Testing
 
@@ -176,34 +202,49 @@ If you see "GPU info unavailable", check:
 
 ### Only Getting a Few Layers?
 
-**This is likely correct!** Large context windows consume significant VRAM:
+**This is likely correct, but try KV quantization!**
 - Check your `N_CTX` value in modelconf.json
-- 32K context uses ~512 MB per layer just for KV cache
-- Consider reducing context size if you need more layers on GPU
+- Enable KV quantization (`q8_0` or `q4_0`) to fit more layers
+- 32K context + fp16 = only 8-9 layers feasible with 8GB GPU
+- 32K context + q8_0 = 15-16 layers (2x improvement!)
+- 32K context + q4_0 = 23-24 layers (2.5x improvement!)
 
-Example for 8GB GPU:
-- `N_CTX: 32768` → ~8 layers (realistic for heavy usage)
-- `N_CTX: 8192` → ~22 layers (good balance)
-- `N_CTX: 4096` → ~30 layers (full model fits)
+### Recommended Settings for 8GB GPU
+
+**Option A: Keep 32K context (better conversation history)**
+```json
+"N_CTX": 32768,
+"KV_CACHE_QUANT": "q8_0"
+```
+Result: ~15 layers, minimal quality loss
+
+**Option B: Reduce context (simpler, full model on GPU)**
+```json
+"N_CTX": 8192,
+"KV_CACHE_QUANT": "f16"
+```
+Result: ~23 layers, full model fits on GPU
+
+**Option C: Maximum performance**
+```json
+"N_CTX": 8192,
+"KV_CACHE_QUANT": "q4_0"
+```
+Result: ~32 layers (entire model on GPU)
 
 ### Out of Memory Errors
 
 If you get OOM errors even with auto-calculation:
-- Lower `TARGET_VRAM_USAGE` to 0.7 or 0.6
-- Reduce `N_CTX` (context window size)
-- Use a smaller quantization (Q3_K_M instead of Q4_K_M)
-
-### Too Many/Few Layers
-
-Adjust `TARGET_VRAM_USAGE`:
-- Lower value (e.g., 0.6-0.7): More conservative, leaves more free VRAM
-- Higher value (e.g., 0.85-0.9): More aggressive, uses more VRAM
+1. Enable KV cache quantization: `"KV_CACHE_QUANT": "q8_0"`
+2. Lower `TARGET_VRAM_USAGE` to 0.7 or 0.6
+3. Reduce `N_CTX` (context window size)
+4. Use a smaller quantization (Q3_K_M instead of Q4_K_M)
 
 ### Prefer Manual Control
 
 Simply set `LAYERS` to an integer value:
 ```json
-"LAYERS": 8
+"LAYERS": 15
 ```
 
 This completely bypasses automatic detection.

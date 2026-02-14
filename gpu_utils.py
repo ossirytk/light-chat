@@ -241,3 +241,88 @@ def get_n_gpu_layers(
 
     # Otherwise use configured value
     return int(configured_layers)
+
+
+def calculate_kv_cache_memory_saved(
+    n_ctx: int,
+    hidden_size: int,
+    quantization_type: str = "f16",
+) -> float:
+    """
+    Calculate VRAM saved by KV cache quantization compared to fp16.
+
+    Args:
+        n_ctx: Context window size
+        hidden_size: Model hidden size
+        quantization_type: KV cache quantization ("f16", "q8_0", "q4_0")
+
+    Returns:
+        Memory saved in MB per layer
+    """
+    # Full precision KV cache (fp16)
+    full_precision_bytes_per_element = 2
+
+    # Different quantizations
+    quantization_bytes = {
+        "f16": 2,  # Full precision (baseline)
+        "q8_0": 1,  # 8-bit quantization
+        "q4_0": 0.5,  # 4-bit quantization
+    }
+
+    bytes_per_element = quantization_bytes.get(quantization_type, 2)
+
+    # KV cache size = 2 (k and v) * n_ctx * hidden_size * bytes_per_element
+    baseline_mb = (2 * n_ctx * hidden_size * full_precision_bytes_per_element) / (1024**2)
+    quantized_mb = (2 * n_ctx * hidden_size * bytes_per_element) / (1024**2)
+
+    return baseline_mb - quantized_mb
+
+
+def estimate_layers_with_kv_quantization(
+    model_path: Path,
+    available_vram_mb: float,
+    kv_quantization: str = "f16",
+    n_ctx: int = 2048,
+    overhead_mb: float = 500.0,
+) -> tuple[int, float]:
+    """
+    Calculate how many layers fit with KV cache quantization.
+
+    Args:
+        model_path: Path to model
+        available_vram_mb: Available VRAM in MB
+        kv_quantization: KV cache quantization type ("f16", "q8_0", "q4_0")
+        n_ctx: Context window size
+        overhead_mb: Runtime overhead
+
+    Returns:
+        Tuple of (number of layers, total VRAM used in MB)
+    """
+    _, hidden_size = estimate_model_params(model_path)
+    vram_per_layer, max_layers = estimate_model_vram_per_layer(model_path, n_ctx)
+
+    if kv_quantization != "f16":
+        # Recalculate KV cache with quantization
+        quantization_bytes = {
+            "q8_0": 1,
+            "q4_0": 0.5,
+        }
+        bytes_per_element = quantization_bytes.get(kv_quantization, 2)
+        kv_cache_quantized = (2 * n_ctx * hidden_size * bytes_per_element) / (1024**2)
+
+        # Base KV cache calculation (from original)
+        base_vram_per_layer = model_path.stat().st_size / (1024**2) / max_layers
+        vram_per_layer = base_vram_per_layer + kv_cache_quantized
+
+        logger.debug(
+            "KV quantization ({}): {:.1f} MB per layer (vs {:.1f} MB without)",
+            kv_quantization,
+            vram_per_layer,
+            base_vram_per_layer + (2 * n_ctx * hidden_size * 2) / (1024**2),
+        )
+
+    available_for_layers = max(available_vram_mb - overhead_mb, 0)
+    n_gpu_layers = min(int(available_for_layers / vram_per_layer), max_layers)
+    total_vram = n_gpu_layers * vram_per_layer + overhead_mb
+
+    return n_gpu_layers, total_vram

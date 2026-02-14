@@ -3,6 +3,7 @@
   "MODEL_TYPE": "mistral",
   "LAYERS": "auto",
   "TARGET_VRAM_USAGE": 0.8,
+  "KV_CACHE_QUANT": "f16",
   "TEMPERATURE": 0.7,
   "TOP_P": 0.95,
   "REPEAT_PENALTY": 1.1,

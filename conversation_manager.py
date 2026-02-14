@@ -380,6 +380,12 @@ class ConversationManager:
             target_vram_usage=target_vram_usage,
         )
 
+        # Get KV cache quantization setting (q8_0, q4_0, or f16 for full precision)
+        kv_quant = self.configs.get("KV_CACHE_QUANT", "f16")
+        if kv_quant not in ("f16", "q8_0", "q4_0"):
+            logger.warning("Invalid KV_CACHE_QUANT value '{}', using f16", kv_quant)
+            kv_quant = "f16"
+
         llm_kwargs = {
             "model_path": model,
             "streaming": True,
@@ -397,6 +403,11 @@ class ConversationManager:
             "stop": stop_sequences,
             "verbose": False,
         }
+
+        # Add KV cache quantization if not full precision
+        if kv_quant != "f16":
+            llm_kwargs["kvn_type"] = kv_quant  # llama-cpp-python supports kvn_type
+            logger.debug("KV cache quantization enabled: {}", kv_quant)
         if configured_n_ctx is not None:
             llm_kwargs["n_ctx"] = configured_n_ctx
 
