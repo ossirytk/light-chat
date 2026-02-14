@@ -575,7 +575,7 @@ class ConversationManager:
                     max_initial = int(self.configs.get("MAX_INITIAL_RETRIEVAL", 20))
                     initial_k = min(initial_k, max_initial)  # Cap to avoid excessive queries
 
-                    vector_context_full, mes_from_rag_full = self._get_vector_context(message, k=initial_k)
+                    vector_context_full, _mes_from_rag_full = self._get_vector_context(message, k=initial_k)
 
                     history = self.get_history()
                     allocation = self.context_manager.allocate_content(
