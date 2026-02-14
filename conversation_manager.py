@@ -17,6 +17,7 @@ from loguru import logger
 
 from collection_helper import build_where_filters, extract_key_matches, normalize_keyfile
 from context_manager import ApproximateTokenCounter, ContextManager
+from gpu_utils import get_n_gpu_layers
 
 
 class UnknownModelTypeError(Exception):
@@ -59,7 +60,7 @@ class ConversationManager:
         self._vector_client: chromadb.PersistentClient | None = None
         self._vector_embedder: HuggingFaceEmbeddings | None = None
         self._vector_dbs: dict[str, Chroma] = {}
-        
+
         # Initialize context manager for dynamic context window allocation
         self.context_manager = self._initialize_context_manager()
         self.use_dynamic_context = bool(self.configs.get("USE_DYNAMIC_CONTEXT", True))
@@ -98,7 +99,7 @@ class ConversationManager:
     def _initialize_context_manager(self) -> ContextManager:
         """Initialize context manager with model's context window."""
         context_window = 4096  # Default fallback
-        
+
         # Try to get actual context window from model
         try:
             client = getattr(self.llm_model, "client", None)
@@ -109,9 +110,9 @@ class ConversationManager:
                     logger.debug("Detected model context window: {} tokens", context_window)
         except Exception:
             logger.debug("Could not detect context window, using default: {}", context_window)
-        
+
         reserved_for_response = int(self.configs.get("RESERVED_FOR_RESPONSE", 256))
-        
+
         return ContextManager(
             context_window=context_window,
             token_counter=ApproximateTokenCounter(),
@@ -370,6 +371,15 @@ class ConversationManager:
         if configured_n_ctx is not None:
             configured_n_ctx = int(configured_n_ctx)
 
+        # Calculate optimal GPU layers (supports "auto" or integer values)
+        target_vram_usage = float(self.configs.get("TARGET_VRAM_USAGE", 0.8))
+        n_gpu_layers = get_n_gpu_layers(
+            model_path=model_path,
+            configured_layers=self.configs.get("LAYERS", "auto"),
+            n_ctx=configured_n_ctx or 2048,
+            target_vram_usage=target_vram_usage,
+        )
+
         llm_kwargs = {
             "model_path": model,
             "streaming": True,
@@ -381,7 +391,7 @@ class ConversationManager:
             "top_k": int(self.configs["TOP_K"]),
             "temperature": float(self.configs["TEMPERATURE"]),
             "repeat_penalty": float(self.configs["REPEAT_PENALTY"]),
-            "n_gpu_layers": int(self.configs["LAYERS"]),
+            "n_gpu_layers": n_gpu_layers,
             "rope_freq_scale": 1,
             "model_kwargs": model_kwargs,
             "stop": stop_sequences,
@@ -433,7 +443,13 @@ class ConversationManager:
         keys = normalize_keyfile(key_data)
         return extract_key_matches(keys, query)
 
-    def _search_collection(self, collection_name: str, query: str, filters: list[dict[str, object]], k: int | None = None) -> list[str]:
+    def _search_collection(
+        self,
+        collection_name: str,
+        query: str,
+        filters: list[dict[str, object]],
+        k: int | None = None,
+    ) -> list[str]:
         if not query:
             return []
         if k is None:
@@ -528,7 +544,7 @@ class ConversationManager:
                 # Quick budget estimate to determine initial retrieval size
                 system_prompt = self._build_system_prompt_text(self.mes_example if is_first_turn else "")
                 budget = self.context_manager.calculate_budget(system_prompt)
-                
+
                 # Safety check: if budget for dynamic content is too small, fall back to static
                 if budget.budget_for_dynamic_content < 500:
                     logger.warning(
@@ -547,9 +563,9 @@ class ConversationManager:
                     initial_k = max(self.rag_k, int(context_budget_estimate / chunk_size_estimate))
                     max_initial = int(self.configs.get("MAX_INITIAL_RETRIEVAL", 20))
                     initial_k = min(initial_k, max_initial)  # Cap to avoid excessive queries
-                    
+
                     vector_context_full, mes_from_rag_full = self._get_vector_context(message, k=initial_k)
-                    
+
                     history = self.get_history()
                     allocation = self.context_manager.allocate_content(
                         budget,

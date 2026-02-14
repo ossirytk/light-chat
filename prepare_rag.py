@@ -177,7 +177,10 @@ def process_file_to_collection(
     help="The directory where you want to store the Chroma collection.",
 )
 @click.option(
-    "--key-storage", "-ks", default=None, help="The directory for the collection metadata keys.",
+    "--key-storage",
+    "-ks",
+    default=None,
+    help="The directory for the collection metadata keys.",
 )
 @click.option("--threads", "-t", default=None, type=int, help="The number of threads to use for parsing.")
 @click.option("--chunk-size", "-cs", default=None, type=int, help="Data chunk for size for parsing.")
