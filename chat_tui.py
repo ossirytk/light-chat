@@ -54,12 +54,8 @@ class CharacterCard(Static):
         self.character_name = character_name
         self.description = description
 
-    def compose(self) -> ComposeResult:
-        """Compose the character card."""
-        yield Static(self._build_character_panel())
-
-    def _build_character_panel(self) -> Panel:
-        """Build a rich panel with character information."""
+    def render(self) -> Panel:
+        """Render the character card panel."""
         if not self.character_name:
             content = Text("Loading character...", style="italic dim")
         else:
@@ -85,7 +81,7 @@ class CharacterCard(Static):
         """Update character information and refresh display."""
         self.character_name = name
         self.description = description
-        self.update(self._build_character_panel())
+        self.refresh()
 
 
 class ChatMessage(Static):
