@@ -5,13 +5,14 @@ import json
 import logging
 import sys
 import threading
+from collections.abc import Callable
 from pathlib import Path
 from typing import ClassVar
 
 from loguru import logger
 from rich.panel import Panel
 from rich.text import Text
-from textual import on, work
+from textual import on
 from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.widgets import Footer, Header, Input, Static
@@ -229,45 +230,43 @@ class ChatApp(App):
 
     async def on_mount(self) -> None:
         """Handle mount event - initialize conversation manager."""
-        self.load_conversation_manager()
+        await self.load_conversation_manager()
 
-    @work(exclusive=True, thread=True)
-    def load_conversation_manager(self) -> None:
-        """Load the conversation manager in a background thread."""
+    async def load_conversation_manager(self) -> None:
+        """Load the conversation manager."""
         self.update_status("Loading model...")
         app_config = load_app_config()
         configure_logging(app_config)
 
-        self.conversation_manager = ConversationManager()
+        # Load in thread to avoid blocking the UI
+        self.conversation_manager = await asyncio.to_thread(ConversationManager)
 
-        # Update character card with loaded character info
-        if self.character_card_widget:
-            self.app.call_from_thread(
-                self.character_card_widget.update_character,
+        # Update UI with loaded data
+        if self.character_card_widget and self.conversation_manager:
+            self.character_card_widget.update_character(
                 self.conversation_manager.character_name,
                 self.conversation_manager.description,
             )
 
         # Display first message if available
-        if self.conversation_manager.first_message and self.chat_log_widget:
-            self.app.call_from_thread(
-                self.chat_log_widget.add_message,
+        if self.conversation_manager and self.conversation_manager.first_message and self.chat_log_widget:
+            self.chat_log_widget.add_message(
                 self.conversation_manager.character_name,
                 self.conversation_manager.first_message,
-                False,
+                is_user=False,
             )
 
         # Enable input
         if self.input_widget:
-            self.app.call_from_thread(setattr, self.input_widget, "disabled", False)
-            self.app.call_from_thread(self.input_widget.focus)
+            self.input_widget.disabled = False
+            self.input_widget.focus()
 
         self.update_status("Ready")
 
     def update_status(self, message: str) -> None:
         """Update status message."""
         if self.status_widget:
-            self.app.call_from_thread(self.status_widget.update, message)
+            self.status_widget.update(message)
 
     @on(Input.Submitted)
     async def handle_input(self, event: Input.Submitted) -> None:
@@ -290,7 +289,6 @@ class ChatApp(App):
         # Process message
         await self.process_message(user_message)
 
-    @work(exclusive=True)
     async def process_message(self, message: str) -> None:
         """Process user message and get AI response."""
         self.is_processing = True
@@ -306,18 +304,24 @@ class ChatApp(App):
             self.chat_log_widget.mount(ai_message_widget)
             self.chat_log_widget.scroll_end(animate=False)
 
+        # Use a list to share state between async context and sync callback
+        message_chunks: list[str] = []
+
         def stream_callback(chunk: str) -> None:
             """Callback to handle streaming text chunks."""
+            message_chunks.append(chunk)
             if ai_message_widget:
-                self.app.call_from_thread(ai_message_widget.append_text, chunk)
-                self.app.call_from_thread(self.chat_log_widget.scroll_end, False)
+                ai_message_widget.append_text(chunk)
+            if self.chat_log_widget:
+                self.chat_log_widget.scroll_end(animate=False)
 
         try:
-            # Create event for tracking when first token arrives
-            first_token_event = threading.Event()
-
-            # Start async task to ask question with streaming callback
-            await self.conversation_manager.ask_question(message, first_token_event, stream_callback)
+            # Run the async conversation in a thread to avoid blocking the event loop
+            await asyncio.to_thread(
+                self._ask_question_worker,
+                message,
+                stream_callback,
+            )
 
             self.update_status("Ready")
 
@@ -330,6 +334,17 @@ class ChatApp(App):
             if self.input_widget:
                 self.input_widget.disabled = False
                 self.input_widget.focus()
+
+    def _ask_question_worker(self, message: str, stream_callback: Callable[[str], None]) -> None:
+        """Worker to run ask_question in a thread."""
+        # Create a new asyncio event loop for this thread
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            first_token_event = threading.Event()
+            loop.run_until_complete(self.conversation_manager.ask_question(message, first_token_event, stream_callback))
+        finally:
+            loop.close()
 
 
 async def main() -> None:
