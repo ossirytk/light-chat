@@ -1,0 +1,342 @@
+"""Modern TUI interface for light-chat using Textual."""
+
+import asyncio
+import json
+import logging
+import sys
+import threading
+from pathlib import Path
+from typing import ClassVar
+
+from loguru import logger
+from rich.panel import Panel
+from rich.text import Text
+from textual import on, work
+from textual.app import App, ComposeResult
+from textual.containers import Container, Horizontal, Vertical, VerticalScroll
+from textual.widgets import Footer, Header, Input, Static
+
+from conversation_manager import ConversationManager
+
+# Constants
+DESCRIPTION_PREVIEW_LENGTH = 200
+
+
+def load_app_config() -> dict:
+    """Load application configuration."""
+    config_path = Path("./configs/") / "appconf.json"
+    if not config_path.exists():
+        return {}
+    with config_path.open() as f:
+        return json.load(f)
+
+
+def configure_logging(app_config: dict) -> None:
+    """Configure logging based on app config."""
+    show_logs = bool(app_config.get("SHOW_LOGS", True))
+    log_level = str(app_config.get("LOG_LEVEL", "DEBUG")).upper()
+    if show_logs:
+        logging.basicConfig(level=log_level)
+        logger.remove()
+        logger.add(sys.stderr, level=log_level)
+    else:
+        logging.disable(logging.CRITICAL)
+        logger.remove()
+
+
+class CharacterCard(Static):
+    """Widget to display character information in a styled panel."""
+
+    def __init__(self, character_name: str = "", description: str = "") -> None:
+        """Initialize character card widget."""
+        super().__init__()
+        self.character_name = character_name
+        self.description = description
+
+    def compose(self) -> ComposeResult:
+        """Compose the character card."""
+        yield Static(self._build_character_panel())
+
+    def _build_character_panel(self) -> Panel:
+        """Build a rich panel with character information."""
+        if not self.character_name:
+            content = Text("Loading character...", style="italic dim")
+        else:
+            # Extract first chars of description for preview
+            desc_preview = (
+                self.description[:DESCRIPTION_PREVIEW_LENGTH] + "..."
+                if len(self.description) > DESCRIPTION_PREVIEW_LENGTH
+                else self.description
+            )
+            content = Text()
+            content.append(f"{self.character_name}\n", style="bold cyan")
+            content.append("─" * 30 + "\n", style="dim")
+            content.append(desc_preview, style="white")
+
+        return Panel(
+            content,
+            title="[bold magenta]Character[/bold magenta]",
+            border_style="magenta",
+            padding=(1, 2),
+        )
+
+    def update_character(self, name: str, description: str) -> None:
+        """Update character information and refresh display."""
+        self.character_name = name
+        self.description = description
+        self.update(self._build_character_panel())
+
+
+class ChatMessage(Static):
+    """Widget for displaying a single chat message."""
+
+    def __init__(self, sender: str, message: str, is_user: bool = False) -> None:
+        """Initialize chat message widget."""
+        super().__init__()
+        self.sender = sender
+        self.message = message
+        self.is_user = is_user
+        self._rendered_text = self._build_message_text()
+
+    def _build_message_text(self) -> Text:
+        """Build the message text with styling."""
+        if self.is_user:
+            style = "bold green"
+            prefix = "▶"
+        else:
+            style = "bold cyan"
+            prefix = "◀"
+
+        text = Text()
+        text.append(f"{prefix} {self.sender}: ", style=style)
+        text.append(self.message, style="white")
+        return text
+
+    def compose(self) -> ComposeResult:
+        """Compose the chat message."""
+        yield Static(self._rendered_text)
+
+    def append_text(self, chunk: str) -> None:
+        """Append text to the message (for streaming)."""
+        self.message += chunk
+        self._rendered_text = self._build_message_text()
+        # Update the child Static widget
+        if self.children:
+            self.children[0].update(self._rendered_text)
+
+
+class ChatLog(VerticalScroll):
+    """Scrollable chat log container."""
+
+    def add_message(self, sender: str, message: str, is_user: bool = False) -> None:
+        """Add a message to the chat log."""
+        msg_widget = ChatMessage(sender, message, is_user)
+        self.mount(msg_widget)
+        self.scroll_end(animate=False)
+
+    def add_streaming_message(self, sender: str) -> ChatMessage:
+        """Add a streaming message that can be updated incrementally."""
+        msg = ChatMessage(sender, "", is_user=False)
+        self.mount(msg)
+        self.scroll_end(animate=False)
+        return msg
+
+
+class ChatApp(App):
+    """Main Textual application for chat interface."""
+
+    CSS = """
+    Screen {
+        background: $surface;
+    }
+
+    #main-container {
+        height: 100%;
+    }
+
+    #character-card {
+        width: 35;
+        height: 100%;
+        border-right: solid $primary;
+        padding: 1;
+    }
+
+    #chat-container {
+        width: 1fr;
+        height: 100%;
+    }
+
+    #chat-log {
+        height: 1fr;
+        border: solid $accent;
+        padding: 1;
+        margin: 1;
+    }
+
+    ChatMessage {
+        width: 100%;
+        height: auto;
+        margin-bottom: 1;
+    }
+
+    #input-container {
+        height: auto;
+        padding: 0 1;
+    }
+
+    Input {
+        width: 100%;
+    }
+
+    #status {
+        height: 1;
+        padding: 0 1;
+        color: $text-muted;
+    }
+    """
+
+    BINDINGS: ClassVar = [
+        ("ctrl+c", "quit", "Quit"),
+        ("ctrl+q", "quit", "Quit"),
+    ]
+
+    def __init__(self) -> None:
+        """Initialize the chat application."""
+        super().__init__()
+        self.conversation_manager: ConversationManager | None = None
+        self.character_card_widget: CharacterCard | None = None
+        self.chat_log_widget: ChatLog | None = None
+        self.status_widget: Static | None = None
+        self.input_widget: Input | None = None
+        self.is_processing = False
+
+    def compose(self) -> ComposeResult:
+        """Compose the application layout."""
+        yield Header()
+        with Horizontal(id="main-container"):
+            self.character_card_widget = CharacterCard()
+            yield Container(self.character_card_widget, id="character-card")
+            with Vertical(id="chat-container"):
+                self.chat_log_widget = ChatLog(id="chat-log")
+                yield self.chat_log_widget
+                with Container(id="input-container"):
+                    self.status_widget = Static("Initializing...", id="status")
+                    yield self.status_widget
+                    self.input_widget = Input(placeholder="Type your message and press Enter...", id="user-input")
+                    self.input_widget.disabled = True
+                    yield self.input_widget
+        yield Footer()
+
+    async def on_mount(self) -> None:
+        """Handle mount event - initialize conversation manager."""
+        self.load_conversation_manager()
+
+    @work(exclusive=True, thread=True)
+    def load_conversation_manager(self) -> None:
+        """Load the conversation manager in a background thread."""
+        self.update_status("Loading model...")
+        app_config = load_app_config()
+        configure_logging(app_config)
+
+        self.conversation_manager = ConversationManager()
+
+        # Update character card with loaded character info
+        if self.character_card_widget:
+            self.app.call_from_thread(
+                self.character_card_widget.update_character,
+                self.conversation_manager.character_name,
+                self.conversation_manager.description,
+            )
+
+        # Display first message if available
+        if self.conversation_manager.first_message and self.chat_log_widget:
+            self.app.call_from_thread(
+                self.chat_log_widget.add_message,
+                self.conversation_manager.character_name,
+                self.conversation_manager.first_message,
+                False,
+            )
+
+        # Enable input
+        if self.input_widget:
+            self.app.call_from_thread(setattr, self.input_widget, "disabled", False)
+            self.app.call_from_thread(self.input_widget.focus)
+
+        self.update_status("Ready")
+
+    def update_status(self, message: str) -> None:
+        """Update status message."""
+        if self.status_widget:
+            self.app.call_from_thread(self.status_widget.update, message)
+
+    @on(Input.Submitted)
+    async def handle_input(self, event: Input.Submitted) -> None:
+        """Handle user input submission."""
+        if self.is_processing or not self.conversation_manager:
+            return
+
+        user_message = event.value.strip()
+        if not user_message:
+            return
+
+        # Clear input
+        if self.input_widget:
+            self.input_widget.value = ""
+
+        # Display user message
+        if self.chat_log_widget:
+            self.chat_log_widget.add_message("User", user_message, is_user=True)
+
+        # Process message
+        await self.process_message(user_message)
+
+    @work(exclusive=True)
+    async def process_message(self, message: str) -> None:
+        """Process user message and get AI response."""
+        self.is_processing = True
+        self.update_status("Thinking...")
+
+        if self.input_widget:
+            self.input_widget.disabled = True
+
+        # Create a streaming message widget for the AI response
+        ai_message_widget = None
+        if self.chat_log_widget and self.conversation_manager:
+            ai_message_widget = ChatMessage(self.conversation_manager.character_name, "", is_user=False)
+            self.chat_log_widget.mount(ai_message_widget)
+            self.chat_log_widget.scroll_end(animate=False)
+
+        def stream_callback(chunk: str) -> None:
+            """Callback to handle streaming text chunks."""
+            if ai_message_widget:
+                self.app.call_from_thread(ai_message_widget.append_text, chunk)
+                self.app.call_from_thread(self.chat_log_widget.scroll_end, False)
+
+        try:
+            # Create event for tracking when first token arrives
+            first_token_event = threading.Event()
+
+            # Start async task to ask question with streaming callback
+            await self.conversation_manager.ask_question(message, first_token_event, stream_callback)
+
+            self.update_status("Ready")
+
+        except Exception as e:
+            logger.exception("Error processing message")
+            self.update_status(f"Error: {e!s}")
+
+        finally:
+            self.is_processing = False
+            if self.input_widget:
+                self.input_widget.disabled = False
+                self.input_widget.focus()
+
+
+async def main() -> None:
+    """Run the chat TUI application."""
+    app = ChatApp()
+    await app.run_async()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
