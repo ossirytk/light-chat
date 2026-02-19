@@ -9,6 +9,7 @@ This script provides comprehensive collection management:
 - Bulk operations
 """
 
+import fnmatch
 import json
 import logging
 import sys
@@ -106,16 +107,17 @@ def get_collection_info(client: chromadb.PersistentClient, collection_name: str)
         count = collection.count()
         metadata = collection.metadata
 
+    except ValueError:
+        return {
+            "name": collection_name,
+            "exists": False,
+        }
+    else:
         return {
             "name": collection_name,
             "count": count,
             "metadata": metadata,
             "exists": True,
-        }
-    except ValueError:
-        return {
-            "name": collection_name,
-            "exists": False,
         }
 
 
@@ -217,8 +219,6 @@ def delete_multiple(persist_directory: str | None, pattern: str | None, yes: boo
     if not pattern:
         logger.error("Must specify --pattern for bulk deletion")
         return
-
-    import fnmatch
 
     matching = [c for c in collections if fnmatch.fnmatch(c.name, pattern)]
 

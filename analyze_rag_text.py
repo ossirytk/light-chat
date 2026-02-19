@@ -11,6 +11,7 @@ import json
 import logging
 import re
 import sys
+import uuid
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
@@ -83,8 +84,8 @@ def extract_key_phrases(text: str, min_freq: int = 3) -> list[str]:
     """Extract key phrases that appear frequently in text."""
     words = re.findall(r"\b\w+\b", text.lower())
 
-    bigrams = [f"{words[i]} {words[i+1]}" for i in range(len(words) - 1)]
-    trigrams = [f"{words[i]} {words[i+1]} {words[i+2]}" for i in range(len(words) - 2)]
+    bigrams = [f"{words[i]} {words[i + 1]}" for i in range(len(words) - 1)]
+    trigrams = [f"{words[i]} {words[i + 1]} {words[i + 2]}" for i in range(len(words) - 2)]
 
     bigram_counts = Counter(bigrams)
     trigram_counts = Counter(trigrams)
@@ -97,14 +98,12 @@ def extract_key_phrases(text: str, min_freq: int = 3) -> list[str]:
 
 def generate_metadata_from_entities(entities: list[str]) -> list[dict[str, str]]:
     """Generate metadata entries from extracted entities."""
-    import uuid
-
-    metadata = []
-    for entity in entities:
-        if len(entity) >= 2 and entity.strip():
-            metadata.append({"uuid": str(uuid.uuid4()), "text": entity.strip()})
-
-    return metadata
+    min_entity_length = 2
+    return [
+        {"uuid": str(uuid.uuid4()), "text": entity.strip()}
+        for entity in entities
+        if len(entity) >= min_entity_length and entity.strip()
+    ]
 
 
 def analyze_text_file(file_path: Path, min_phrase_freq: int = 3) -> TextAnalysisResult:
@@ -256,12 +255,13 @@ def validate(metadata_path: Path) -> None:
             logger.error(f"Error: {result['error']}")
 
         if result.get("issues"):
+            max_issues_to_display = 10
             logger.error(f"Found {len(result['issues'])} issues:")
-            for issue in result["issues"][:10]:
+            for issue in result["issues"][:max_issues_to_display]:
                 logger.error(f"  - {issue}")
 
-            if len(result["issues"]) > 10:
-                logger.error(f"  ... and {len(result['issues']) - 10} more issues")
+            if len(result["issues"]) > max_issues_to_display:
+                logger.error(f"  ... and {len(result['issues']) - max_issues_to_display} more issues")
 
 
 @cli.command()

@@ -183,6 +183,22 @@ def push_to_collection(
     logger.info(f"Collection '{collection_name}' created in {toc - tic:0.4f} seconds")
 
 
+@dataclass
+class CliOptions:
+    """CLI options for push_rag_data."""
+
+    file_path: Path
+    collection_name: str
+    persist_directory: str | None
+    key_storage: str | None
+    metadata_file: Path | None
+    chunk_size: int | None
+    chunk_overlap: int | None
+    threads: int | None
+    dry_run: bool
+    overwrite: bool
+
+
 @click.command()
 @click.argument("file_path", type=click.Path(exists=True, path_type=Path))
 @click.option(
@@ -214,18 +230,7 @@ def push_to_collection(
 @click.option("--threads", "-t", default=None, type=int, help="Number of threads for processing")
 @click.option("--dry-run", "-d", is_flag=True, help="Show what would be done without making changes")
 @click.option("--overwrite", "-w", is_flag=True, help="Overwrite existing collection if it exists")
-def main(
-    file_path: Path,
-    collection_name: str,
-    persist_directory: str | None,
-    key_storage: str | None,
-    metadata_file: Path | None,
-    chunk_size: int | None,
-    chunk_overlap: int | None,
-    threads: int | None,
-    dry_run: bool,
-    overwrite: bool,
-) -> None:
+def main(**kwargs: object) -> None:
     """Push a text file to ChromaDB with metadata enrichment.
 
     This script provides enhanced features over prepare_rag.py:
@@ -238,11 +243,16 @@ def main(
     app_config = load_app_config()
     configure_logging(app_config)
 
-    persist_directory = persist_directory or app_config.get("PERSIST_DIRECTORY", "./character_storage/")
-    key_storage = key_storage or app_config.get("KEY_STORAGE", "./rag_data/")
-    threads = threads or app_config.get("THREADS", 6)
-    chunk_size = chunk_size or app_config.get("CHUNK_SIZE", 2048)
-    chunk_overlap = chunk_overlap or app_config.get("CHUNK_OVERLAP", 1024)
+    file_path = kwargs.get("file_path")
+    collection_name = kwargs.get("collection_name")
+    persist_directory = kwargs.get("persist_directory") or app_config.get("PERSIST_DIRECTORY", "./character_storage/")
+    key_storage = kwargs.get("key_storage") or app_config.get("KEY_STORAGE", "./rag_data/")
+    metadata_file = kwargs.get("metadata_file")
+    threads = kwargs.get("threads") or app_config.get("THREADS", 6)
+    chunk_size = kwargs.get("chunk_size") or app_config.get("CHUNK_SIZE", 2048)
+    chunk_overlap = kwargs.get("chunk_overlap") or app_config.get("CHUNK_OVERLAP", 1024)
+    dry_run = kwargs.get("dry_run", False)
+    overwrite = kwargs.get("overwrite", False)
 
     logger.info(f"Processing file: {file_path}")
     logger.info(f"Target collection: {collection_name}")
