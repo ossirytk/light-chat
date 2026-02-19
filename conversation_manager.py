@@ -4,6 +4,7 @@ import json
 import logging
 import threading
 from collections import deque
+from collections.abc import Callable
 from pathlib import Path
 
 import chromadb
@@ -639,6 +640,7 @@ class ConversationManager:
         conversation_chain: object,
         chain_input: object,
         first_token_event: threading.Event | None = None,
+        stream_callback: Callable[[str], None] | None = None,
     ) -> str | None:
         chunks = []
         char_name = self.character_name
@@ -653,25 +655,35 @@ class ConversationManager:
                     first_token_event.set()
                 chunks.append(chunk)
                 if prefix_done:
-                    print(chunk, flush=True, end="")  # noqa: T201
+                    if stream_callback:
+                        stream_callback(chunk)
+                    else:
+                        print(chunk, flush=True, end="")  # noqa: T201
                 elif len(chunks) >= prefix_len:
                     prefix_done = True
                     chunks_string = "".join(str(x) for x in chunks).strip()
                     if char_name in chunks_string:
-                        print(chunks_string, flush=True, end="")  # noqa: T201
+                        if stream_callback:
+                            stream_callback(chunks_string)
+                        else:
+                            print(chunks_string, flush=True, end="")  # noqa: T201
+                    elif stream_callback:
+                        stream_callback(char_prefix + chunks_string)
                     else:
                         print(char_prefix, flush=False, end="")  # noqa: T201
                         print(chunks_string, flush=True, end="")  # noqa: T201
         except (KeyboardInterrupt, asyncio.CancelledError):
             if first_token_event is not None:
                 first_token_event.set()
-            print()  # noqa: T201
+            if not stream_callback:
+                print()  # noqa: T201
             return None
         except Exception:
             # Suppress any underlying exceptions from llama_cpp during cleanup
             if first_token_event is not None:
                 first_token_event.set()
-            print()  # noqa: T201
+            if not stream_callback:
+                print()  # noqa: T201
             return None
 
         return "".join(str(x) for x in chunks)
@@ -681,7 +693,12 @@ class ConversationManager:
         self.user_message_history.append(message)
         self.ai_message_history.append(result)
 
-    async def ask_question(self, message: str, first_token_event: threading.Event | None = None) -> None:
+    async def ask_question(
+        self,
+        message: str,
+        first_token_event: threading.Event | None = None,
+        stream_callback: Callable[[str], None] | None = None,
+    ) -> None:
         """Query the model with streaming output."""
         if self.first_message and not self._greeting_in_history:
             self.user_message_history.append("")
@@ -689,7 +706,7 @@ class ConversationManager:
             self._greeting_in_history = True
         vector_context, mes_example = self._prepare_vector_context(message)
         conversation_chain, chain_input = self._build_conversation_chain(message, vector_context, mes_example)
-        answer = await self._stream_response(conversation_chain, chain_input, first_token_event)
+        answer = await self._stream_response(conversation_chain, chain_input, first_token_event, stream_callback)
         if first_token_event is not None:
             first_token_event.set()
         if answer is None:

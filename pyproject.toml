@@ -16,6 +16,7 @@ dependencies = [
     "loguru>=0.7.0",
     "nvidia-ml-py>=13.590.48",
     "sentence-transformers>=5.2.2",
+    "textual>=8.0.0",
 ]
 
 [tool.ruff]
