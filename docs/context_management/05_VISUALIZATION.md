@@ -454,8 +454,8 @@ Having issues?
 
 ```
 Python Base Load:
-├─ conversation_manager.py: ~500KB
-├─ context_manager.py: ~200KB
+├─ core/conversation_manager.py: ~500KB
+├─ core/context_manager.py: ~200KB
 └─ Other utilities: ~1MB
 Total: ~2MB
 

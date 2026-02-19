@@ -49,7 +49,7 @@ lint.select = [
     "TID","TC","INT","ARG","PTH","PD","PGH","PL","TRY","FLY",
     "NPY","PERF","FURB","RUF",
 ]
-lint.ignore = ["FBT001", "S603", "G004", "S607"]
+lint.ignore = ["FBT001", "S603", "G004", "S607", "COM812"]
 lint.unfixable = [
     "F401",
 ]

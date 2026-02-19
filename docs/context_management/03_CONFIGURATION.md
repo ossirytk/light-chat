@@ -416,7 +416,7 @@ If your chunks are actually ~200 tokens but estimate is 150, you'll retrieve few
 
 ## Advanced: Custom Allocation Ratios
 
-Edit `context_manager.py` lines ~170-180:
+Edit `core/context_manager.py` lines ~170-180:
 
 ```python
 # Current ratios (in _allocate_content method):

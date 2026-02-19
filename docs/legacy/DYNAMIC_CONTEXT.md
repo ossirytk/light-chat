@@ -265,7 +265,7 @@ Overhead is negligible compared to LLM inference time.
 
 **Problem**: RAG context seems too short/long
 
-**Solution**: Check allocation with `DEBUG_CONTEXT: true` and adjust history/example ratios in `context_manager.py` allocation percentages (lines ~170-180).
+**Solution**: Check allocation with `DEBUG_CONTEXT: true` and adjust history/example ratios in `core/context_manager.py` allocation percentages (lines ~170-180).
 
 ### Token counting seems wrong
 

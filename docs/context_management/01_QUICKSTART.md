@@ -216,8 +216,8 @@ Leverage the full model capability.
 
 | File | Purpose |
 |------|---------|
-| `context_manager.py` | Core dynamic allocation logic |
-| `conversation_manager.py` | Integration with chatbot |
+| `core/context_manager.py` | Core dynamic allocation logic |
+| `core/conversation_manager.py` | Integration with chatbot |
 | `configs/appconf.json` | Configuration settings |
 | `docs/context_management/` | All documentation |
 

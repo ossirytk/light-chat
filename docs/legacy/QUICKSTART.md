@@ -267,8 +267,8 @@ Then set manually:
 
 | File | Purpose |
 |------|---------|
-| `context_manager.py` | Core dynamic allocation engine |
-| `conversation_manager.py` | Integration with chatbot |
+| `core/context_manager.py` | Core dynamic allocation engine |
+| `core/conversation_manager.py` | Integration with chatbot |
 | `DYNAMIC_CONTEXT.md` | Complete documentation |
 | `CONTEXT_VISUALIZATION.md` | Visual explanations |
 | `IMPLEMENTATION.md` | Technical details |

@@ -93,13 +93,13 @@ When enabled:
 ## Key Files Changed
 
 ```
-conversation_manager.py
+core/conversation_manager.py
   ├─ Fixed: Mistral prompt no longer repeats vector context
   ├─ Added: Dynamic context disabled by default
   ├─ Added: Safety checks and budget thresholds
   └─ Added: First-turn exclusion to avoid bloat
 
-context_manager.py
+core/context_manager.py
   ├─ ContextManager: Main orchestration
   ├─ Token counters: Approximate and Exact
   ├─ Allocation logic: Budget → Tokens
@@ -172,7 +172,7 @@ Output
 - **Quick Questions**: See 01_QUICKSTART.md
 - **Common Issues**: See 06_TROUBLESHOOTING.md
 - **Technical Details**: See 07_IMPLEMENTATION.md
-- **Code Comments**: See context_manager.py and conversation_manager.py
+- **Code Comments**: See core/context_manager.py and core/conversation_manager.py
 
 ## Future Enhancements
 

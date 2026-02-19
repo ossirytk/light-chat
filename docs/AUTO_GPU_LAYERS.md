@@ -129,7 +129,7 @@ With large context windows (32K+), KV cache quantization is highly recommended:
 Run the test script to see automatic detection in action:
 
 ```bash
-uv run python test_gpu_auto.py
+uv run python tests/test_gpu_auto.py
 ```
 
 Example output (Mistral 7B Q4_K_M with 32K context on 8GB GPU):
@@ -183,10 +183,10 @@ If you want maximum performance, rebuild `llama-cpp-python` with Flash Attention
 ```fish
 # Using Python script (more robust)
 . .venv/bin/activate.fish
-uv run python build_flash_attention.py
+uv run python scripts/build_flash_attention.py
 
 # Or using bash script (from fish)
-bash build_flash_attention.sh
+bash scripts/build_flash_attention.sh
 ```
 
 #### Option 2: Manual Build with uv

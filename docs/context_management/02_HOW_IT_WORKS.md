@@ -377,7 +377,7 @@ ConversationManager.ask_question()
 
 ## Integration Points
 
-### In conversation_manager.py
+### In core/conversation_manager.py
 
 **Initialization:**
 ```python

@@ -9,7 +9,7 @@ from pathlib import Path
 
 from loguru import logger
 
-from conversation_manager import ConversationManager
+from core.conversation_manager import ConversationManager
 
 
 def load_app_config() -> dict:

@@ -2,7 +2,7 @@
 
 ## What Was Added
 
-### 1. New Module: `context_manager.py`
+### 1. New Module: `core/context_manager.py`
 A comprehensive context management system with:
 
 - **ApproximateTokenCounter**: Fast, character-based token estimation (~1 token per 4 chars)
@@ -18,7 +18,7 @@ A comprehensive context management system with:
 - Respects maximum history turns to prevent overwhelming the model
 - Provides debugging output for visibility into allocation decisions
 
-### 2. Updated: `conversation_manager.py`
+### 2. Updated: `core/conversation_manager.py`
 Integration points:
 
 - **`_initialize_context_manager()`**: Creates ContextManager instance with detected context size
@@ -161,8 +161,8 @@ Adjust for your use case:
 ## Files Modified/Created
 
 ```
-✅ Created: context_manager.py          (450+ lines)
-✅ Updated: conversation_manager.py     (25+ changes)
+✅ Created: core/context_manager.py     (450+ lines)
+✅ Updated: core/conversation_manager.py (25+ changes)
 ✅ Updated: configs/appconf.json        (+5 new settings)
 ✅ Created: DYNAMIC_CONTEXT.md          (Comprehensive guide)
 ```

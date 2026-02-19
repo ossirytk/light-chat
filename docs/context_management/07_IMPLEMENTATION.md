@@ -6,11 +6,14 @@ Complete technical reference for the Dynamic Context Management System.
 
 ```
 light-chat/
-├── context_manager.py           # Core implementation
-├── conversation_manager.py       # Integration point
+├── core/
+│   ├── context_manager.py        # Core implementation
+│   ├── conversation_manager.py   # Integration point
+│   ├── collection_helper.py      # Vector DB utilities
+│   └── gpu_utils.py
 ├── main.py                       # CLI interface
-├── prepare_rag.py               # Data pipeline
-├── collection_helper.py         # Vector DB utilities
+├── scripts/
+│   └── old_prepare_rag.py        # Data pipeline
 ├── docs/
 │   └── context_management/
 │       ├── 00_README.md         # Overview
@@ -31,7 +34,7 @@ light-chat/
 
 ### ContextManager Class
 
-**Location:** `context_manager.py`
+**Location:** `core/context_manager.py`
 
 ```python
 class ContextManager:
@@ -63,7 +66,7 @@ class ContextManager:
 
 ### ApproximateTokenCounter Class
 
-**Location:** `context_manager.py`
+**Location:** `core/context_manager.py`
 
 ```python
 class ApproximateTokenCounter:
@@ -90,7 +93,7 @@ class ApproximateTokenCounter:
 
 #### ConversationManager
 
-**Location:** `conversation_manager.py`
+**Location:** `core/conversation_manager.py`
 
 ```python
 def ask_question(self, question: str) -> str:

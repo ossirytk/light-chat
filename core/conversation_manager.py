@@ -16,9 +16,9 @@ from langchain_core.prompts import BasePromptTemplate, load_prompt
 from langchain_huggingface import HuggingFaceEmbeddings
 from loguru import logger
 
-from collection_helper import build_where_filters, extract_key_matches, normalize_keyfile
-from context_manager import ApproximateTokenCounter, ContextManager
-from gpu_utils import get_n_gpu_layers
+from core.collection_helper import build_where_filters, extract_key_matches, normalize_keyfile
+from core.context_manager import ApproximateTokenCounter, ContextManager
+from core.gpu_utils import get_n_gpu_layers
 
 
 class UnknownModelTypeError(Exception):

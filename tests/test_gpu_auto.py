@@ -3,7 +3,7 @@
 
 from pathlib import Path
 
-from gpu_utils import calculate_optimal_layers, get_gpu_memory_info
+from core.gpu_utils import calculate_optimal_layers, get_gpu_memory_info
 
 # Test GPU detection
 print("=" * 60)  # noqa: T201

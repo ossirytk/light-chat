@@ -25,36 +25,36 @@ pip install -r requirements.txt
 
 ### Basic Usage
 
-1. **Prepare RAG data** (batch processing):
+1. **Prepare RAG data** (legacy batch processing):
 ```bash
-python prepare_rag.py
+uv run python scripts/old_prepare_rag.py
 ```
 
 2. **Analyze text and extract metadata**:
 ```bash
-python analyze_rag_text.py analyze rag_data/shodan.txt -v
+uv run python scripts/analyze_rag_text.py analyze rag_data/shodan.txt -v
 ```
 
 3. **Push single file to ChromaDB**:
 ```bash
-python push_rag_data.py rag_data/shodan.txt -c shodan
+uv run python scripts/push_rag_data.py rag_data/shodan.txt -c shodan
 ```
 
 4. **Manage collections**:
 ```bash
 # List all collections
-python manage_collections.py list-collections -v
+uv run python scripts/manage_collections.py list-collections -v
 
 # Test a collection
-python manage_collections.py test shodan -q "SHODAN artificial intelligence"
+uv run python scripts/manage_collections.py test shodan -q "SHODAN artificial intelligence"
 
 # Delete a collection
-python manage_collections.py delete old_collection
+uv run python scripts/manage_collections.py delete old_collection
 ```
 
 ## RAG Scripts
 
-### 1. analyze_rag_text.py
+### 1. scripts/analyze_rag_text.py
 
 Analyze text files to extract metadata and topics:
 
@@ -66,7 +66,7 @@ Analyze text files to extract metadata and topics:
 
 **Commands**: `analyze`, `validate`, `scan`
 
-### 2. push_rag_data.py
+### 2. scripts/push_rag_data.py
 
 Push individual text files to ChromaDB with enhanced features:
 
@@ -76,7 +76,7 @@ Push individual text files to ChromaDB with enhanced features:
 - Custom metadata file selection
 - Detailed progress tracking
 
-### 3. manage_collections.py
+### 3. scripts/manage_collections.py
 
 Comprehensive collection management:
 
@@ -86,7 +86,7 @@ Comprehensive collection management:
 - Export collection data to JSON
 - Show detailed collection information
 
-### 4. prepare_rag.py
+### 4. scripts/old_prepare_rag.py
 
 Original batch processing script:
 
@@ -95,7 +95,7 @@ Original batch processing script:
 - Parallel metadata enrichment
 - Automatic collection naming
 
-### 5. collection_helper.py
+### 5. core/collection_helper.py
 
 Original collection helper:
 
@@ -126,13 +126,17 @@ light-chat/
 ├── character_storage/     # ChromaDB persistent storage
 ├── docs/                  # Documentation
 │   └── RAG_SCRIPTS_GUIDE.md
-├── analyze_rag_text.py    # Text analysis and metadata extraction
-├── push_rag_data.py       # Single file upload to ChromaDB
-├── manage_collections.py  # Collection management
-├── prepare_rag.py         # Batch processing script
-├── collection_helper.py   # Original collection helper
-├── context_manager.py     # Runtime RAG retrieval
-├── conversation_manager.py # Conversation handling
+├── scripts/
+│   ├── analyze_rag_text.py    # Text analysis and metadata extraction
+│   ├── push_rag_data.py       # Single file upload to ChromaDB
+│   ├── manage_collections.py  # Collection management
+│   └── old_prepare_rag.py     # Legacy batch processing script
+├── core/
+│   ├── collection_helper.py   # Original collection helper
+│   ├── context_manager.py     # Runtime RAG retrieval
+│   ├── conversation_manager.py # Conversation handling
+│   └── gpu_utils.py           # GPU helpers
+├── tests/                     # Script tests
 └── main.py                # Main application
 ```
 
@@ -175,39 +179,39 @@ Supported text field names: `text`, `content`, `value`, `text_field`, `text_fiel
 
 ```bash
 # 1. Analyze and extract metadata
-python analyze_rag_text.py analyze new_character.txt -o new_character.json
+uv run python scripts/analyze_rag_text.py analyze new_character.txt -o new_character.json
 
 # 2. Validate metadata
-python analyze_rag_text.py validate new_character.json
+uv run python scripts/analyze_rag_text.py validate new_character.json
 
 # 3. Push to ChromaDB
-python push_rag_data.py new_character.txt -c new_character
+uv run python scripts/push_rag_data.py new_character.txt -c new_character
 
 # 4. Test the collection
-python manage_collections.py test new_character -q "test query"
+uv run python scripts/manage_collections.py test new_character -q "test query"
 ```
 
 ### Updating Existing Collection
 
 ```bash
 # 1. Backup
-python manage_collections.py export shodan -o shodan_backup.json
+uv run python scripts/manage_collections.py export shodan -o shodan_backup.json
 
 # 2. Update with overwrite
-python push_rag_data.py rag_data/shodan.txt -c shodan -w
+uv run python scripts/push_rag_data.py rag_data/shodan.txt -c shodan -w
 
 # 3. Test
-python manage_collections.py test shodan -q "verification query"
+uv run python scripts/manage_collections.py test shodan -q "verification query"
 ```
 
 ### Batch Processing
 
 ```bash
 # Scan and auto-generate missing metadata
-python analyze_rag_text.py scan rag_data/ --auto-generate
+uv run python scripts/analyze_rag_text.py scan rag_data/ --auto-generate
 
 # Process all files
-python prepare_rag.py
+uv run python scripts/old_prepare_rag.py
 ```
 
 ## Advanced Features
@@ -217,7 +221,7 @@ python prepare_rag.py
 Test configuration without making changes:
 
 ```bash
-python push_rag_data.py file.txt -c collection -d
+uv run python scripts/push_rag_data.py file.txt -c collection -d
 ```
 
 ### Custom Chunk Sizes
@@ -225,7 +229,7 @@ python push_rag_data.py file.txt -c collection -d
 Optimize for your use case:
 
 ```bash
-python push_rag_data.py file.txt -c collection -cs 1024 -co 512
+uv run python scripts/push_rag_data.py file.txt -c collection -cs 1024 -co 512
 ```
 
 ### Metadata Filtering
@@ -233,7 +237,7 @@ python push_rag_data.py file.txt -c collection -cs 1024 -co 512
 Search with metadata filters:
 
 ```bash
-python manage_collections.py test collection -q "query with metadata"
+uv run python scripts/manage_collections.py test collection -q "query with metadata"
 ```
 
 ### Bulk Operations
@@ -241,7 +245,7 @@ python manage_collections.py test collection -q "query with metadata"
 Delete multiple collections:
 
 ```bash
-python manage_collections.py delete-multiple --pattern "test_*" -y
+uv run python scripts/manage_collections.py delete-multiple --pattern "test_*" -y
 ```
 
 ## Dependencies
@@ -260,16 +264,16 @@ python manage_collections.py delete-multiple --pattern "test_*" -y
 
 ```bash
 # Test scripts with sample data
-python analyze_rag_text.py analyze rag_data/shodan.txt -v
-python manage_collections.py list-collections -v
+uv run python scripts/analyze_rag_text.py analyze rag_data/shodan.txt -v
+uv run python scripts/manage_collections.py list-collections -v
 ```
 
 ### Linting
 
 ```bash
 # Using ruff
-ruff check .
-ruff format .
+uv run ruff check .
+uv run ruff format .
 ```
 
 ## Troubleshooting
@@ -278,14 +282,14 @@ ruff format .
 - Set `SHOW_LOGS: true` in `configs/appconf.json`
 
 **Collection already exists?**
-- Use `--overwrite` flag or delete first: `python manage_collections.py delete <name> -y`
+- Use `--overwrite` flag or delete first: `uv run python scripts/manage_collections.py delete <name> -y`
 
 **Out of memory?**
 - Reduce chunk size: `--chunk-size 1024`
 - Reduce threads: `--threads 2`
 
 **Metadata not applied?**
-- Validate: `python analyze_rag_text.py validate <file.json>`
+- Validate: `uv run python scripts/analyze_rag_text.py validate <file.json>`
 - Check filename matches (e.g., `shodan.txt` → `shodan.json`)
 
 ## Contributing

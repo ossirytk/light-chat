@@ -13,7 +13,7 @@ def run_command(cmd: str, description: str = "") -> bool:
         print(f"\n{description}")  # noqa: T201
     print(f"$ {cmd}")  # noqa: T201
     try:
-        result = subprocess.run(shlex.split(cmd), check=False)  # noqa: S603
+        result = subprocess.run(shlex.split(cmd), check=False)
     except Exception as e:
         print(f"Error: {e}")  # noqa: T201
         return False
