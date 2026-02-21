@@ -3,7 +3,10 @@
 import unittest
 from pathlib import Path
 
+import requests
+
 from scripts.analyze_rag_text import analyze_text_file, validate_metadata_file
+from scripts.fetch_character_context import clean_text, fetch_webpage_text, validate_url
 from scripts.manage_collections import extract_key_matches, normalize_keyfile
 from scripts.push_rag_data import enrich_documents_with_metadata, load_and_chunk_text_file
 
@@ -50,3 +53,43 @@ class TestRagScripts(unittest.TestCase):
         keys = [{"uuid": "1", "text": "SHODAN"}, {"uuid": "2", "text": "Von Braun"}]
         matches = extract_key_matches(keys, "SHODAN was the AI")
         self.assertTrue(matches)
+
+    def test_clean_text(self) -> None:
+        """Validate that clean_text removes citation markers and unusual characters."""
+        raw = "Leonardo da Vinci[1] was a polymath.[2]\n\nHe lived in Italy.[note 3]\n"
+        result = clean_text(raw)
+        self.assertNotIn("[1]", result)
+        self.assertNotIn("[2]", result)
+        self.assertNotIn("[note 3]", result)
+        self.assertIn("Leonardo da Vinci", result)
+        self.assertIn("polymath", result)
+
+    def test_clean_text_removes_unusual_unicode(self) -> None:
+        """Validate that clean_text strips control characters and keeps readable text."""
+        raw = "Hello\x00World\x01\x02\x1f normal text"
+        result = clean_text(raw)
+        self.assertNotIn("\x00", result)
+        self.assertIn("normal text", result)
+
+    def test_clean_text_normalizes_whitespace(self) -> None:
+        """Validate that clean_text collapses extra spaces and removes blank lines."""
+        raw = "Line one   with  spaces\n\n\n  \n\nLine two"
+        result = clean_text(raw)
+        self.assertNotIn("  ", result)
+        lines = result.splitlines()
+        self.assertFalse(any(ln.strip() == "" for ln in lines))
+
+    def test_fetch_webpage_text_bad_url(self) -> None:
+        """Validate that fetch_webpage_text raises an error for invalid or unreachable URLs."""
+        with self.assertRaises((requests.exceptions.RequestException, OSError, ValueError)):
+            fetch_webpage_text("http://localhost:19999/nonexistent", timeout=2)
+
+    def test_validate_url_rejects_non_http_scheme(self) -> None:
+        """Validate that non-http/https schemes are rejected."""
+        with self.assertRaises(ValueError):
+            validate_url("ftp://example.com/file.txt")
+
+    def test_validate_url_rejects_private_ip(self) -> None:
+        """Validate that URLs resolving to private addresses are rejected."""
+        with self.assertRaises(ValueError):
+            validate_url("http://192.168.1.1/")

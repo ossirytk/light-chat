@@ -6,7 +6,9 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "asyncio>=4.0.0",
+    "beautifulsoup4>=4.12.0",
     "chromadb>=1.4.1",
+    "click>=8.0.0",
     "icecream>=2.1.7",
     "langchain>=0.3.27",
     "langchain-chroma>=1.1.0",
@@ -15,6 +17,7 @@ dependencies = [
     "llama-cpp-python>=0.3.16",
     "loguru>=0.7.0",
     "nvidia-ml-py>=13.590.48",
+    "requests>=2.31.0",
     "sentence-transformers>=5.2.2",
     "textual>=8.0.0",
 ]
