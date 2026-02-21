@@ -7,16 +7,20 @@ in a RAG (Retrieval Augmented Generation) pipeline.
 Cleaning steps applied:
 - Extract main body text using BeautifulSoup (strips HTML tags/scripts/styles)
 - Remove citation/reference markers such as [1], [2], [note 1], etc.
-- Remove non-ASCII and unusual Unicode characters that hinder embeddings
+- Remove control and other non-textual Unicode characters while preserving
+  letters, digits, and punctuation from all languages
 - Normalise whitespace and remove blank lines
 """
 
+import ipaddress
 import json
 import logging
 import re
+import socket
 import sys
 import unicodedata
 from pathlib import Path
+from urllib.parse import urlparse
 
 import click
 import requests
@@ -46,6 +50,33 @@ def configure_logging(app_config: dict) -> None:
 
 MAX_CITATION_MARKER_LENGTH = 30
 
+_ALLOWED_SCHEMES = {"http", "https"}
+
+
+def validate_url(url: str) -> None:
+    """Validate that a URL is safe to fetch.
+
+    Raises ValueError if:
+    - The scheme is not http or https.
+    - The hostname resolves to a private, loopback, link-local, or reserved address.
+    """
+    parsed = urlparse(url)
+    if parsed.scheme not in _ALLOWED_SCHEMES:
+        msg = f"Only http/https URLs are supported, got: {parsed.scheme!r}"
+        raise ValueError(msg)
+    hostname = parsed.hostname
+    if not hostname:
+        msg = "URL must contain a valid hostname"
+        raise ValueError(msg)
+    try:
+        resolved_ip = ipaddress.ip_address(socket.gethostbyname(hostname))
+    except socket.gaierror as exc:
+        msg = f"Could not resolve hostname: {hostname}"
+        raise ValueError(msg) from exc
+    if resolved_ip.is_private or resolved_ip.is_loopback or resolved_ip.is_link_local or resolved_ip.is_reserved:
+        msg = f"Fetching from private or internal network addresses is not allowed: {resolved_ip}"
+        raise ValueError(msg)
+
 
 def fetch_webpage_text(url: str, timeout: int = 30) -> str:
     """Fetch a web page and return its visible text content.
@@ -53,6 +84,7 @@ def fetch_webpage_text(url: str, timeout: int = 30) -> str:
     Removes script, style, and navigation elements before extracting text.
     """
     logger.info(f"Fetching URL: {url}")
+    validate_url(url)
     headers = {
         "User-Agent": (
             "Mozilla/5.0 (compatible; light-chat-rag/1.0; "
@@ -87,7 +119,7 @@ def clean_text(raw_text: str) -> str:
     allowed_categories = {
         "Lu", "Ll", "Lt", "Lm", "Lo",
         "Nd", "Nl", "No",
-        "Pd", "Pe", "Pf", "Pi", "Po", "Ps",
+        "Pc", "Pd", "Pe", "Pf", "Pi", "Po", "Ps",
         "Sm", "Sc",
         "Zs",
     }

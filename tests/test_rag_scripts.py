@@ -6,7 +6,7 @@ from pathlib import Path
 import requests
 
 from scripts.analyze_rag_text import analyze_text_file, validate_metadata_file
-from scripts.fetch_character_context import clean_text, fetch_webpage_text
+from scripts.fetch_character_context import clean_text, fetch_webpage_text, validate_url
 from scripts.manage_collections import extract_key_matches, normalize_keyfile
 from scripts.push_rag_data import enrich_documents_with_metadata, load_and_chunk_text_file
 
@@ -80,6 +80,16 @@ class TestRagScripts(unittest.TestCase):
         self.assertFalse(any(ln.strip() == "" for ln in lines))
 
     def test_fetch_webpage_text_bad_url(self) -> None:
-        """Validate that fetch_webpage_text raises an error for unreachable URLs."""
-        with self.assertRaises((requests.exceptions.RequestException, OSError)):
+        """Validate that fetch_webpage_text raises an error for invalid or unreachable URLs."""
+        with self.assertRaises((requests.exceptions.RequestException, OSError, ValueError)):
             fetch_webpage_text("http://localhost:19999/nonexistent", timeout=2)
+
+    def test_validate_url_rejects_non_http_scheme(self) -> None:
+        """Validate that non-http/https schemes are rejected."""
+        with self.assertRaises(ValueError):
+            validate_url("ftp://example.com/file.txt")
+
+    def test_validate_url_rejects_private_ip(self) -> None:
+        """Validate that URLs resolving to private addresses are rejected."""
+        with self.assertRaises(ValueError):
+            validate_url("http://192.168.1.1/")
