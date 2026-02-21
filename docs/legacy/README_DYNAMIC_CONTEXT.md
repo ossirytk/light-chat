@@ -15,7 +15,7 @@ A complete dynamic context management system has been implemented for your chara
 
 ## What Was Added
 
-### 1. Core Module: `context_manager.py` (450+ lines)
+### 1. Core Module: `core/context_manager.py` (450+ lines)
 
 **Classes:**
 - `ApproximateTokenCounter`: Fast character-based token estimation
@@ -28,7 +28,7 @@ A complete dynamic context management system has been implemented for your chara
 - `allocate_content()`: Dynamically distribute tokens across components
 - `get_context_info()`: Human-readable allocation summary
 
-### 2. Integrated: `conversation_manager.py`
+### 2. Integrated: `core/conversation_manager.py`
 
 **New Methods:**
 - `_initialize_context_manager()`: Detects model context window
@@ -215,7 +215,7 @@ Total overhead is **less than 1 second for typical workflows**, vastly outweighe
 
 ```
 ✅ Created:
-   ├─ context_manager.py (new module, 450+ lines)
+   ├─ core/context_manager.py (new module, 450+ lines)
    ├─ QUICKSTART.md (quick reference)
    ├─ DYNAMIC_CONTEXT.md (complete guide)
    ├─ CONTEXT_VISUALIZATION.md (visual explanations)
@@ -223,7 +223,7 @@ Total overhead is **less than 1 second for typical workflows**, vastly outweighe
    └─ IMPLEMENTATION.md (technical details)
 
 ✅ Modified:
-   ├─ conversation_manager.py (25+ changes)
+   ├─ core/conversation_manager.py (25+ changes)
    └─ configs/appconf.json (+5 new settings)
 ```
 
@@ -415,9 +415,9 @@ Turn 15:
 
 ### Module Dependencies
 ```
-conversation_manager.py
+core/conversation_manager.py
     ↓ imports
-context_manager.py
+core/context_manager.py
     ├─ ApproximateTokenCounter (default)
     └─ ExactTokenCounter (optional)
 ```
@@ -457,7 +457,7 @@ context_manager.py
 ### Custom Token Counter
 ```python
 from transformers import AutoTokenizer
-from context_manager import ExactTokenCounter
+from core.context_manager import ExactTokenCounter
 
 tokenizer = AutoTokenizer.from_pretrained("model-name")
 counter = ExactTokenCounter(tokenizer)
@@ -470,7 +470,7 @@ self.context_manager = ContextManager(
 ```
 
 ### Adjust Allocation Percentages
-Edit `context_manager.py` lines ~170-180:
+Edit `core/context_manager.py` lines ~170-180:
 ```python
 # Current ratios:
 history_budget = remaining_budget * 0.30    # 30%
@@ -578,7 +578,7 @@ Potential improvements for future versions:
 **For Questions:**
 - Check relevant documentation first
 - Enable `DEBUG_CONTEXT` to see allocation details
-- Review `context_manager.py` code comments
+- Review `core/context_manager.py` code comments
 - Test different configurations
 
 ---

@@ -11,12 +11,12 @@ For your `uv`-based project, rebuilding `llama-cpp-python` with Flash Attention 
 . .venv/bin/activate.fish
 
 # Run the build script
-uv run python build_flash_attention.py
+uv run python scripts/build_flash_attention.py
 ```
 
 Or with bash:
 ```fish
-bash build_flash_attention.sh
+bash scripts/build_flash_attention.sh
 ```
 
 Both scripts will:
@@ -167,7 +167,7 @@ uv run python -c "from llama_cpp import Llama; print('✓')"
 uv run python main.py
 
 # Check auto-layer detection works
-uv run python test_gpu_auto.py
+uv run python tests/test_gpu_auto.py
 ```
 
 ## After Building

@@ -19,7 +19,7 @@ Vector context retrieved for first turn (fixed in latest version).
 git pull  # if using git
 ```
 
-Check `conversation_manager.py` - should have "First turn exclusion" logic:
+Check `core/conversation_manager.py` - should have "First turn exclusion" logic:
 ```python
 if self.use_dynamic_context and not is_first_turn:
     # Only applies turn 2+
@@ -423,10 +423,10 @@ This is **expected behavior**. The counter estimates conservatively to prevent o
 
 **If you want exact counts:**
 
-Use exact tokenizer (see `context_manager.py`):
+Use exact tokenizer (see `core/context_manager.py`):
 ```python
 from transformers import AutoTokenizer
-from context_manager import ExactTokenCounter
+from core.context_manager import ExactTokenCounter
 
 tokenizer = AutoTokenizer.from_pretrained("model-name")
 counter = ExactTokenCounter(tokenizer)

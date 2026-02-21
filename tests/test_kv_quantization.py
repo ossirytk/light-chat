@@ -4,7 +4,7 @@
 import sys
 from pathlib import Path
 
-from gpu_utils import (
+from core.gpu_utils import (
     calculate_kv_cache_memory_saved,
     estimate_layers_with_kv_quantization,
     estimate_model_params,

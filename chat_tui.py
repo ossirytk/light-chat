@@ -17,7 +17,7 @@ from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.widgets import Footer, Header, Input, Static
 
-from conversation_manager import ConversationManager
+from core.conversation_manager import ConversationManager
 
 # Constants
 DESCRIPTION_PREVIEW_LENGTH = 200
