@@ -37,7 +37,7 @@ The prompt template (`configs/conversation_template.json`) assembles the followi
 - Character description, scenario, and message examples always appear in full, even when context window is tight.
 - Vector context is injected as a single block without any indication of which part is most relevant to the current query.
 - The model is not explicitly told to avoid repeating retrieved context verbatim.
-- Stop conditions rely on `llama_endtoken` but do not explicitly prevent the model from generating User turns.
+- For llama-based configurations, stop conditions rely on `llama_endtoken` and may not explicitly prevent the model from generating `User:` turns; for the current default `mistral` configuration, explicit stop sequences such as `\nUser:` / `User:` are used, and this behaviour should be kept in sync with any future model-type changes.
 
 ### Improvement Plans
 
@@ -338,14 +338,14 @@ Create a small suite of predefined test conversations (10–20 turns) with human
 
 The following configuration changes in `appconf.json` and `modelconf.json` are recommended as immediate, low-risk improvements:
 
-| Setting | Current Default | Recommended | Reason |
-|---------|----------------|-------------|--------|
+| Setting | Shipped Default (`appconf.json`) | Recommended | Reason |
+|---------|----------------------------------|-------------|--------|
 | `MAX_HISTORY_TURNS` | 8 | 10 | More history depth |
 | `MIN_HISTORY_TURNS` | 1 | 2 | Avoid context loss |
-| `USE_DYNAMIC_CONTEXT` | true | true | Keep enabled |
+| `USE_DYNAMIC_CONTEXT` | false | true | Enable dynamic allocation |
 | `RESERVED_FOR_RESPONSE` | 256 | 384 | More room for generation |
 | `normalize_embeddings` | false | true | Better RAG accuracy |
-| `RAG_K` | 7 | 5 | Fewer, higher-quality chunks |
+| `RAG_K` | 2 | 5 | More candidate chunks |
 
 ---
 

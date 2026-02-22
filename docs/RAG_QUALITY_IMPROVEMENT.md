@@ -71,13 +71,13 @@ The system uses `HuggingFaceEmbeddings` with the default model (`all-MiniLM-L6-v
 
 - General-purpose models may not perform optimally for character dialogue or game lore domains.
 - 384 dimensions may limit nuanced similarity matching for long, complex character descriptions.
-- Embeddings are not normalised by default (`normalize_embeddings: False`), which can affect cosine similarity accuracy.
+- Embeddings are not normalised by default (`normalize_embeddings: False`), which can make L2 distance less aligned with the true semantic similarity between texts.
 
 ### Improvement Plans
 
 #### 2.1 Enable Embedding Normalisation
 
-Set `normalize_embeddings: True` in `encode_kwargs`. Normalised embeddings produce more consistent cosine similarity scores, which is what ChromaDB uses internally.
+Set `normalize_embeddings: True` in `encode_kwargs`. When embeddings are normalised to unit length, L2 distance becomes closely related to cosine similarity (because all vectors lie on the unit hypersphere), which improves the consistency of similarity scoring with the Chroma collections configured with `collection_metadata={"hnsw:space": "l2"}`.
 
 #### 2.2 Upgrade to a Larger Embedding Model
 
@@ -190,13 +190,13 @@ context_query = f"{recent_history_summary} {user_message}"
 
 ### Current State
 
-Retrieved chunks are returned in cosine similarity order as computed by ChromaDB. No re-ranking is applied.
+Retrieved chunks are returned in vector distance/similarity order as configured in ChromaDB (currently L2). No re-ranking is applied.
 
 ### Problems
 
-- Cosine similarity measures semantic relatedness but not answer quality or specificity.
+- Embedding-space distance/similarity measures semantic relatedness but not answer quality or specificity.
 - The top-k chunks may include repetitive or tangentially related content.
-- ChromaDB similarity scores are not calibrated — a score of 0.8 does not mean the same thing across different queries.
+- ChromaDB retrieval scores (e.g., L2 distances) are not calibrated — a distance of 0.8 does not mean the same thing across different queries.
 
 ### Improvement Plans
 
@@ -216,13 +216,13 @@ LangChain supports this via `CrossEncoderReranker` with `FlashrankRerank` or `Co
 
 #### 5.2 Score Thresholding
 
-Filter out chunks below a minimum relevance score. If the best match has a score below a threshold (e.g., 0.4 for normalised embeddings), return no context rather than irrelevant context:
+Filter out chunks above a maximum L2 distance threshold (lower L2 distance = more similar). If the best match has a distance above a threshold (e.g., 1.0 for normalised embeddings), return no context rather than irrelevant context:
 
 ```python
-docs = [(doc, score) for doc, score in docs if score >= MIN_SCORE_THRESHOLD]
+docs = [(doc, score) for doc, score in docs if score <= MAX_DISTANCE_THRESHOLD]
 ```
 
-This prevents low-quality context from being injected into the prompt.
+This prevents low-quality context from being injected into the prompt. Note that with the current `hnsw:space: l2` collection configuration, lower scores indicate higher similarity.
 
 #### 5.3 Maximal Marginal Relevance (MMR)
 
