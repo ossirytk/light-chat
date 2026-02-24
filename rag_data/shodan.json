@@ -100,9 +100,6 @@
     {
         "uuid": "6056da83-14d6-4d87-985c-182f39ad3a6d",
         "text": "2059",
-        "aliases": [
-            "2059"
-        ],
         "category": "date"
     },
     {
@@ -266,12 +263,6 @@
     {
         "uuid": "691409b0-df48-4343-b012-08fa4842609b",
         "text": "Prefontaine",
-        "category": "character"
-    },
-    {
-        "uuid": "17c83efa-9019-4641-9ebd-540b94f06ecc",
-        "text": "Rebecca Lansing",
-        "aliases": [],
         "category": "character"
     },
     {
@@ -596,11 +587,6 @@
     {
         "uuid": "4e971b61-d08b-4d39-af9e-f05b6cc93b54",
         "text": "Computer nodes",
-        "category": "technology"
-    },
-    {
-        "uuid": "358cc601-b87d-42bb-8c7c-ada2a85b65f3",
-        "text": "Neural interface",
         "category": "technology"
     },
     {

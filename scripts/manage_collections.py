@@ -23,6 +23,8 @@ from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from loguru import logger
 
+from core.collection_helper import extract_key_matches
+
 
 def load_app_config() -> dict:
     config_path = Path("./configs/") / "appconf.json"
@@ -58,44 +60,6 @@ def normalize_keyfile(raw_keys: object) -> list[dict[str, object]]:
     if not isinstance(raw_keys, list):
         return []
     return [item for item in raw_keys if isinstance(item, dict)]
-
-
-def _get_entry_value(item: dict[str, object]) -> str | None:
-    text_keys = ("text", "text_fields", "text_field", "content", "value")
-    for key in text_keys:
-        candidate = item.get(key)
-        if isinstance(candidate, str):
-            return candidate
-    for key, candidate in item.items():
-        if key in ("uuid", "aliases", "category"):
-            continue
-        if isinstance(candidate, str):
-            return candidate
-    return None
-
-
-def _matches_aliases(item: dict[str, object], text_lower: str) -> bool:
-    aliases = item.get("aliases")
-    if not isinstance(aliases, list):
-        return False
-    return any(isinstance(a, str) and a.lower() in text_lower for a in aliases)
-
-
-def extract_key_matches(keys: list[dict[str, object]], text: str) -> list[dict[str, str]]:
-    if not text:
-        return []
-    text_lower = text.lower()
-    matches: list[dict[str, str]] = []
-    for item in keys:
-        uuid = item.get("uuid")
-        if not isinstance(uuid, str):
-            continue
-        value = _get_entry_value(item)
-        if not isinstance(value, str):
-            continue
-        if value.lower() in text_lower or _matches_aliases(item, text_lower):
-            matches.append({uuid: value})
-    return matches
 
 
 def build_where_filters(matches: list[dict[str, str]]) -> list[dict[str, object]]:
