@@ -23,6 +23,8 @@ from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from loguru import logger
 
+from core.collection_helper import extract_key_matches
+
 
 def load_app_config() -> dict:
     config_path = Path("./configs/") / "appconf.json"
@@ -58,38 +60,6 @@ def normalize_keyfile(raw_keys: object) -> list[dict[str, object]]:
     if not isinstance(raw_keys, list):
         return []
     return [item for item in raw_keys if isinstance(item, dict)]
-
-
-def extract_key_matches(keys: list[dict[str, object]], text: str) -> list[dict[str, str]]:
-    if not text:
-        return []
-    text_lower = text.lower()
-    matches: list[dict[str, str]] = []
-    text_keys = ("text", "text_fields", "text_field", "content", "value")
-    for item in keys:
-        uuid = item.get("uuid")
-        if not isinstance(uuid, str):
-            continue
-
-        value = None
-        for key in text_keys:
-            candidate = item.get(key)
-            if isinstance(candidate, str):
-                value = candidate
-                break
-        if value is None:
-            for key, candidate in item.items():
-                if key == "uuid":
-                    continue
-                if isinstance(candidate, str):
-                    value = candidate
-                    break
-
-        if not isinstance(value, str):
-            continue
-        if value.lower() in text_lower:
-            matches.append({uuid: value})
-    return matches
 
 
 def build_where_filters(matches: list[dict[str, str]]) -> list[dict[str, object]]:

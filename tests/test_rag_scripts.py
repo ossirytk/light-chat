@@ -54,6 +54,30 @@ class TestRagScripts(unittest.TestCase):
         matches = extract_key_matches(keys, "SHODAN was the AI")
         self.assertTrue(matches)
 
+    def test_extract_key_matches_alias(self) -> None:
+        """Validate that extract_key_matches matches entries via their aliases."""
+        keys = [
+            {
+                "uuid": "abc123",
+                "text": "TriOptimum",
+                "aliases": ["Tri-Op", "TriOp", "TriOptimum Corporation"],
+                "category": "faction",
+            }
+        ]
+        # Query contains alias only — should still match and return canonical text
+        matches = extract_key_matches(keys, "TriOp was ruined by lawsuits")
+        self.assertEqual(len(matches), 1)
+        self.assertEqual(matches[0], {"abc123": "TriOptimum"})
+
+        # Query contains another alias
+        matches2 = extract_key_matches(keys, "TriOptimum Corporation was founded")
+        self.assertEqual(len(matches2), 1)
+        self.assertEqual(matches2[0], {"abc123": "TriOptimum"})
+
+        # Query with no match at all
+        matches3 = extract_key_matches(keys, "no related text here")
+        self.assertEqual(matches3, [])
+
     def test_clean_text(self) -> None:
         """Validate that clean_text removes citation markers and unusual characters."""
         raw = "Leonardo da Vinci[1] was a polymath.[2]\n\nHe lived in Italy.[note 3]\n"
