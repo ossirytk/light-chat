@@ -14,6 +14,30 @@ The current RAG pipeline in `conversation_manager.py`:
 
 Each step has opportunities for improvement.
 
+## Implementation Status (Updated: 2026-02-25)
+
+Status legend: ✅ Partially complete · ⚠️ In progress · ❌ Planned
+
+This guide is still roadmap-oriented; the items below capture the current implementation snapshot for this area:
+
+- ✅ Metadata entries now support `aliases` and `category` fields (e.g., in `rag_data/shodan.json`).
+- ✅ `extract_key_matches` now supports alias matching in addition to primary text matching.
+- ✅ Retrieval already follows staged filter fallback behavior via `build_where_filters` + search fallback (`$and` → `$or` → unfiltered fallback).
+- ⚠️ Most other items in this guide (MMR, re-ranking, sentence-aware chunking, embedding normalisation, separate `RAG_K_MES`) remain planned.
+
+### Section Status
+
+| Section | Status | Notes |
+|---------|--------|-------|
+| 1. Chunking Strategy | ❌ Planned | Character-based chunking is still in use |
+| 2. Embedding Model | ❌ Planned | `normalize_embeddings` still `False`; model upgrades not implemented |
+| 3. Metadata Filtering | ✅ Partially complete | Alias/category support and fallback behavior are in place |
+| 4. Query Expansion and Reformulation | ❌ Planned | Raw user query still used directly |
+| 5. Retrieval Re-Ranking | ❌ Planned | No MMR/re-ranker/thresholding in production path |
+| 6. Separate Retrieval for Context vs Examples | ❌ Planned | Same `k`/filters currently used for both collections |
+| 7. Contextual Compression | ❌ Planned | Retrieved chunks are still injected largely as-is |
+| 8. Collection Management | ⚠️ In progress | Tooling exists, but versioning/incremental metrics workflow is incomplete |
+
 ---
 
 ## 1. Chunking Strategy
@@ -107,11 +131,11 @@ The `HuggingFaceEmbeddings` class supports `query_instruction` and `embed_instru
 
 ### Current State
 
-`extract_key_matches` checks whether any metadata keyword appears in the user's raw query string. Matches are used to build `$and` or `$or` ChromaDB `where` filters. This is a simple exact substring match.
+`extract_key_matches` checks whether metadata terms appear in the user's raw query string and also supports alias matching when metadata entries include `aliases`. Matches are used to build `$and`/`$or` ChromaDB `where` filters, with fallback to unfiltered retrieval if needed.
 
 ### Problems
 
-- Exact substring matching misses queries that use synonyms or paraphrases (e.g., "the space station" matches "station" but not "Citadel").
+- Exact substring matching still misses many synonyms/paraphrases beyond explicit alias coverage.
 - Very short keywords (e.g., "God", "dance", "minute") may match queries where they are incidental.
 - The `$and` filter may be too restrictive when multiple keywords match — if a chunk only contains one of the matched keywords, it is excluded.
 - No weighting: a rare, highly specific term (e.g., "Quantum Bio-Reconstruction Machine") is treated identically to a common term (e.g., "station").
@@ -129,6 +153,8 @@ Use `$or` filtering as the primary strategy to maximise recall. Use `$and` only 
 ```
 Try: $and filter → if results < threshold, try: $or filter → if no results, try: unfiltered
 ```
+
+Status note: a practical variant of this fallback is already implemented (`$and` then `$or`, with unfiltered fallback path).
 
 #### 3.3 Category-Based Filter Weights
 
@@ -342,6 +368,6 @@ Store these metrics alongside each collection version to track quality over time
 
 - [RAG_DOCUMENT_QUALITY.md](RAG_DOCUMENT_QUALITY.md) — Improving source document quality
 - [CONVERSATION_QUALITY.md](CONVERSATION_QUALITY.md) — Improving overall conversation quality
-- [RAG_SCRIPTS_GUIDE.md](RAG_SCRIPTS_GUIDE.md) — How to use the RAG management scripts
+- [RAG_SCRIPTS_GUIDE.md](../RAG_SCRIPTS_GUIDE.md) — How to use the RAG management scripts
 - `core/conversation_manager.py` — RAG retrieval implementation
 - `core/collection_helper.py` — Collection management utilities

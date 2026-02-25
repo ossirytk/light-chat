@@ -15,12 +15,10 @@ from rich.text import Text
 from textual import on
 from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal, Vertical, VerticalScroll
+from textual.events import Resize
 from textual.widgets import Footer, Header, Input, Static
 
 from core.conversation_manager import ConversationManager
-
-# Constants
-DESCRIPTION_PREVIEW_LENGTH = 200
 
 
 def load_app_config() -> dict:
@@ -48,27 +46,43 @@ def configure_logging(app_config: dict) -> None:
 class CharacterCard(Static):
     """Widget to display character information in a styled panel."""
 
-    def __init__(self, character_name: str = "", description: str = "") -> None:
+    def __init__(
+        self,
+        character_name: str = "",
+        model_name: str = "",
+        model_type: str = "",
+        rag_collection: str = "",
+        summary: str = "",
+    ) -> None:
         """Initialize character card widget."""
         super().__init__()
         self.character_name = character_name
-        self.description = description
+        self.model_name = model_name
+        self.model_type = model_type
+        self.rag_collection = rag_collection
+        self.summary = summary
+        self.show_summary = False
 
     def render(self) -> Panel:
         """Render the character card panel."""
         if not self.character_name:
             content = Text("Loading character...", style="italic dim")
         else:
-            # Extract first chars of description for preview
-            desc_preview = (
-                self.description[:DESCRIPTION_PREVIEW_LENGTH] + "..."
-                if len(self.description) > DESCRIPTION_PREVIEW_LENGTH
-                else self.description
-            )
             content = Text()
             content.append(f"{self.character_name}\n", style="bold cyan")
             content.append("─" * 30 + "\n", style="dim")
-            content.append(desc_preview, style="white")
+            if self.show_summary:
+                content.append("Summary\n", style="bold")
+                content.append(f"{self.summary or 'No summary available.'}\n\n", style="white")
+                content.append("[F2] Switch to metadata", style="dim")
+            else:
+                content.append("Model: ", style="bold")
+                content.append(f"{self.model_name or 'N/A'}\n", style="white")
+                content.append("Type: ", style="bold")
+                content.append(f"{self.model_type or 'N/A'}\n", style="white")
+                content.append("RAG Collection: ", style="bold")
+                content.append(f"{self.rag_collection or 'N/A'}\n\n", style="white")
+                content.append("[F2] Switch to summary", style="dim")
 
         return Panel(
             content,
@@ -77,17 +91,32 @@ class CharacterCard(Static):
             padding=(1, 2),
         )
 
-    def update_character(self, name: str, description: str) -> None:
-        """Update character information and refresh display."""
+    def update_character(
+        self,
+        name: str,
+        model_name: str,
+        model_type: str,
+        rag_collection: str,
+        summary: str,
+    ) -> None:
+        """Update character and model information and refresh display."""
         self.character_name = name
-        self.description = description
+        self.model_name = model_name
+        self.model_type = model_type
+        self.rag_collection = rag_collection
+        self.summary = summary
+        self.refresh()
+
+    def toggle_mode(self) -> None:
+        """Toggle between metadata and summary display modes."""
+        self.show_summary = not self.show_summary
         self.refresh()
 
 
 class ChatMessage(Static):
     """Widget for displaying a single chat message."""
 
-    def __init__(self, sender: str, message: str, is_user: bool = False) -> None:
+    def __init__(self, sender: str, message: str, *, is_user: bool = False) -> None:
         """Initialize chat message widget."""
         super().__init__()
         self.sender = sender
@@ -125,9 +154,9 @@ class ChatMessage(Static):
 class ChatLog(VerticalScroll):
     """Scrollable chat log container."""
 
-    def add_message(self, sender: str, message: str, is_user: bool = False) -> None:
+    def add_message(self, sender: str, message: str, *, is_user: bool = False) -> None:
         """Add a message to the chat log."""
-        msg_widget = ChatMessage(sender, message, is_user)
+        msg_widget = ChatMessage(sender, message, is_user=is_user)
         self.mount(msg_widget)
         self.scroll_end(animate=False)
 
@@ -195,6 +224,7 @@ class ChatApp(App):
     BINDINGS: ClassVar = [
         ("ctrl+c", "quit", "Quit"),
         ("ctrl+q", "quit", "Quit"),
+        ("f2", "toggle_sidebar_mode", "Toggle Sidebar"),
     ]
 
     def __init__(self) -> None:
@@ -239,9 +269,16 @@ class ChatApp(App):
 
         # Update UI with loaded data
         if self.character_card_widget and self.conversation_manager:
+            model_name = str(self.conversation_manager.configs.get("MODEL", ""))
+            model_type = str(self.conversation_manager.configs.get("MODEL_TYPE", ""))
+            rag_collection = str(self.conversation_manager.rag_collection)
+            summary = str(self.conversation_manager.description).strip()
             self.character_card_widget.update_character(
                 self.conversation_manager.character_name,
-                self.conversation_manager.description,
+                model_name,
+                model_type,
+                rag_collection,
+                summary,
             )
 
         # Display first message if available
@@ -341,6 +378,23 @@ class ChatApp(App):
             loop.run_until_complete(self.conversation_manager.ask_question(message, first_token_event, stream_callback))
         finally:
             loop.close()
+
+    @on(Resize)
+    def handle_resize(self, _event: Resize) -> None:
+        """Refresh responsive layout when terminal size changes."""
+        if self.chat_log_widget:
+            self.chat_log_widget.refresh(layout=True)
+            self.chat_log_widget.scroll_end(animate=False)
+        if self.character_card_widget:
+            self.character_card_widget.refresh(layout=True)
+
+    def action_toggle_sidebar_mode(self) -> None:
+        """Toggle sidebar between metadata and summary modes."""
+        if not self.character_card_widget:
+            return
+        self.character_card_widget.toggle_mode()
+        mode_name = "summary" if self.character_card_widget.show_summary else "metadata"
+        self.update_status(f"Sidebar: {mode_name}")
 
 
 async def main() -> None:

@@ -12,13 +12,40 @@ The RAG system relies on two types of source material stored in `rag_data/`:
 
 Improving these inputs directly improves retrieval quality and ultimately response quality.
 
+## Implementation Status (Updated: 2026-02-25)
+
+Status legend: ✅ Partially complete · ⚠️ In progress · ❌ Planned
+
+This guide is still roadmap-oriented; the items below capture the current implementation snapshot for this area:
+
+- ✅ `rag_data/shodan.txt` now uses structured Markdown sections and an explicit document header block (`character`, `source`, `version`, `edited`).
+- ✅ `rag_data/shodan_message_examples.txt` now includes scenario labels, user-turn prompting, and broader scenario coverage.
+- ✅ `rag_data/shodan.json` now supports `category` and `aliases` fields.
+- ✅ `extract_key_matches` supports alias matching, so metadata aliases can trigger filters.
+- ✅ `analyze_rag_text.py` validation includes duplicate UUID detection and structural checks.
+- ✅ `analyze_rag_text.py analyze` now auto-generates `category` and `aliases` by default.
+- ✅ `analyze_rag_text.py` now supports `--strict` and `--review-report` for confidence-based curation.
+- ⚠️ Still pending: quality-focused validation metrics (noise/common-word reporting, coverage metrics), dedicated consistency linting flags, and pre-push quality gating.
+
+### Section Status
+
+| Section | Status | Notes |
+|---------|--------|-------|
+| 1. Context Document Quality | ✅ Partially complete | SHODAN context is restructured and annotated; broader rollout still pending |
+| 2. Message Example Quality | ✅ Partially complete | SHODAN examples now include labels, user turns, and better coverage |
+| 3. Metadata Keyword File Quality | ✅ Partially complete | `aliases`/`category`, alias matching, default auto-generation, and strict/report workflow implemented; quality metrics still pending |
+| 4. General Best Practices | ⚠️ In progress | Practices documented and partly followed; not fully automated/enforced |
+| 5. Suggested Tooling Extensions | ❌ Planned | Only partial `validate` improvements implemented so far |
+
 ---
 
 ## 1. Context Document Quality
 
 ### Current State
 
-The existing context documents (e.g., `shodan.txt`) are flat prose without explicit structure. They mix multiple topics in long paragraphs, which affects chunk boundary quality during text splitting.
+For SHODAN, the context document has already been upgraded to a structured format with explicit section headers and a metadata header block. The current `shodan.txt` uses shorter, fact-focused sentences and cleaner topic boundaries than the previous flat prose format.
+
+Other character context files may still need similar normalisation.
 
 ### Problems
 
@@ -94,7 +121,9 @@ This makes future maintenance easier and helps track when documents need updatin
 
 ### Current State
 
-Message examples (e.g., `shodan_message_examples.txt`) are actual quotes or dialogue lines that demonstrate the character's voice, tone, and speech patterns.
+Message examples now include stronger curation for SHODAN: scenario diversity, explicit user prompts before responses, and lightweight emotional/scenario labels (e.g., `# contemptuous`, `# technical explanation`).
+
+The format is now significantly closer to the target style described in this guide.
 
 ### Problems
 
@@ -150,7 +179,15 @@ Add light comment markers (e.g., `# contemptuous`, `# threatening`, `# curious`)
 
 ### Current State
 
-Metadata files (e.g., `shodan.json`) contain a flat list of `{uuid, text}` entries used to filter ChromaDB queries. The `extract_key_matches` function checks whether any of these terms appear in the user's query, then uses matching UUIDs as filters.
+The SHODAN metadata file is no longer flat `{uuid, text}` only. It now includes richer entries with optional `aliases` and `category` fields, and retrieval supports alias-aware matching.
+
+Current behavior:
+
+- Metadata still uses UUID-keyed term matching for ChromaDB filter construction.
+- `extract_key_matches` matches both primary `text` values and any provided `aliases`.
+- `analyze_rag_text.py validate` currently focuses on structural validity and duplicate UUID checks.
+
+Remaining gap: quality scoring/reporting (noise detection, common-word detection, and coverage metrics) is not yet implemented in validation output.
 
 ### Problems
 
@@ -222,6 +259,80 @@ Extend the `validate` command in `analyze_rag_text.py` to report:
 
 This allows systematic quality assessment before pushing to ChromaDB.
 
+#### 3.6 Auto-Generate `category` and `aliases` in `analyze_rag_text.py`
+
+Status: ✅ Heuristic first pass implemented.
+
+Current behavior in `scripts/rag/analyze_rag_text.py`:
+
+- `analyze` now auto-generates `category` and `aliases` by default.
+- `--auto-categories/--no-auto-categories` and `--auto-aliases/--no-auto-aliases` allow explicit control.
+- `--strict` keeps only high-confidence category/alias enrichments.
+- `--review-report <path>` writes per-candidate keep/drop decisions with confidence.
+
+Remaining enhancement opportunities:
+
+- Add `--category-mode {heuristic,model,hybrid}` for alternate classification engines.
+- Add explicit `--min-alias-confidence`/`--min-category-confidence` tuning flags.
+- Add optional manual override files (e.g., `manual_category_overrides.json`).
+
+Implemented CLI additions:
+
+- `--auto-categories/--no-auto-categories`
+- `--auto-aliases/--no-auto-aliases`
+- `--max-aliases`
+- `--strict`
+- `--review-report <path>`
+
+Possible category-generation approaches:
+
+1. **Rule-based patterns (fast, deterministic)**
+  - Date regexes (`\b\d{4}\b`, full date patterns) → `date`.
+  - Suffix/prefix hints (`Station`, `Deck`, `Level`, `Bridge`) → `location`.
+  - Org markers (`Corporation`, `UNN`, `TriOptimum`) → `faction`.
+  - Technology terms (`Protocol`, `Interface`, `CPU`, `Laser`) → `technology`.
+  - Proper-name + person context words (`Dr.`, `Vice President`, `Researcher`) → `character`.
+
+2. **Context-window classifier (higher quality)**
+  - For each candidate term, collect 1–3 sentence windows where it appears.
+  - Score categories using keyword-weight dictionaries or lightweight embeddings.
+  - Assign top category only if score margin exceeds threshold; else `concept`.
+
+3. **Hybrid with override precedence (recommended)**
+  - Apply deterministic rules first for high-confidence classes (`date`, clear `location` markers).
+  - Use context scoring only for unresolved items.
+  - Keep a small `manual_category_overrides.json` for known exceptions.
+
+Possible alias-generation approaches:
+
+1. **Normalization variants**
+  - Generate case, punctuation, hyphen, and spacing variants (`Tri-Op` ↔ `TriOp`).
+  - Generate abbreviated forms for long names (`Sentient Hyper-Optimized Data Access Network` ↔ `SHODAN`) when acronym is present in text.
+
+2. **Parenthetical and appositive extraction**
+  - Detect patterns like `X (Y)` and `X, also known as Y` from source text.
+  - Use `Y` as alias of canonical `X` when both co-occur in nearby context.
+
+3. **Canonical clustering + dedupe**
+  - Normalize candidate strings and cluster by token similarity.
+  - Choose canonical form using frequency + preferred style rules.
+  - Store cluster members as aliases, excluding near-duplicate canonical strings.
+
+Safety and quality controls:
+
+- Do not auto-generate aliases shorter than 3 characters unless fully uppercase (acronyms).
+- Block aliases that are common stopwords or very high-frequency generic words.
+- Keep `aliases` max size per entry (e.g., 5) to avoid noisy matching.
+- Include per-entry confidence metadata in review output (not required in final production JSON).
+- Add a `--strict` mode to emit only high-confidence category/alias enrichments.
+
+Recommended rollout:
+
+1. Implement heuristic category generation first.
+2. Add deterministic alias normalization + parenthetical extraction.
+3. Add review-report output and manual override support.
+4. Add optional hybrid scoring path once baseline metrics are stable.
+
 ---
 
 ## 4. General Best Practices for Document Maintenance
@@ -240,8 +351,18 @@ This allows systematic quality assessment before pushing to ChromaDB.
 |------|-----------|
 | `analyze_rag_text.py` | Add a `--check-consistency` flag to report formatting inconsistencies |
 | `analyze_rag_text.py` | Add duplicate/noise detection to the `validate` command |
+| `analyze_rag_text.py` | Add `--auto-categories`, `--auto-aliases`, `--strict`, and `--review-report` metadata enrichment controls |
 | `push_rag_data.py` | Add a `--check-quality` pre-push validation step |
 | New: `lint_rag_document.py` | Document linter that checks structure, sentence length, entity consistency |
+
+### Status of Suggested Extensions
+
+- ✅ Partially complete: `analyze_rag_text.py validate` already checks structure and duplicate UUIDs.
+- ✅ Partially complete: `analyze_rag_text.py analyze` now supports default-on `category`/`aliases` enrichment with strict/report workflow.
+- ❌ Not implemented yet: `--check-consistency` flag.
+- ❌ Not implemented yet: noise/common-word and coverage reporting in `validate`.
+- ❌ Not implemented yet: `push_rag_data.py --check-quality` pre-push gate.
+- ❌ Not implemented yet: standalone `lint_rag_document.py`.
 
 ---
 
@@ -249,4 +370,4 @@ This allows systematic quality assessment before pushing to ChromaDB.
 
 - [RAG_QUALITY_IMPROVEMENT.md](RAG_QUALITY_IMPROVEMENT.md) — Improving RAG retrieval pipeline quality
 - [CONVERSATION_QUALITY.md](CONVERSATION_QUALITY.md) — Improving overall conversation quality
-- [RAG_SCRIPTS_GUIDE.md](RAG_SCRIPTS_GUIDE.md) — How to use the RAG management scripts
+- [RAG_SCRIPTS_GUIDE.md](../RAG_SCRIPTS_GUIDE.md) — How to use the RAG management scripts

@@ -11,12 +11,12 @@ For your `uv`-based project, rebuilding `llama-cpp-python` with Flash Attention 
 . .venv/bin/activate.fish
 
 # Run the build script
-uv run python scripts/build_flash_attention.py
+uv run python scripts/build/flash_attention/build_flash_attention.py
 ```
 
 Or with bash:
 ```fish
-bash scripts/build_flash_attention.sh
+bash scripts/build/flash_attention/build_flash_attention.sh
 ```
 
 Both scripts will:
