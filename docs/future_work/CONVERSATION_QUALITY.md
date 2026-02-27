@@ -14,6 +14,30 @@ Conversation quality is the combined result of:
 
 Improvements in each of these areas compound. This guide addresses each in turn.
 
+## Implementation Status (Updated: 2026-02-25)
+
+Status legend: ✅ Partially complete · ⚠️ In progress · ❌ Planned
+
+This guide is still roadmap-oriented; the items below capture the current implementation snapshot for this area:
+
+- ✅ Prompt includes explicit in-character constraints, including "never write User lines" guidance.
+- ✅ Response post-processing already strips character-name prefixes from streamed output.
+- ✅ Character-card fields (`description`, `scenario`, `mes_example`, `first_mes`) are integrated into prompt assembly.
+- ⚠️ Dynamic context infrastructure exists (`ContextManager`) but is currently disabled by default in `appconf.json`.
+- ❌ Most advanced items (history summarisation, response quality gating, persona scoring, offline conversation suite) are not yet implemented.
+
+### Section Status
+
+| Section | Status | Notes |
+|---------|--------|-------|
+| 1. Prompt Engineering | ✅ Partially complete | Core prompt scaffolding and constraints exist; richer voice/instruction controls remain planned |
+| 2. Conversation History Management | ❌ Planned | Current history depth is still short and unsummarised |
+| 3. Model Generation Parameters | ⚠️ In progress | Core knobs exist; adaptive/scheduled strategies are still planned |
+| 4. Character Consistency | ⚠️ In progress | Character card conditioning exists; no explicit drift detection/correction yet |
+| 5. Response Post-Processing | ✅ Partially complete | Prefix cleanup exists; truncation/repetition guards remain planned |
+| 6. Evaluation and Monitoring | ❌ Planned | No systematic scoring/logging test harness in place yet |
+| 7. Configuration Recommendations | ❌ Planned | Recommendations documented; not adopted as new defaults |
+
 ---
 
 ## 1. Prompt Engineering
@@ -369,7 +393,7 @@ The following configuration changes in `appconf.json` and `modelconf.json` are r
 
 - [RAG_DOCUMENT_QUALITY.md](RAG_DOCUMENT_QUALITY.md) — Improving source document quality
 - [RAG_QUALITY_IMPROVEMENT.md](RAG_QUALITY_IMPROVEMENT.md) — Improving RAG retrieval quality
-- [RAG_SCRIPTS_GUIDE.md](RAG_SCRIPTS_GUIDE.md) — How to use the RAG management scripts
+- [RAG_SCRIPTS_GUIDE.md](../RAG_SCRIPTS_GUIDE.md) — How to use the RAG management scripts
 - `core/conversation_manager.py` — Conversation orchestration
 - `configs/conversation_template.json` — Prompt template
 - `cards/` — Character card definitions

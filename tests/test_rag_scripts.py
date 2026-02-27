@@ -1,11 +1,18 @@
 """Unit tests for RAG helper scripts."""
 
+import tempfile
 import unittest
 from pathlib import Path
 
 import requests
 
-from scripts.analyze_rag_text import analyze_text_file, validate_metadata_file
+from scripts.analyze_rag_text import (
+    EnrichmentOptions,
+    analyze_text_file,
+    generate_aliases_for_entity,
+    infer_category_for_entity,
+    validate_metadata_file,
+)
 from scripts.fetch_character_context import clean_text, fetch_webpage_text, validate_url
 from scripts.manage_collections import extract_key_matches, normalize_keyfile
 from scripts.push_rag_data import enrich_documents_with_metadata, load_and_chunk_text_file
@@ -117,3 +124,91 @@ class TestRagScripts(unittest.TestCase):
         """Validate that URLs resolving to private addresses are rejected."""
         with self.assertRaises(ValueError):
             validate_url("http://192.168.1.1/")
+
+    def test_infer_category_for_entity(self) -> None:
+        """Validate heuristic metadata category inference for representative entities."""
+        sample_text = (
+            "On 7 November 2072, SHODAN took over Citadel Station. "
+            "TriOptimum Corporation deployed Neural Interface upgrades."
+        )
+        self.assertEqual(infer_category_for_entity("7 November 2072", sample_text), "date")
+        self.assertEqual(infer_category_for_entity("Citadel Station", sample_text), "location")
+        self.assertEqual(infer_category_for_entity("TriOptimum Corporation", sample_text), "faction")
+        self.assertEqual(infer_category_for_entity("Neural Interface", sample_text), "technology")
+
+    def test_generate_aliases_for_entity(self) -> None:
+        """Validate alias generation from normalization and parenthetical forms."""
+        sample_text = (
+            "TriOptimum (Tri-Op) expanded rapidly. "
+            "The Sentient Hyper-Optimized Data Access Network (SHODAN) awakened."
+        )
+        trioptimum_aliases = generate_aliases_for_entity("TriOptimum", sample_text)
+        self.assertIn("Tri Optimum", trioptimum_aliases)
+        self.assertIn("Tri-Op", trioptimum_aliases)
+
+        shodan_aliases = generate_aliases_for_entity("Sentient Hyper-Optimized Data Access Network", sample_text)
+        self.assertIn("SHODAN", shodan_aliases)
+
+    def test_generate_aliases_for_entity_strict(self) -> None:
+        """Validate strict alias generation keeps only high-confidence aliases."""
+        sample_text = "TriOptimum (Tri-Op) expanded rapidly."
+        strict_aliases = generate_aliases_for_entity("TriOptimum", sample_text, strict=True)
+        self.assertIn("Tri-Op", strict_aliases)
+        self.assertNotIn("Tri Optimum", strict_aliases)
+
+    def test_analyze_text_file_with_auto_enrichment(self) -> None:
+        """Validate analyze_text_file can emit category and alias fields when enabled."""
+        sample_text = (
+            "SHODAN (Sentient Hyper-Optimized Data Access Network) was created by TriOptimum Corporation.\n"
+            "On 7 November 2072, SHODAN attacked Citadel Station.\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            sample_path = Path(tmp_dir) / "sample.txt"
+            sample_path.write_text(sample_text, encoding="utf-8")
+            result = analyze_text_file(
+                sample_path,
+                enrichment=EnrichmentOptions(auto_categories=True, auto_aliases=True),
+            )
+
+        self.assertTrue(result.potential_metadata)
+        self.assertTrue(any("category" in entry for entry in result.potential_metadata))
+        self.assertTrue(any("aliases" in entry for entry in result.potential_metadata))
+
+    def test_analyze_text_file_auto_enrichment_default_on(self) -> None:
+        """Validate category and alias enrichment is enabled by default."""
+        sample_text = "SHODAN (Sentient Hyper-Optimized Data Access Network) controlled Citadel Station.\n"
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            sample_path = Path(tmp_dir) / "sample_default.txt"
+            sample_path.write_text(sample_text, encoding="utf-8")
+            result = analyze_text_file(sample_path)
+
+        self.assertTrue(any("category" in entry for entry in result.potential_metadata))
+        self.assertTrue(any("aliases" in entry for entry in result.potential_metadata))
+
+    def test_analyze_text_file_includes_enrichment_review(self) -> None:
+        """Validate analyze_text_file returns enrichment decision review details."""
+        sample_text = "TriOptimum (Tri-Op) controlled Citadel Station in 2072.\n"
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            sample_path = Path(tmp_dir) / "sample_review.txt"
+            sample_path.write_text(sample_text, encoding="utf-8")
+            result = analyze_text_file(sample_path)
+
+        self.assertTrue(result.enrichment_review)
+        self.assertIn("text", result.enrichment_review[0])
+        self.assertIn("category", result.enrichment_review[0])
+        self.assertIn("aliases", result.enrichment_review[0])
+
+    def test_strict_mode_drops_low_confidence_category(self) -> None:
+        """Validate strict mode suppresses low-confidence category enrichments."""
+        sample_text = "Many concepts were discussed abstractly.\n"
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            sample_path = Path(tmp_dir) / "sample_strict.txt"
+            sample_path.write_text(sample_text, encoding="utf-8")
+            result = analyze_text_file(
+                sample_path,
+                enrichment=EnrichmentOptions(strict=True, auto_aliases=False, auto_categories=True),
+            )
+
+        concept_entry = next((entry for entry in result.potential_metadata if entry.get("text") == "Many"), None)
+        if concept_entry is not None:
+            self.assertNotIn("category", concept_entry)

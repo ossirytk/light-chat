@@ -183,10 +183,10 @@ If you want maximum performance, rebuild `llama-cpp-python` with Flash Attention
 ```fish
 # Using Python script (more robust)
 . .venv/bin/activate.fish
-uv run python scripts/build_flash_attention.py
+uv run python scripts/build/flash_attention/build_flash_attention.py
 
 # Or using bash script (from fish)
-bash scripts/build_flash_attention.sh
+bash scripts/build/flash_attention/build_flash_attention.sh
 ```
 
 #### Option 2: Manual Build with uv

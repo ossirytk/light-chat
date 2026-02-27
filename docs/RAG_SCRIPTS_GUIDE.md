@@ -6,9 +6,9 @@ This guide describes the comprehensive RAG (Retrieval Augmented Generation) scri
 
 The RAG system consists of three main scripts with enhanced capabilities:
 
-1. **scripts/analyze_rag_text.py** - Analyze text files, extract metadata and topics
-2. **scripts/push_rag_data.py** - Push RAG data to ChromaDB with enrichment
-3. **scripts/manage_collections.py** - Manage ChromaDB collections (CRUD operations)
+1. **scripts/rag/analyze_rag_text.py** - Analyze text files, extract metadata and topics
+2. **scripts/rag/push_rag_data.py** - Push RAG data to ChromaDB with enrichment
+3. **scripts/rag/manage_collections.py** - Manage ChromaDB collections (CRUD operations)
 
 ## Prerequisites
 
@@ -24,7 +24,7 @@ Or using uv (recommended):
 uv sync
 ```
 
-## Script 1: scripts/analyze_rag_text.py
+## Script 1: scripts/rag/analyze_rag_text.py
 
 Analyze text files to extract metadata, topics, and validate existing metadata files.
 
@@ -35,25 +35,36 @@ Analyze text files to extract metadata, topics, and validate existing metadata f
 Analyze a text file and extract metadata and topics.
 
 ```bash
-uv run python scripts/analyze_rag_text.py analyze <FILE_PATH> [OPTIONS]
+uv run python scripts/rag/analyze_rag_text.py analyze <FILE_PATH> [OPTIONS]
 ```
 
 **Options:**
 - `--output`, `-o`: Output JSON file for extracted metadata
 - `--min-freq`, `-f`: Minimum frequency for key phrase extraction (default: 3)
+- `--auto-categories/--no-auto-categories`: Enable/disable category generation (default: enabled)
+- `--auto-aliases/--no-auto-aliases`: Enable/disable alias generation (default: enabled)
+- `--max-aliases`: Maximum aliases per entry (default: 5)
+- `--strict`: Keep only high-confidence category/alias enrichments
+- `--review-report`: Output JSON report with kept/dropped enrichment decisions
 - `--verbose`, `-v`: Show detailed analysis results
 
 **Examples:**
 
 ```bash
 # Basic analysis
-uv run python scripts/analyze_rag_text.py analyze rag_data/shodan.txt
+uv run python scripts/rag/analyze_rag_text.py analyze rag_data/shodan.txt
 
 # Detailed analysis with output
-uv run python scripts/analyze_rag_text.py analyze rag_data/shodan.txt -v -o rag_data/shodan_extracted.json
+uv run python scripts/rag/analyze_rag_text.py analyze rag_data/shodan.txt -v -o rag_data/shodan_extracted.json
 
 # Extract with custom frequency threshold
-uv run python scripts/analyze_rag_text.py analyze rag_data/shodan.txt -f 5 -o output.json
+uv run python scripts/rag/analyze_rag_text.py analyze rag_data/shodan.txt -f 5 -o output.json
+
+# Strict enrichment with review report
+uv run python scripts/rag/analyze_rag_text.py analyze rag_data/shodan.txt \
+  --strict \
+  --review-report rag_data/shodan_enrichment_review.json \
+  -o rag_data/shodan_generated.json
 ```
 
 **Output:**
@@ -61,20 +72,22 @@ uv run python scripts/analyze_rag_text.py analyze rag_data/shodan.txt -f 5 -o ou
 - Named entities (capitalized phrases, dates, numbers)
 - Key phrases (frequently occurring bigrams and trigrams)
 - Potential metadata entries with UUIDs
+- Auto-enriched metadata includes `category` and optional `aliases` by default
+- Optional enrichment review report (`--review-report`) includes confidence and keep/drop decisions
 
 #### validate
 
 Validate a metadata JSON file structure.
 
 ```bash
-uv run python scripts/analyze_rag_text.py validate <METADATA_PATH>
+uv run python scripts/rag/analyze_rag_text.py validate <METADATA_PATH>
 ```
 
 **Examples:**
 
 ```bash
 # Validate metadata file
-uv run python scripts/analyze_rag_text.py validate rag_data/shodan.json
+uv run python scripts/rag/analyze_rag_text.py validate rag_data/shodan.json
 ```
 
 **Validation checks:**
@@ -89,20 +102,24 @@ uv run python scripts/analyze_rag_text.py validate rag_data/shodan.json
 Scan a directory for text files and their associated metadata.
 
 ```bash
-uv run python scripts/analyze_rag_text.py scan <DIRECTORY> [OPTIONS]
+uv run python scripts/rag/analyze_rag_text.py scan <DIRECTORY> [OPTIONS]
 ```
 
 **Options:**
 - `--auto-generate`, `-g`: Auto-generate missing metadata files
+- `--auto-categories/--no-auto-categories`: Enable/disable category generation (default: enabled)
+- `--auto-aliases/--no-auto-aliases`: Enable/disable alias generation (default: enabled)
+- `--max-aliases`: Maximum aliases per entry (default: 5)
+- `--strict`: Keep only high-confidence category/alias enrichments
 
 **Examples:**
 
 ```bash
 # Scan directory
-uv run python scripts/analyze_rag_text.py scan rag_data/
+uv run python scripts/rag/analyze_rag_text.py scan rag_data/
 
 # Scan and auto-generate missing metadata
-uv run python scripts/analyze_rag_text.py scan rag_data/ --auto-generate
+uv run python scripts/rag/analyze_rag_text.py scan rag_data/ --auto-generate
 ```
 
 **Output:**
@@ -113,14 +130,14 @@ uv run python scripts/analyze_rag_text.py scan rag_data/ --auto-generate
 
 ---
 
-## Script 2: scripts/push_rag_data.py
+## Script 2: scripts/rag/push_rag_data.py
 
 Enhanced script for pushing individual text files to ChromaDB collections with metadata enrichment.
 
 ### Usage
 
 ```bash
-uv run python scripts/push_rag_data.py <FILE_PATH> -c <COLLECTION_NAME> [OPTIONS]
+uv run python scripts/rag/push_rag_data.py <FILE_PATH> -c <COLLECTION_NAME> [OPTIONS]
 ```
 
 ### Options
@@ -139,19 +156,19 @@ uv run python scripts/push_rag_data.py <FILE_PATH> -c <COLLECTION_NAME> [OPTIONS
 
 ```bash
 # Basic upload
-uv run python scripts/push_rag_data.py rag_data/shodan.txt -c shodan
+uv run python scripts/rag/push_rag_data.py rag_data/shodan.txt -c shodan
 
 # Upload with custom settings
-uv run python scripts/push_rag_data.py rag_data/shodan.txt -c shodan_v2 -cs 1024 -co 512 -t 8
+uv run python scripts/rag/push_rag_data.py rag_data/shodan.txt -c shodan_v2 -cs 1024 -co 512 -t 8
 
 # Dry run to preview
-uv run python scripts/push_rag_data.py rag_data/shodan.txt -c shodan -d
+uv run python scripts/rag/push_rag_data.py rag_data/shodan.txt -c shodan -d
 
 # Upload with specific metadata file
-uv run python scripts/push_rag_data.py rag_data/shodan.txt -c shodan -m rag_data/custom_metadata.json
+uv run python scripts/rag/push_rag_data.py rag_data/shodan.txt -c shodan -m rag_data/custom_metadata.json
 
 # Overwrite existing collection
-uv run python scripts/push_rag_data.py rag_data/shodan.txt -c shodan -w
+uv run python scripts/rag/push_rag_data.py rag_data/shodan.txt -c shodan -w
 ```
 
 ### Features
@@ -172,7 +189,7 @@ The script automatically looks for metadata files based on the input filename:
 
 ---
 
-## Script 3: scripts/manage_collections.py
+## Script 3: scripts/rag/manage_collections.py
 
 Enhanced collection management with comprehensive CRUD operations.
 
@@ -183,7 +200,7 @@ Enhanced collection management with comprehensive CRUD operations.
 List all ChromaDB collections.
 
 ```bash
-uv run python scripts/manage_collections.py list-collections [OPTIONS]
+uv run python scripts/rag/manage_collections.py list-collections [OPTIONS]
 ```
 
 **Options:**
@@ -194,10 +211,10 @@ uv run python scripts/manage_collections.py list-collections [OPTIONS]
 
 ```bash
 # Basic listing
-uv run python scripts/manage_collections.py list-collections
+uv run python scripts/rag/manage_collections.py list-collections
 
 # Detailed information
-uv run python scripts/manage_collections.py list-collections -v
+uv run python scripts/rag/manage_collections.py list-collections -v
 ```
 
 #### delete
@@ -205,7 +222,7 @@ uv run python scripts/manage_collections.py list-collections -v
 Delete a single ChromaDB collection.
 
 ```bash
-uv run python scripts/manage_collections.py delete <COLLECTION_NAME> [OPTIONS]
+uv run python scripts/rag/manage_collections.py delete <COLLECTION_NAME> [OPTIONS]
 ```
 
 **Options:**
@@ -216,10 +233,10 @@ uv run python scripts/manage_collections.py delete <COLLECTION_NAME> [OPTIONS]
 
 ```bash
 # Delete with confirmation
-uv run python scripts/manage_collections.py delete shodan_old
+uv run python scripts/rag/manage_collections.py delete shodan_old
 
 # Delete without confirmation
-uv run python scripts/manage_collections.py delete shodan_old -y
+uv run python scripts/rag/manage_collections.py delete shodan_old -y
 ```
 
 #### delete-multiple
@@ -227,7 +244,7 @@ uv run python scripts/manage_collections.py delete shodan_old -y
 Delete multiple collections matching a pattern.
 
 ```bash
-uv run python scripts/manage_collections.py delete-multiple [OPTIONS]
+uv run python scripts/rag/manage_collections.py delete-multiple [OPTIONS]
 ```
 
 **Options:**
@@ -239,10 +256,10 @@ uv run python scripts/manage_collections.py delete-multiple [OPTIONS]
 
 ```bash
 # Delete all test collections
-uv run python scripts/manage_collections.py delete-multiple --pattern "test_*"
+uv run python scripts/rag/manage_collections.py delete-multiple --pattern "test_*"
 
 # Delete all version 1 collections
-uv run python scripts/manage_collections.py delete-multiple --pattern "*_v1" -y
+uv run python scripts/rag/manage_collections.py delete-multiple --pattern "*_v1" -y
 ```
 
 #### test
@@ -250,7 +267,7 @@ uv run python scripts/manage_collections.py delete-multiple --pattern "*_v1" -y
 Test a collection with a similarity search query.
 
 ```bash
-uv run python scripts/manage_collections.py test <COLLECTION_NAME> -q <QUERY> [OPTIONS]
+uv run python scripts/rag/manage_collections.py test <COLLECTION_NAME> -q <QUERY> [OPTIONS]
 ```
 
 **Options:**
@@ -263,13 +280,13 @@ uv run python scripts/manage_collections.py test <COLLECTION_NAME> -q <QUERY> [O
 
 ```bash
 # Basic search
-uv run python scripts/manage_collections.py test shodan -q "SHODAN artificial intelligence"
+uv run python scripts/rag/manage_collections.py test shodan -q "SHODAN artificial intelligence"
 
 # Search with more results
-uv run python scripts/manage_collections.py test shodan -q "Von Braun starship" -k 10
+uv run python scripts/rag/manage_collections.py test shodan -q "Von Braun starship" -k 10
 
 # Search with metadata filtering
-uv run python scripts/manage_collections.py test shodan -q "XERXES system 2114" -k 5
+uv run python scripts/rag/manage_collections.py test shodan -q "XERXES system 2114" -k 5
 ```
 
 #### export
@@ -277,7 +294,7 @@ uv run python scripts/manage_collections.py test shodan -q "XERXES system 2114" 
 Export collection data to JSON.
 
 ```bash
-uv run python scripts/manage_collections.py export <COLLECTION_NAME> -o <OUTPUT_FILE> [OPTIONS]
+uv run python scripts/rag/manage_collections.py export <COLLECTION_NAME> -o <OUTPUT_FILE> [OPTIONS]
 ```
 
 **Options:**
@@ -288,10 +305,10 @@ uv run python scripts/manage_collections.py export <COLLECTION_NAME> -o <OUTPUT_
 
 ```bash
 # Export collection
-uv run python scripts/manage_collections.py export shodan -o shodan_backup.json
+uv run python scripts/rag/manage_collections.py export shodan -o shodan_backup.json
 
 # Export to custom directory
-uv run python scripts/manage_collections.py export shodan_mes -o backups/shodan_mes_$(date +%Y%m%d).json
+uv run python scripts/rag/manage_collections.py export shodan_mes -o backups/shodan_mes_$(date +%Y%m%d).json
 ```
 
 #### info
@@ -299,7 +316,7 @@ uv run python scripts/manage_collections.py export shodan_mes -o backups/shodan_
 Show detailed information about a collection.
 
 ```bash
-uv run python scripts/manage_collections.py info <COLLECTION_NAME> [OPTIONS]
+uv run python scripts/rag/manage_collections.py info <COLLECTION_NAME> [OPTIONS]
 ```
 
 **Options:**
@@ -309,10 +326,10 @@ uv run python scripts/manage_collections.py info <COLLECTION_NAME> [OPTIONS]
 
 ```bash
 # Show collection info
-uv run python scripts/manage_collections.py info shodan
+uv run python scripts/rag/manage_collections.py info shodan
 
 # Show info for message examples collection
-uv run python scripts/manage_collections.py info shodan_mes
+uv run python scripts/rag/manage_collections.py info shodan_mes
 ```
 
 ---
@@ -377,50 +394,50 @@ Metadata files should follow this structure:
 
 ```bash
 # 1. Analyze the text file
-uv run python scripts/analyze_rag_text.py analyze new_character.txt -v -o new_character_metadata.json
+uv run python scripts/rag/analyze_rag_text.py analyze new_character.txt -v -o new_character_metadata.json
 
 # 2. Review and edit the generated metadata file as needed
 
 # 3. Validate the metadata
-uv run python scripts/analyze_rag_text.py validate new_character_metadata.json
+uv run python scripts/rag/analyze_rag_text.py validate new_character_metadata.json
 
 # 4. Test upload with dry-run
-uv run python scripts/push_rag_data.py new_character.txt -c new_character -d
+uv run python scripts/rag/push_rag_data.py new_character.txt -c new_character -d
 
 # 5. Perform actual upload
-uv run python scripts/push_rag_data.py new_character.txt -c new_character
+uv run python scripts/rag/push_rag_data.py new_character.txt -c new_character
 
 # 6. Test the collection
-uv run python scripts/manage_collections.py test new_character -q "test query" -k 5
+uv run python scripts/rag/manage_collections.py test new_character -q "test query" -k 5
 
 # 7. View collection info
-uv run python scripts/manage_collections.py info new_character
+uv run python scripts/rag/manage_collections.py info new_character
 ```
 
 ### Workflow 2: Updating Existing Collection
 
 ```bash
 # 1. Export current collection as backup
-uv run python scripts/manage_collections.py export shodan -o backups/shodan_backup_$(date +%Y%m%d).json
+uv run python scripts/rag/manage_collections.py export shodan -o backups/shodan_backup_$(date +%Y%m%d).json
 
 # 2. Update the source text file as needed
 
 # 3. Push with overwrite
-uv run python scripts/push_rag_data.py rag_data/shodan.txt -c shodan -w
+uv run python scripts/rag/push_rag_data.py rag_data/shodan.txt -c shodan -w
 
 # 4. Test the updated collection
-uv run python scripts/manage_collections.py test shodan -q "test query"
+uv run python scripts/rag/manage_collections.py test shodan -q "test query"
 ```
 
 ### Workflow 3: Batch Analysis
 
 ```bash
 # Scan directory and generate missing metadata
-uv run python scripts/analyze_rag_text.py scan rag_data/ --auto-generate
+uv run python scripts/rag/analyze_rag_text.py scan rag_data/ --auto-generate
 
 # Validate all metadata files
 for json_file in rag_data/*.json; do
-  uv run python scripts/analyze_rag_text.py validate "$json_file"
+  uv run python scripts/rag/analyze_rag_text.py validate "$json_file"
 done
 ```
 
@@ -428,14 +445,14 @@ done
 
 ```bash
 # List all collections
-uv run python scripts/manage_collections.py list-collections -v
+uv run python scripts/rag/manage_collections.py list-collections -v
 
 # Delete old test collections
-uv run python scripts/manage_collections.py delete-multiple --pattern "test_*" -y
+uv run python scripts/rag/manage_collections.py delete-multiple --pattern "test_*" -y
 
 # Export all collections
 for collection in shodan shodan_mes; do
-  uv run python scripts/manage_collections.py export "$collection" -o "backups/${collection}.json"
+  uv run python scripts/rag/manage_collections.py export "$collection" -o "backups/${collection}.json"
 done
 ```
 
@@ -447,16 +464,16 @@ done
 
 ### Issue: Collection already exists error
 
-**Solution:** Use the `--overwrite` flag with `scripts/push_rag_data.py` or delete the collection first:
+**Solution:** Use the `--overwrite` flag with `scripts/rag/push_rag_data.py` or delete the collection first:
 
 ```bash
-uv run python scripts/manage_collections.py delete <collection_name> -y
+uv run python scripts/rag/manage_collections.py delete <collection_name> -y
 ```
 
 ### Issue: Metadata not being applied
 
 **Solution:** 
-1. Validate metadata file: `uv run python scripts/analyze_rag_text.py validate <metadata_file>`
+1. Validate metadata file: `uv run python scripts/rag/analyze_rag_text.py validate <metadata_file>`
 2. Ensure filename matches (e.g., `shodan.txt` uses `shodan.json`)
 3. Use `--metadata-file` to explicitly specify metadata
 
@@ -465,7 +482,7 @@ uv run python scripts/manage_collections.py delete <collection_name> -y
 **Solution:** Reduce chunk size and thread count:
 
 ```bash
-uv run python scripts/push_rag_data.py file.txt -c collection -cs 1024 -t 2
+uv run python scripts/rag/push_rag_data.py file.txt -c collection -cs 1024 -t 2
 ```
 
 ## Advanced Usage
@@ -489,19 +506,19 @@ Process multiple files in parallel using shell scripting:
 # Process all txt files in parallel
 for txt_file in rag_data/*.txt; do
   base_name=$(basename "$txt_file" .txt)
-  uv run python scripts/push_rag_data.py "$txt_file" -c "$base_name" &
+  uv run python scripts/rag/push_rag_data.py "$txt_file" -c "$base_name" &
 done
 wait
 ```
 
-### Integration with scripts/old_prepare_rag.py
+### Integration with scripts/rag/old_prepare_rag.py
 
-The new scripts complement the existing `scripts/old_prepare_rag.py`:
+The new scripts complement the existing `scripts/rag/old_prepare_rag.py`:
 
-- **scripts/old_prepare_rag.py**: Batch processing of all files in a directory
-- **scripts/push_rag_data.py**: Single file processing with more control
+- **scripts/rag/old_prepare_rag.py**: Batch processing of all files in a directory
+- **scripts/rag/push_rag_data.py**: Single file processing with more control
 
-Use `scripts/old_prepare_rag.py` for initial bulk setup, then use `scripts/push_rag_data.py` for updates.
+Use `scripts/rag/old_prepare_rag.py` for initial bulk setup, then use `scripts/rag/push_rag_data.py` for updates.
 
 ## Best Practices
 
@@ -515,7 +532,7 @@ Use `scripts/old_prepare_rag.py` for initial bulk setup, then use `scripts/push_
 
 ## See Also
 
-- [scripts/old_prepare_rag.py](../scripts/old_prepare_rag.py) - Original batch processing script
+- [scripts/rag/old_prepare_rag.py](../scripts/rag/old_prepare_rag.py) - Original batch processing script
 - [core/collection_helper.py](../core/collection_helper.py) - Original collection helper
 - [core/context_manager.py](../core/context_manager.py) - Runtime RAG retrieval
 
