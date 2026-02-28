@@ -460,7 +460,7 @@ class ConversationManager:
         self,
         collection_name: str,
         query: str,
-        filters: list[dict[str, object]],
+        filters: list[dict[str, object] | None],
         k: int | None = None,
     ) -> list[str]:
         if not query:
@@ -468,27 +468,39 @@ class ConversationManager:
         if k is None:
             k = self.rag_k
         db = self._get_vector_db(collection_name)
-        use_mmr = bool(self.configs.get("USE_MMR", False))
+        use_mmr = bool(self.configs.get("USE_MMR", True))
         fetch_k = int(self.configs.get("RAG_FETCH_K", 20))
         lambda_mult = float(self.configs.get("LAMBDA_MULT", 0.75))
         score_threshold = self.configs.get("RAG_SCORE_THRESHOLD")
         for where in filters:
             if use_mmr:
-                docs_list = db.max_marginal_relevance_search(
-                    query=query,
-                    k=k,
-                    # fetch_k must be >= k; if RAG_FETCH_K is smaller than k, use k as the floor
-                    fetch_k=max(k, fetch_k),
-                    lambda_mult=lambda_mult,
-                    filter=where,
-                )
-                if docs_list or where == {}:
+                if where is None:
+                    docs_list = db.max_marginal_relevance_search(
+                        query=query,
+                        k=k,
+                        # fetch_k must be >= k; if RAG_FETCH_K is smaller than k, use k as the floor
+                        fetch_k=max(k, fetch_k),
+                        lambda_mult=lambda_mult,
+                    )
+                else:
+                    docs_list = db.max_marginal_relevance_search(
+                        query=query,
+                        k=k,
+                        # fetch_k must be >= k; if RAG_FETCH_K is smaller than k, use k as the floor
+                        fetch_k=max(k, fetch_k),
+                        lambda_mult=lambda_mult,
+                        filter=where,
+                    )
+                if docs_list or where is None:
                     return [doc.page_content for doc in docs_list]
             else:
-                docs = db.similarity_search_with_score(query=query, k=k, filter=where)
+                if where is None:
+                    docs = db.similarity_search_with_score(query=query, k=k)
+                else:
+                    docs = db.similarity_search_with_score(query=query, k=k, filter=where)
                 if score_threshold is not None:
                     docs = [(doc, score) for doc, score in docs if score <= float(score_threshold)]
-                if docs or where == {}:
+                if docs or where is None:
                     return [doc.page_content for doc, _score in docs]
         return []
 

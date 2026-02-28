@@ -104,13 +104,16 @@ def enrich_document_with_metadata(document: Document, all_keys: list) -> Documen
     return document
 
 
+_LEADING_HTML_COMMENT_RE = re.compile(r"^\s*<!--.*?-->\s*", re.DOTALL)
+
+
 def strip_leading_html_comment(text: str) -> str:
     """Strip a leading HTML comment block from document text.
 
     Removes the first ``<!-- ... -->`` block at the start of the text so that
     document header metadata is not embedded as retrievable content.
     """
-    return re.sub(r"^\s*<!--.*?-->\s*", "", text, count=1, flags=re.DOTALL)
+    return _LEADING_HTML_COMMENT_RE.sub("", text, count=1)
 
 
 def load_and_chunk_text_file(
