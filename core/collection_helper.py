@@ -1,6 +1,4 @@
 import json
-import logging
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -9,7 +7,6 @@ import click
 from chromadb.config import Settings
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
-from loguru import logger
 
 
 def load_app_config() -> dict:
@@ -18,18 +15,6 @@ def load_app_config() -> dict:
         return {}
     with config_path.open() as f:
         return json.load(f)
-
-
-def configure_logging(app_config: dict) -> None:
-    show_logs = bool(app_config.get("SHOW_LOGS", True))
-    log_level = str(app_config.get("LOG_LEVEL", "DEBUG")).upper()
-    if show_logs:
-        logging.basicConfig(level=log_level)
-        logger.remove()
-        logger.add(sys.stderr, level=log_level)
-    else:
-        logging.disable(logging.CRITICAL)
-        logger.remove()
 
 
 @dataclass
@@ -100,9 +85,9 @@ def extract_key_matches(keys: list[dict[str, object]], text: str) -> list[dict[s
     return matches
 
 
-def build_where_filters(matches: list[dict[str, str]]) -> list[dict[str, object]]:
+def build_where_filters(matches: list[dict[str, str]]) -> list[dict[str, object] | None]:
     if not matches:
-        return [{}]
+        return [None]
     if len(matches) == 1:
         return [matches[0]]
     return [{"$and": matches}, {"$or": matches}]
@@ -111,19 +96,24 @@ def build_where_filters(matches: list[dict[str, str]]) -> list[dict[str, object]
 def run_test_search(
     target_collection: str,
     query: str,
-    filters: list[dict[str, object]],
+    filters: list[dict[str, object] | None],
     context: TestContext,
 ) -> None:
     db = create_db(context.client, context.persist_directory, context.embedder, target_collection)
     k_buffer = 7
-    for where in filters:
-        docs = db.similarity_search_with_score(query=query, k=k_buffer, filter=where)
-        if docs or where == {}:
-            logger.info(f"{target_collection}: fetched {len(docs)} documents")
+    for filter_idx, where in enumerate(filters):
+        filter_label = "unfiltered" if where is None else str(where)
+        click.echo(f"{target_collection}: attempting search #{filter_idx + 1} ({filter_label})")
+        if where is None:
+            docs = db.similarity_search_with_score(query=query, k=k_buffer)
+        else:
+            docs = db.similarity_search_with_score(query=query, k=k_buffer, filter=where)
+        if docs or where is None:
+            click.echo(f"{target_collection}: fetched {len(docs)} documents")
             if docs:
-                logger.info(docs[0])
+                click.echo(str(docs[0]))
             return
-    logger.info(f"{target_collection}: fetched 0 documents")
+    click.echo(f"{target_collection}: fetched 0 documents")
 
 
 def run_test_command(
@@ -131,24 +121,24 @@ def run_test_command(
     query: str,
     context: TestContext,
 ) -> None:
-    logger.info("Testing fetch")
+    click.echo("Testing fetch")
     if not query:
-        logger.warning("No query provided. Use --query to supply a search string.")
+        click.secho("No query provided. Use --query to supply a search string.", fg="yellow")
         return
 
     keyfile_path = Path(context.key_storage) / f"{collection_name}.json"
     if not keyfile_path.exists():
-        logger.warning(f"Keyfile not found at {keyfile_path}. Using unfiltered search.")
-        filters = [{}]
+        click.secho(f"Keyfile not found at {keyfile_path}. Using unfiltered search.", fg="yellow")
+        filters = [None]
     else:
         with keyfile_path.open(encoding="utf-8") as key_file:
             key_data = json.load(key_file)
         keys = normalize_keyfile(key_data)
         matches = extract_key_matches(keys, query)
         if matches:
-            logger.info(f"Matched metadata keys from query: {matches}")
+            click.echo(f"Matched metadata keys from query: {matches}")
         else:
-            logger.info("No metadata keys matched the query")
+            click.echo("No metadata keys matched the query")
         filters = build_where_filters(matches)
 
     run_test_search(collection_name, query, filters, context)
@@ -194,7 +184,6 @@ def main(
     command: str,
 ) -> None:
     app_config = load_app_config()
-    configure_logging(app_config)
     if persist_directory is None:
         persist_directory = app_config.get("PERSIST_DIRECTORY", "./character_storage/")
     if key_storage is None:
@@ -218,21 +207,27 @@ def main(
     )
     match command:
         case "list":
-            logger.info("Available collections:")
             collections = client.list_collections()
-            for collection in collections:
-                logger.info(collection.name)
+            if not collections:
+                click.echo("No collections found")
+            else:
+                click.echo("Available collections:")
+                for collection in collections:
+                    click.echo(collection.name)
         case "delete":
-            logger.info(f"Deleting {collection_name}")
+            click.echo(f"Deleting {collection_name}")
             client.delete_collection(collection_name)
-            logger.info(f"{collection_name} deleted")
+            click.echo(f"{collection_name} deleted")
         case "test":
             run_test_command(collection_name, query, context)
         case _:
             collections = client.list_collections()
-            logger.info("Available collections:")
-            for collection in collections:
-                logger.info(collection.name)
+            if not collections:
+                click.echo("No collections found")
+            else:
+                click.echo("Available collections:")
+                for collection in collections:
+                    click.echo(collection.name)
 
 
 if __name__ == "__main__":

@@ -11,8 +11,6 @@ This script provides comprehensive collection management:
 
 import fnmatch
 import json
-import logging
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -21,7 +19,6 @@ import click
 from chromadb.config import Settings
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
-from loguru import logger
 
 from core.collection_helper import extract_key_matches
 
@@ -32,18 +29,6 @@ def load_app_config() -> dict:
         return {}
     with config_path.open() as f:
         return json.load(f)
-
-
-def configure_logging(app_config: dict) -> None:
-    show_logs = bool(app_config.get("SHOW_LOGS", True))
-    log_level = str(app_config.get("LOG_LEVEL", "DEBUG")).upper()
-    if show_logs:
-        logging.basicConfig(level=log_level)
-        logger.remove()
-        logger.add(sys.stderr, level=log_level)
-    else:
-        logging.disable(logging.CRITICAL)
-        logger.remove()
 
 
 @dataclass
@@ -62,9 +47,9 @@ def normalize_keyfile(raw_keys: object) -> list[dict[str, object]]:
     return [item for item in raw_keys if isinstance(item, dict)]
 
 
-def build_where_filters(matches: list[dict[str, str]]) -> list[dict[str, object]]:
+def build_where_filters(matches: list[dict[str, str]]) -> list[dict[str, object] | None]:
     if not matches:
-        return [{}]
+        return [None]
     if len(matches) == 1:
         return [matches[0]]
     return [{"$and": matches}, {"$or": matches}]
@@ -94,8 +79,6 @@ def get_collection_info(client: chromadb.PersistentClient, collection_name: str)
 @click.group()
 def cli() -> None:
     """Manage ChromaDB collections for RAG data."""
-    app_config = load_app_config()
-    configure_logging(app_config)
 
 
 @cli.command()
@@ -116,19 +99,19 @@ def list_collections(persist_directory: str | None, verbose: bool) -> None:
     collections = client.list_collections()
 
     if not collections:
-        logger.info("No collections found")
+        click.echo("No collections found")
         return
 
-    logger.info(f"Found {len(collections)} collection(s):")
+    click.echo(f"Found {len(collections)} collection(s):")
 
     for collection in collections:
         if verbose:
             info = get_collection_info(client, collection.name)
-            logger.info(f"  • {info['name']}")
-            logger.info(f"    - Documents: {info['count']}")
-            logger.info(f"    - Metadata: {info['metadata']}")
+            click.echo(f"  • {info['name']}")
+            click.echo(f"    - Documents: {info['count']}")
+            click.echo(f"    - Metadata: {info['metadata']}")
         else:
-            logger.info(f"  • {collection.name} ({collection.count()} documents)")
+            click.echo(f"  • {collection.name} ({collection.count()} documents)")
 
 
 @cli.command()
@@ -150,22 +133,22 @@ def delete(collection_name: str, persist_directory: str | None, yes: bool) -> No
     info = get_collection_info(client, collection_name)
 
     if not info["exists"]:
-        logger.error(f"Collection '{collection_name}' not found")
+        click.secho(f"Collection '{collection_name}' not found", fg="red", err=True)
         return
 
     if not yes:
-        logger.warning(f"About to delete collection: {collection_name}")
-        logger.warning(f"This collection contains {info['count']} documents")
+        click.secho(f"About to delete collection: {collection_name}", fg="yellow")
+        click.secho(f"This collection contains {info['count']} documents", fg="yellow")
         confirmation = input("Are you sure? (yes/no): ")
         if confirmation.lower() not in ["yes", "y"]:
-            logger.info("Deletion cancelled")
+            click.echo("Deletion cancelled")
             return
 
     try:
         client.delete_collection(collection_name)
-        logger.info(f"✓ Deleted collection: {collection_name}")
+        click.echo(f"✓ Deleted collection: {collection_name}")
     except ValueError as e:
-        logger.error(f"Error deleting collection: {e}")
+        click.secho(f"Error deleting collection: {e}", fg="red", err=True)
 
 
 @cli.command()
@@ -187,31 +170,31 @@ def delete_multiple(persist_directory: str | None, pattern: str | None, yes: boo
     collections = client.list_collections()
 
     if not pattern:
-        logger.error("Must specify --pattern for bulk deletion")
+        click.secho("Must specify --pattern for bulk deletion", fg="red", err=True)
         return
 
     matching = [c for c in collections if fnmatch.fnmatch(c.name, pattern)]
 
     if not matching:
-        logger.info(f"No collections match pattern: {pattern}")
+        click.echo(f"No collections match pattern: {pattern}")
         return
 
-    logger.info(f"Found {len(matching)} collection(s) matching pattern '{pattern}':")
+    click.echo(f"Found {len(matching)} collection(s) matching pattern '{pattern}':")
     for collection in matching:
-        logger.info(f"  • {collection.name} ({collection.count()} documents)")
+        click.echo(f"  • {collection.name} ({collection.count()} documents)")
 
     if not yes:
         confirmation = input(f"Delete all {len(matching)} collections? (yes/no): ")
         if confirmation.lower() not in ["yes", "y"]:
-            logger.info("Deletion cancelled")
+            click.echo("Deletion cancelled")
             return
 
     for collection in matching:
         try:
             client.delete_collection(collection.name)
-            logger.info(f"✓ Deleted: {collection.name}")
+            click.echo(f"✓ Deleted: {collection.name}")
         except ValueError as e:
-            logger.error(f"✗ Error deleting {collection.name}: {e}")
+            click.secho(f"✗ Error deleting {collection.name}: {e}", fg="red", err=True)
 
 
 @cli.command()
@@ -258,25 +241,25 @@ def test(
 
     info = get_collection_info(client, collection_name)
     if not info["exists"]:
-        logger.error(f"Collection '{collection_name}' not found")
+        click.secho(f"Collection '{collection_name}' not found", fg="red", err=True)
         return
 
-    logger.info(f"Testing collection: {collection_name}")
-    logger.info(f"Query: {query}")
-    logger.info(f"Total documents: {info['count']}")
+    click.echo(f"Testing collection: {collection_name}")
+    click.echo(f"Query: {query}")
+    click.echo(f"Total documents: {info['count']}")
 
     base_name = collection_name.replace("_mes", "")
     keyfile_path = Path(key_storage) / f"{base_name}.json"
 
-    filters = [{}]
+    filters = [None]
     if keyfile_path.exists():
-        logger.info(f"Loading metadata from: {keyfile_path}")
+        click.echo(f"Loading metadata from: {keyfile_path}")
         with keyfile_path.open(encoding="utf-8") as f:
             key_data = json.load(f)
         keys = normalize_keyfile(key_data)
         matches = extract_key_matches(keys, query)
         if matches:
-            logger.info(f"Matched {len(matches)} metadata key(s) from query")
+            click.echo(f"Matched {len(matches)} metadata key(s) from query")
             filters = build_where_filters(matches)
 
     db = Chroma(
@@ -287,19 +270,23 @@ def test(
     )
 
     for filter_idx, where_filter in enumerate(filters):
-        logger.info(f"\nAttempting search with filter #{filter_idx + 1}")
-        docs = db.similarity_search_with_score(query=query, k=k, filter=where_filter)
+        filter_label = "unfiltered" if where_filter is None else str(where_filter)
+        click.echo(f"\nAttempting search #{filter_idx + 1} ({filter_label})")
+        if where_filter is None:
+            docs = db.similarity_search_with_score(query=query, k=k)
+        else:
+            docs = db.similarity_search_with_score(query=query, k=k, filter=where_filter)
 
         if docs:
-            logger.info(f"✓ Found {len(docs)} result(s)")
+            click.echo(f"✓ Found {len(docs)} result(s)")
             for idx, (doc, score) in enumerate(docs, 1):
-                logger.info(f"\nResult {idx} (score: {score:.4f}):")
-                logger.info(f"Content preview: {doc.page_content[:200]}...")
+                click.echo(f"\nResult {idx} (score: {score:.4f}):")
+                click.echo(f"Content preview: {doc.page_content[:200]}...")
                 if doc.metadata:
-                    logger.info(f"Metadata keys: {list(doc.metadata.keys())[:5]}")
+                    click.echo(f"Metadata keys: {list(doc.metadata.keys())[:5]}")
             return
 
-    logger.info("No results found")
+    click.echo("No results found")
 
 
 @cli.command()
@@ -320,10 +307,10 @@ def export(collection_name: str, output: Path, persist_directory: str | None) ->
 
     info = get_collection_info(client, collection_name)
     if not info["exists"]:
-        logger.error(f"Collection '{collection_name}' not found")
+        click.secho(f"Collection '{collection_name}' not found", fg="red", err=True)
         return
 
-    logger.info(f"Exporting collection: {collection_name}")
+    click.echo(f"Exporting collection: {collection_name}")
 
     collection = client.get_collection(collection_name)
     data = collection.get()
@@ -340,7 +327,7 @@ def export(collection_name: str, output: Path, persist_directory: str | None) ->
     with output.open("w", encoding="utf-8") as f:
         json.dump(export_data, f, indent=2, ensure_ascii=False)
 
-    logger.info(f"✓ Exported {export_data['count']} documents to {output}")
+    click.echo(f"✓ Exported {export_data['count']} documents to {output}")
 
 
 @cli.command()
@@ -361,21 +348,21 @@ def info(collection_name: str, persist_directory: str | None) -> None:
     info = get_collection_info(client, collection_name)
 
     if not info["exists"]:
-        logger.error(f"Collection '{collection_name}' not found")
+        click.secho(f"Collection '{collection_name}' not found", fg="red", err=True)
         return
 
     collection = client.get_collection(collection_name)
     sample = collection.peek(limit=1)
 
-    logger.info(f"Collection: {collection_name}")
-    logger.info(f"Documents: {info['count']}")
-    logger.info(f"Metadata: {info['metadata']}")
+    click.echo(f"Collection: {collection_name}")
+    click.echo(f"Documents: {info['count']}")
+    click.echo(f"Metadata: {info['metadata']}")
 
     if sample.get("documents"):
-        logger.info("\nSample document:")
-        logger.info(f"  Content: {sample['documents'][0][:150]}...")
+        click.echo("\nSample document:")
+        click.echo(f"  Content: {sample['documents'][0][:150]}...")
         if sample.get("metadatas") and sample["metadatas"][0]:
-            logger.info(f"  Metadata keys: {list(sample['metadatas'][0].keys())}")
+            click.echo(f"  Metadata keys: {list(sample['metadatas'][0].keys())}")
 
 
 if __name__ == "__main__":

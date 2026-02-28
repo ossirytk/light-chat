@@ -1,263 +1,626 @@
 [
   {
-    "uuid": "8ecc424d-31dd-4385-b9d3-9e2b35bbf5a3",
-    "text": "All",
+    "uuid": "15ce9304-f841-4f07-b24a-8d32499b3014",
+    "text": "1452",
+    "category": "date"
+  },
+  {
+    "uuid": "c681cc36-aefb-40ef-84df-de215b33ce1e",
+    "text": "1499",
+    "category": "date"
+  },
+  {
+    "uuid": "10aa1a40-3843-41e5-873e-eb8eac097a20",
+    "text": "1500",
+    "category": "date"
+  },
+  {
+    "uuid": "62618fa4-d8c1-4cda-8df7-ce952498ec68",
+    "text": "1502",
+    "category": "date"
+  },
+  {
+    "uuid": "e67fda14-f793-44c7-b95e-7956a624562e",
+    "text": "1508",
+    "category": "date"
+  },
+  {
+    "uuid": "3f17dd68-52af-416b-bd83-8e0260c88520",
+    "text": "1513",
+    "category": "date"
+  },
+  {
+    "uuid": "5f544c30-4660-4d70-a660-5e8f18e5062e",
+    "text": "1519",
+    "category": "date"
+  },
+  {
+    "uuid": "e647e511-0d36-4715-9855-eee297a06006",
+    "text": "2026",
+    "category": "date"
+  },
+  {
+    "uuid": "20684c0a-fb52-4d30-87b9-a687bf3580c9",
+    "text": "Accounts",
+    "category": "technology"
+  },
+  {
+    "uuid": "6e5a1eaa-7a44-4091-962a-6c6a68602992",
+    "text": "After",
+    "category": "technology"
+  },
+  {
+    "uuid": "e2b67eec-71df-4b77-a31f-5703384549ef",
+    "text": "Anatomy",
+    "category": "location"
+  },
+  {
+    "uuid": "a25e9139-4e4c-4bf3-b63f-fc451a01132c",
+    "text": "Anchiano",
+    "category": "technology"
+  },
+  {
+    "uuid": "e60bafd6-b5c3-4a7f-a204-237f2c52ce07",
+    "text": "Andrea",
     "category": "concept"
   },
   {
-    "uuid": "27b45b10-88c9-49b3-a768-700813feb6cc",
-    "text": "Although",
+    "uuid": "80d1d15a-6800-4b8c-8f65-6c170706c6d4",
+    "text": "Anghiari",
     "category": "concept"
   },
   {
-    "uuid": "307e6160-0d30-404d-a19c-ba667a73e4e8",
-    "text": "Anyone",
+    "uuid": "5dd768fc-18b7-458e-b94e-bb88f07e7fea",
+    "text": "Apprenticeship",
     "category": "concept"
   },
   {
-    "uuid": "a7dd7c9e-983a-4f62-97c6-100f0e146acb",
-    "text": "Art",
-    "category": "event"
+    "uuid": "3b20a183-3110-47ef-bcdc-96a88d434592",
+    "text": "April",
+    "category": "technology"
   },
   {
-    "uuid": "4af97a18-808d-4673-81eb-13b8e6d64dea",
-    "text": "As",
-    "category": "event"
-  },
-  {
-    "uuid": "24660b55-890b-470f-ac9d-e35049420d77",
-    "text": "Being",
-    "category": "concept"
-  },
-  {
-    "uuid": "8724fea7-4c6d-4ccc-a7d3-2c4d9dce9577",
-    "text": "Beyond",
-    "category": "concept"
-  },
-  {
-    "uuid": "81fa8dde-3b92-46bb-ac0a-0fc8c0a8489e",
-    "text": "Blinding",
-    "category": "concept"
-  },
-  {
-    "uuid": "9703481b-a6ab-4997-944f-c00ce83ac9fc",
-    "text": "Common Sense",
-    "category": "character",
+    "uuid": "0374d18a-8154-4002-92b0-4158ff763c2b",
+    "text": "Artistic Works",
+    "category": "technology",
     "aliases": [
-      "CommonSense"
+      "ArtisticWorks"
     ]
   },
   {
-    "uuid": "b3bf5acf-1929-4c04-b9eb-2a0db5ed43a6",
-    "text": "Every",
+    "uuid": "22b99726-6871-48b3-a2fc-638fe843c35a",
+    "text": "Baptism",
     "category": "concept"
   },
   {
-    "uuid": "ce81a2aa-7bee-4890-a250-afe6cca0c8fc",
-    "text": "Experience",
+    "uuid": "a0494564-fc75-4287-b27b-797c3ed3c9bf",
+    "text": "Biographical",
     "category": "concept"
   },
   {
-    "uuid": "e57523e2-fbbe-426c-add9-4c55215b93ed",
-    "text": "For",
-    "category": "event"
+    "uuid": "d01b3d33-c7da-479f-a028-a7677c7fba0f",
+    "text": "Caterina",
+    "category": "technology"
   },
   {
-    "uuid": "581d6322-e0c7-4432-814f-56eadaa3a48a",
+    "uuid": "8be0e1fe-468c-4205-af9e-9c16f60910d6",
+    "text": "Cesare Borgia",
+    "category": "location",
+    "aliases": [
+      "CesareBorgia"
+    ]
+  },
+  {
+    "uuid": "1b17d49a-c2d1-4dc9-ac17-4e3bf52f34aa",
+    "text": "Cesare Borgia\n\nLeonardo",
+    "category": "location",
+    "aliases": [
+      "CesareBorgia Leonardo"
+    ]
+  },
+  {
+    "uuid": "10a2487f-77a2-4859-b5b9-810ca7bc794f",
+    "text": "Character Overview\n\nLeonardo",
+    "category": "character",
+    "aliases": [
+      "CharacterOverview Leonardo"
+    ]
+  },
+  {
+    "uuid": "8074fbdf-9c2d-4cf0-9a9e-cd701bf59fc5",
+    "text": "Character Traits",
+    "category": "technology",
+    "aliases": [
+      "CharacterTraits"
+    ]
+  },
+  {
+    "uuid": "cb495956-ff19-426c-8288-502cfde000eb",
+    "text": "Christ",
+    "category": "concept"
+  },
+  {
+    "uuid": "5ff08ba5-7b3f-42b8-92ba-c0a0140872eb",
+    "text": "Clos",
+    "category": "technology"
+  },
+  {
+    "uuid": "1dddf7a2-66c3-4440-8e06-2ee2f38b84ec",
+    "text": "Cultural Impact\n\nLeonardo",
+    "category": "location",
+    "aliases": [
+      "CulturalImpact Leonardo"
+    ]
+  },
+  {
+    "uuid": "6aab2539-9640-4b0a-b18e-cf318b0d33e7",
+    "text": "Death",
+    "category": "technology"
+  },
+  {
+    "uuid": "2b34190a-2c78-4692-a081-e0b351a364eb",
+    "text": "Drawings",
+    "category": "technology"
+  },
+  {
+    "uuid": "370dffff-f0d0-40c5-a4c6-d8fb709606f5",
+    "text": "Early Development\n\nLeonardo",
+    "category": "character",
+    "aliases": [
+      "EarlyDevelopment Leonardo"
+    ]
+  },
+  {
+    "uuid": "c80a776f-60fc-42f7-9179-22af513047a0",
+    "text": "Engineering",
+    "category": "location"
+  },
+  {
+    "uuid": "3d5e0952-e046-43d3-aecb-a70bfadd68d2",
+    "text": "Ermine",
+    "category": "technology"
+  },
+  {
+    "uuid": "303c0603-639d-4ef5-8688-55aa018f196e",
+    "text": "European",
+    "category": "concept"
+  },
+  {
+    "uuid": "8ee583cb-a341-4c3f-a602-b808e68b00a0",
+    "text": "First Florentine Period",
+    "category": "technology",
+    "aliases": [
+      "1472–c. 1482",
+      "FirstFlorentinePeriod"
+    ]
+  },
+  {
+    "uuid": "a103e3a9-2dcb-445d-8cd9-2a30b25c2d0b",
+    "text": "First Milanese Period",
+    "category": "technology",
+    "aliases": [
+      "c. 1482–1499",
+      "FirstMilanesePeriod"
+    ]
+  },
+  {
+    "uuid": "aba3f904-0580-430c-88cf-9bdd34bb8085",
+    "text": "Florence",
+    "category": "location"
+  },
+  {
+    "uuid": "6d60c7c2-15af-4f28-850f-af3875eeb381",
+    "text": "Florentine",
+    "category": "technology"
+  },
+  {
+    "uuid": "21ddf9b2-de92-4c94-b473-bca79c00fbce",
+    "text": "France",
+    "category": "technology",
+    "aliases": [
+      "1513–1519"
+    ]
+  },
+  {
+    "uuid": "39627ec9-2f46-4c52-83ba-50202247589c",
+    "text": "Francesco Melzi",
+    "category": "technology",
+    "aliases": [
+      "FrancescoMelzi"
+    ]
+  },
+  {
+    "uuid": "d10b9bd0-4d67-4a77-85cd-57be8c1e5f5c",
+    "text": "Francesco Sforza",
+    "category": "character",
+    "aliases": [
+      "FrancescoSforza"
+    ]
+  },
+  {
+    "uuid": "16f70b46-44d4-4a5f-8631-cb80aa14d625",
+    "text": "Francis",
+    "category": "technology"
+  },
+  {
+    "uuid": "4ff5dd9f-2439-4653-9eda-743e3cfd93e8",
+    "text": "French",
+    "category": "technology"
+  },
+  {
+    "uuid": "c3d0098c-defe-4d7f-9936-7437733a8777",
+    "text": "Guild",
+    "category": "technology"
+  },
+  {
+    "uuid": "0f0e0c98-3ff5-4567-9860-286bb0ed77cb",
     "text": "He",
-    "category": "event"
+    "category": "location"
   },
   {
-    "uuid": "ffa26bfe-f217-4243-ad75-e3063fc74289",
-    "text": "Heaven",
-    "category": "concept"
-  },
-  {
-    "uuid": "fb7c210c-639b-4f18-938c-ba3af4c845eb",
-    "text": "Human",
-    "category": "concept"
-  },
-  {
-    "uuid": "cd05a096-142d-400e-b59e-565ee271adc6",
-    "text": "If",
-    "category": "technology"
-  },
-  {
-    "uuid": "fc7fc40d-0538-469d-8472-53a76f07bddf",
-    "text": "In",
-    "category": "event"
-  },
-  {
-    "uuid": "0a5ae1e6-51cb-4288-a7ea-22e9d27d69f8",
-    "text": "Intellectual",
-    "category": "concept"
-  },
-  {
-    "uuid": "fd65f9b9-e086-4571-be8b-86f9322a9c80",
-    "text": "Iron",
-    "category": "concept"
-  },
-  {
-    "uuid": "59939c5d-7bac-4933-b594-73636db70ef9",
-    "text": "It",
-    "category": "event"
-  },
-  {
-    "uuid": "ca2c65e6-5ae8-41c5-9785-55c7a00e5864",
-    "text": "Just",
-    "category": "concept"
-  },
-  {
-    "uuid": "66575eb2-2c7e-48d1-80a4-1d981bd8a463",
-    "text": "Knowing",
-    "category": "concept"
-  },
-  {
-    "uuid": "bc9fcb6d-59f4-42b3-bc1b-0e2c6bb5ed0e",
-    "text": "Learning",
-    "category": "concept"
-  },
-  {
-    "uuid": "334500b3-b92f-495b-8bc9-7c8fb138ee79",
-    "text": "Life",
-    "category": "technology"
-  },
-  {
-    "uuid": "f1dcf9e9-da7c-4811-a907-d68d176a9ff6",
-    "text": "Marriage",
-    "category": "concept"
-  },
-  {
-    "uuid": "e5881e44-eb8b-45e4-b496-4690b34be734",
-    "text": "Most",
-    "category": "technology"
-  },
-  {
-    "uuid": "6dc859ed-5fb2-46c5-bb7d-6266409cec60",
-    "text": "Nature",
-    "category": "concept"
-  },
-  {
-    "uuid": "46267016-09b2-405e-8dab-abeb748d1cbb",
-    "text": "Necessity",
-    "category": "concept"
-  },
-  {
-    "uuid": "10aff8ef-53bf-45f7-b184-c3e523ebcbbc",
-    "text": "Nothing",
-    "category": "concept"
-  },
-  {
-    "uuid": "9962747b-9760-4037-a51d-89ade18f6a68",
-    "text": "Only",
-    "category": "technology"
-  },
-  {
-    "uuid": "b8f8597b-eb5b-4dc9-bfe1-a37355d5e590",
-    "text": "Our",
-    "category": "technology"
-  },
-  {
-    "uuid": "fcfd4746-5d0d-41ba-a156-42b0f3940144",
-    "text": "People",
-    "category": "technology"
-  },
-  {
-    "uuid": "2f25f416-67fc-4590-9507-756627ca0681",
-    "text": "She",
-    "category": "concept"
-  },
-  {
-    "uuid": "447753b1-5555-4613-a558-9c6ce8d9167a",
-    "text": "Simplicity",
-    "category": "concept"
-  },
-  {
-    "uuid": "43a94167-1810-48d2-b7ac-577262217bfa",
-    "text": "Some",
-    "category": "technology"
-  },
-  {
-    "uuid": "6a071107-64fc-4021-8c7b-cbb314c2f7af",
-    "text": "Spirit",
-    "category": "concept"
-  },
-  {
-    "uuid": "bec80719-8d2e-4b6e-abf6-347051e860d6",
-    "text": "Sunday School",
-    "category": "character",
+    "uuid": "a6c920ab-b350-46f0-b335-80b1ba39a8dc",
+    "text": "High Renaissance",
+    "category": "technology",
     "aliases": [
-      "SundaySchool"
+      "HighRenaissance"
     ]
   },
   {
-    "uuid": "d52c9421-8fd7-4917-8bf5-2eb6806667c4",
-    "text": "Tears",
+    "uuid": "46a29983-c9e7-4d89-a2c7-83cbe2f4d2b9",
+    "text": "His",
+    "category": "location"
+  },
+  {
+    "uuid": "474bd1fe-a6df-434c-b584-807b89ea33cf",
+    "text": "Inventions\n\nLeonardo",
+    "category": "location",
+    "aliases": [
+      "Inventions Leonardo"
+    ]
+  },
+  {
+    "uuid": "3404ca60-a908-4108-9a10-c991534a65ef",
+    "text": "Italian",
     "category": "technology"
   },
   {
-    "uuid": "2d9bf967-7600-4528-84f8-e2a7f06cd7be",
-    "text": "The",
-    "category": "event"
+    "uuid": "5e0276e0-47cf-4357-8144-4d46b0dbec9b",
+    "text": "Italy",
+    "category": "technology"
   },
   {
-    "uuid": "493ef22d-7f97-45cb-b870-7128895c3176",
-    "text": "Then",
+    "uuid": "4a5e6884-646a-4e51-be9e-3bb6e1244370",
+    "text": "King Francis",
+    "category": "character",
+    "aliases": [
+      "KingFrancis"
+    ]
+  },
+  {
+    "uuid": "c2867ebb-1ac1-420f-9d45-77a79f89ca50",
+    "text": "Large",
     "category": "concept"
   },
   {
-    "uuid": "49847a2a-f1aa-488b-adbd-61d9139dba5a",
-    "text": "There",
+    "uuid": "b0e7777c-b4b4-4f7b-85d5-56ebfd9c9b5c",
+    "text": "Later",
+    "category": "location"
+  },
+  {
+    "uuid": "11de2a7b-24a4-4f13-b389-ae681739cd0b",
+    "text": "Legacy",
     "category": "technology"
   },
   {
-    "uuid": "eae0f5e2-c8e4-4ce5-ab36-c9041a01784e",
-    "text": "Those",
+    "uuid": "5dcdda5b-8ff3-4ace-9626-c084afae97b9",
+    "text": "Ludovico Sforza\n\nLudovico Sforza",
+    "category": "technology",
+    "aliases": [
+      "LudovicoSforza LudovicoSforza"
+    ]
+  },
+  {
+    "uuid": "dc7a5723-eb73-40ef-ba44-9764bf0d6612",
+    "text": "Magi",
+    "category": "location"
+  },
+  {
+    "uuid": "32ed6cb7-6272-4941-ae96-2d93e24c37ff",
+    "text": "Major Career Periods",
+    "category": "character",
+    "aliases": [
+      "MajorCareerPeriods"
+    ]
+  },
+  {
+    "uuid": "5c4b5297-98d0-4036-9f13-5aaad8698384",
+    "text": "Manuscript Legacy\n\nLeonardo",
+    "category": "technology",
+    "aliases": [
+      "ManuscriptLegacy Leonardo"
+    ]
+  },
+  {
+    "uuid": "59887413-17f5-4674-a44f-4d5f608718f3",
+    "text": "Many",
+    "category": "location"
+  },
+  {
+    "uuid": "cfb32374-0256-4af2-a1db-adce9ea2e56e",
+    "text": "May",
     "category": "technology"
   },
   {
-    "uuid": "fc7832e2-2cea-4685-9694-5142799026ff",
-    "text": "Time",
+    "uuid": "dd39a1fd-006a-466d-a4d8-a2eab855ab2e",
+    "text": "Meo Lippi",
+    "category": "technology",
+    "aliases": [
+      "MeoLippi"
+    ]
+  },
+  {
+    "uuid": "cbc6c6b8-7eeb-405d-83ad-4a5b32894a2d",
+    "text": "Methods\n\nLeonardo",
+    "category": "technology",
+    "aliases": [
+      "Methods Leonardo"
+    ]
+  },
+  {
+    "uuid": "dc96e554-cd5b-4801-b1fb-82af136fa294",
+    "text": "Modern",
+    "category": "location"
+  },
+  {
+    "uuid": "55f98b93-3719-465b-9d1b-e62249fcdb72",
+    "text": "Much",
+    "category": "location"
+  },
+  {
+    "uuid": "e2f8bb7d-6845-4321-a24c-2063f1d42185",
+    "text": "Natural Philosophy\n\nLeonardo",
+    "category": "character",
+    "aliases": [
+      "NaturalPhilosophy Leonardo"
+    ]
+  },
+  {
+    "uuid": "9f14373a-498b-45a1-966e-ea08089cfc23",
+    "text": "Nineteenth",
     "category": "technology"
   },
   {
-    "uuid": "58373ee8-b122-40b3-9c21-c6cad74b28ac",
-    "text": "Truth",
-    "category": "technology"
+    "uuid": "f110af15-65aa-494d-aeb3-76121b68121e",
+    "text": "Notebooks",
+    "category": "location"
   },
   {
-    "uuid": "88dfd394-49d1-493f-a78a-15ef791f97ac",
-    "text": "Where",
-    "category": "event"
-  },
-  {
-    "uuid": "8db9549a-cf36-4b8d-a43c-8597928dae7c",
-    "text": "Wherever",
-    "category": "event"
-  },
-  {
-    "uuid": "aaad6bc2-6148-4b7c-a435-85b1c3479edb",
-    "text": "While",
+    "uuid": "2f99dbef-b679-4201-91b1-f31846c360fc",
+    "text": "Origin",
     "category": "concept"
   },
   {
-    "uuid": "71ad0dd4-492f-4d3e-ac4c-3e78718079cf",
-    "text": "Why",
-    "category": "concept"
+    "uuid": "08a704bc-4965-41ae-a4bc-1e1b85071284",
+    "text": "Physiology\n\nLeonardo",
+    "category": "character",
+    "aliases": [
+      "Physiology Leonardo"
+    ]
   },
   {
-    "uuid": "93faf6ac-8ab6-4ddd-810d-da68822ae651",
-    "text": "Wisdom",
-    "category": "concept"
-  },
-  {
-    "uuid": "a2c5291f-65cc-455d-8c66-933ff7253219",
-    "text": "Wretched",
+    "uuid": "0853698e-b3b7-430c-aa1e-7c2121913794",
+    "text": "Piero",
     "category": "technology"
   },
   {
-    "uuid": "26d43eb2-a779-45a7-ab31-ceab7a52bf4e",
-    "text": "You",
+    "uuid": "f99390fb-1032-48bd-8f85-ae66a6c2c233",
+    "text": "Political",
     "category": "technology"
+  },
+  {
+    "uuid": "3d36d419-0999-4a71-9160-c70654b94158",
+    "text": "Remains\n\nLeonardo",
+    "category": "technology",
+    "aliases": [
+      "Remains Leonardo"
+    ]
+  },
+  {
+    "uuid": "89fcc959-533c-483f-b4b8-5c2afabf5c76",
+    "text": "Renaissance",
+    "category": "technology"
+  },
+  {
+    "uuid": "23a3816b-c489-47dd-b90c-b08b4dd590bd",
+    "text": "Renaissance Man",
+    "category": "technology",
+    "aliases": [
+      "RenaissanceMan"
+    ]
+  },
+  {
+    "uuid": "72a44d6d-fdde-4c04-bc09-29dfc4f57f84",
+    "text": "Rocks",
+    "category": "concept"
+  },
+  {
+    "uuid": "604a92a8-3d6d-4eaf-90e2-8479042097c6",
+    "text": "Rome",
+    "category": "technology"
+  },
+  {
+    "uuid": "56388126-0698-4a79-a89b-0344b5d4c384",
+    "text": "Saint Luke",
+    "category": "technology",
+    "aliases": [
+      "SaintLuke"
+    ]
+  },
+  {
+    "uuid": "febb0ce9-a9a9-454f-a89f-71a670e64477",
+    "text": "Scientific Studies",
+    "category": "character",
+    "aliases": [
+      "ScientificStudies"
+    ]
+  },
+  {
+    "uuid": "223d73f8-8d08-4976-8f00-e528e592e5a6",
+    "text": "Second Florentine Period",
+    "category": "character",
+    "aliases": [
+      "1500–1508",
+      "SecondFlorentinePeriod"
+    ]
+  },
+  {
+    "uuid": "dfcbf164-05d5-4409-a025-3e342337a3c7",
+    "text": "Second Milanese Period",
+    "category": "character",
+    "aliases": [
+      "1508–1513",
+      "SecondMilanesePeriod"
+    ]
+  },
+  {
+    "uuid": "2406b2a7-5b09-462a-a8a3-a56db7105d80",
+    "text": "Ser Piero",
+    "category": "technology",
+    "aliases": [
+      "SerPiero"
+    ]
+  },
+  {
+    "uuid": "9d3e7174-7b11-4870-9f67-6987f846befe",
+    "text": "Several",
+    "category": "technology"
+  },
+  {
+    "uuid": "fad9b2e4-ff0e-42ec-a9ae-91996e971b25",
+    "text": "Sforza",
+    "category": "location"
+  },
+  {
+    "uuid": "648c7926-d4f1-494f-a894-d6f427a2baa9",
+    "text": "The Adoration",
+    "category": "technology",
+    "aliases": [
+      "TheAdoration"
+    ]
+  },
+  {
+    "uuid": "021e439e-540d-458e-b8c4-924f3c568b16",
+    "text": "The Codex Atlanticus",
+    "category": "technology",
+    "aliases": [
+      "TheCodexAtlanticus"
+    ]
+  },
+  {
+    "uuid": "deb3cab8-8550-4a9b-8e01-1366f1fdb002",
+    "text": "The Lady",
+    "category": "technology",
+    "aliases": [
+      "TheLady"
+    ]
+  },
+  {
+    "uuid": "ea4a2577-1d01-4137-a8f3-e35c089558bf",
+    "text": "The Last Supper",
+    "category": "location",
+    "aliases": [
+      "TheLastSupper"
+    ]
+  },
+  {
+    "uuid": "b6e5e3d4-7c5e-48d2-92e3-593de4c6726e",
+    "text": "The Mona Lisa",
+    "category": "technology",
+    "aliases": [
+      "TheMonaLisa"
+    ]
+  },
+  {
+    "uuid": "eb857ba2-f326-46b4-af91-3ddf408ab680",
+    "text": "The Virgin",
+    "category": "character",
+    "aliases": [
+      "TheVirgin"
+    ]
+  },
+  {
+    "uuid": "5cdc0e3a-0b7e-43ae-9adc-73989949122a",
+    "text": "The Vitruvian Man",
+    "category": "technology",
+    "aliases": [
+      "TheVitruvianMan"
+    ]
+  },
+  {
+    "uuid": "f6f487f8-2171-48b0-8781-94b887b298f9",
+    "text": "They",
+    "category": "concept"
+  },
+  {
+    "uuid": "1aeffea8-f081-45d9-be5c-c03565ac3953",
+    "text": "This",
+    "category": "location"
+  },
+  {
+    "uuid": "d6a3110b-d156-408d-aaf1-1dbf89550591",
+    "text": "Traditional",
+    "category": "technology"
+  },
+  {
+    "uuid": "3741bf52-39e2-4c4a-9e8d-9284010b6ddb",
+    "text": "Tuscany",
+    "category": "concept"
+  },
+  {
+    "uuid": "1898c3b4-f58a-4785-98ac-54de6069f96b",
+    "text": "Venice",
+    "category": "concept"
+  },
+  {
+    "uuid": "f0e80e14-50d5-4f1b-a0aa-06aaee802d4f",
+    "text": "Verrocchio\n\nVerrocchio",
+    "category": "technology",
+    "aliases": [
+      "Verrocchio Verrocchio"
+    ]
+  },
+  {
+    "uuid": "87751b3e-91e8-4301-9955-21d83365920f",
+    "text": "Vinci",
+    "category": "technology"
+  },
+  {
+    "uuid": "d6db45a5-9d3b-43c5-b1cc-ca92c1ee4700",
+    "text": "Visual Studies\n\nLeonardo",
+    "category": "technology",
+    "aliases": [
+      "VisualStudies Leonardo"
+    ]
+  },
+  {
+    "uuid": "8f032bed-915e-4c50-a2bb-9879562de305",
+    "text": "Vitruvian Man",
+    "category": "technology",
+    "aliases": [
+      "VitruvianMan"
+    ]
+  },
+  {
+    "uuid": "5c39eda6-b8c5-435c-87d7-a8128442d202",
+    "text": "Wikipedia",
+    "category": "concept"
+  },
+  {
+    "uuid": "d2db7c99-0f61-4bb0-9e9c-566305aa8669",
+    "text": "Worldview\n\nLeonardo",
+    "category": "technology",
+    "aliases": [
+      "Worldview Leonardo"
+    ]
   }
 ]

@@ -14,7 +14,9 @@ The current RAG pipeline in `conversation_manager.py`:
 
 Each step has opportunities for improvement.
 
-## Implementation Status (Updated: 2026-02-25)
+Current ingestion note: `scripts/rag/push_rag_data.py` loads raw text with `TextLoader` and splits with `RecursiveCharacterTextSplitter` without stripping document header comments first.
+
+## Implementation Status (Updated: 2026-02-28)
 
 Status legend: ✅ Partially complete · ⚠️ In progress · ❌ Planned
 
@@ -23,13 +25,15 @@ This guide is still roadmap-oriented; the items below capture the current implem
 - ✅ Metadata entries now support `aliases` and `category` fields (e.g., in `rag_data/shodan.json`).
 - ✅ `extract_key_matches` now supports alias matching in addition to primary text matching.
 - ✅ Retrieval already follows staged filter fallback behavior via `build_where_filters` + search fallback (`$and` → `$or` → unfiltered fallback).
+- ✅ Source document quality has improved in `rag_data` for both SHODAN and Leonardo da Vinci (structured sections and curated message examples).
+- ⚠️ All active `.txt` RAG source files currently begin with an HTML header comment (`<!-- ... -->`) that is being embedded as content.
 - ⚠️ Most other items in this guide (MMR, re-ranking, sentence-aware chunking, embedding normalisation, separate `RAG_K_MES`) remain planned.
 
 ### Section Status
 
 | Section | Status | Notes |
 |---------|--------|-------|
-| 1. Chunking Strategy | ❌ Planned | Character-based chunking is still in use |
+| 1. Chunking Strategy | ⚠️ In progress | Source files are better structured, but preprocessing/chunking quality gaps remain (header comments still embedded) |
 | 2. Embedding Model | ❌ Planned | `normalize_embeddings` still `False`; model upgrades not implemented |
 | 3. Metadata Filtering | ✅ Partially complete | Alias/category support and fallback behavior are in place |
 | 4. Query Expansion and Reformulation | ❌ Planned | Raw user query still used directly |
@@ -46,13 +50,37 @@ This guide is still roadmap-oriented; the items below capture the current implem
 
 Text is split using `RecursiveCharacterTextSplitter` (or similar) with configurable `CHUNK_SIZE` (default 2048) and `CHUNK_OVERLAP` (default 1024) character counts.
 
+### Current Source Snapshot (`rag_data/`, verified 2026-02-28)
+
+The active source files are now substantially improved in structure and coverage, but each starts with a document header comment:
+
+- `rag_data/shodan.txt` starts with `<!-- character: SHODAN ... -->`
+- `rag_data/shodan_message_examples.txt` starts with `<!-- character: SHODAN ... -->`
+- `rag_data/leonardo_da_vinci.txt` starts with `<!-- character: Leonardo da Vinci ... -->`
+- `rag_data/leonardo_da_vinci_message_examples.txt` starts with `<!-- character: Leonardo da Vinci ... -->`
+
+Because ingestion currently loads raw text directly, that comment line is included in the first chunk and therefore in embeddings.
+
 ### Problems
 
 - Character-based splitting ignores sentence boundaries, producing chunks that start or end mid-sentence.
 - A 2048-character chunk is quite large; the model may receive irrelevant context from the tail of a chunk that mostly contains useful information.
 - Uniform chunk size means short, standalone facts and long narrative paragraphs receive the same treatment.
+- Header metadata comments are being embedded as retrievable content, creating low-value tokens in early chunks.
 
 ### Improvement Plans
+
+#### 1.0 Strip Header Comments Before Chunking (Immediate)
+
+Before splitting, remove leading HTML comment headers (for example `<!-- ... -->`) from source text. Keep those values as document metadata if needed, but do not embed them in chunk text.
+
+Minimal implementation direction:
+
+1. Add a small preprocessing step in `scripts/rag/push_rag_data.py` after file load.
+2. Strip only leading header comment blocks to avoid removing intentional inline content.
+3. Continue chunking the cleaned text with the existing splitter.
+
+Expected impact: immediate reduction of non-semantic tokens in top chunks, cleaner retrieval for short queries.
 
 #### 1.1 Sentence-Aware Splitting
 
@@ -353,6 +381,7 @@ Store these metrics alongside each collection version to track quality over time
 
 | Priority | Improvement | Expected Impact |
 |----------|-------------|-----------------|
+| High | Strip leading header comments before chunking | Immediate removal of non-content embeddings in first chunks |
 | High | Enable `normalize_embeddings: True` | Immediate accuracy improvement |
 | High | Use MMR for retrieval | Reduces redundant context |
 | High | Score thresholding | Prevents irrelevant context injection |
