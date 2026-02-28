@@ -59,7 +59,19 @@ class ConversationManager:
         self.rag_k = int(self.configs.get("RAG_K", 7))
         self.rag_k_mes = int(self.configs.get("RAG_K_MES", self.rag_k))
         self.rag_collection = self.configs.get("RAG_COLLECTION", self._sanitize_collection_name(self.character_name))
-        max_history = int(self.configs.get("MAX_HISTORY_TURNS", 10))
+        _default_max_history = 10
+        _raw_max_history = self.configs.get("MAX_HISTORY_TURNS", _default_max_history)
+        try:
+            max_history = int(_raw_max_history)
+        except (TypeError, ValueError):
+            logger.warning(
+                "Invalid MAX_HISTORY_TURNS value {!r} in configuration; falling back to default {}",
+                _raw_max_history,
+                _default_max_history,
+            )
+            max_history = _default_max_history
+        # Write validated value back so ContextManager (initialised below) reads the same limit
+        self.configs["MAX_HISTORY_TURNS"] = max_history
         self.user_message_history: deque[str] = deque(maxlen=max_history)
         self.ai_message_history: deque[str] = deque(maxlen=max_history)
         self._vector_client: chromadb.PersistentClient | None = None
@@ -746,13 +758,15 @@ class ConversationManager:
     # for truncation (5.1); bare variants are used for quality gating (2.4) to catch
     # patterns that may appear without a leading newline after post-processing.
     _USER_TURN_PATTERNS: tuple[str, ...] = ("\nUser:", "\nUSER:", "\n{{user}}", "\nuser:")
-    _USER_TURN_BASE_PATTERNS: tuple[str, ...] = ("User:", "USER:", "{{user}}")
-    _MIN_RESPONSE_LENGTH: int = 40  # approx 10 tokens; responses shorter than this are rejected
+    _USER_TURN_BASE_PATTERNS: tuple[str, ...] = ("User:", "USER:", "{{user}}", "user:")
+    _MIN_RESPONSE_CHARS: int = 40  # approx 10 tokens; responses shorter than this are rejected
 
     def _post_process_response(self, response: str) -> str:
-        """Clean up raw model output before display and history storage.
+        """Clean up raw model output before storing in conversation history.
 
-        Applies user-turn truncation (5.1), stray-token removal, and
+        Note: this runs after `_stream_response` has already emitted all chunks to the
+        caller, so it affects **history storage only** — not what was displayed during
+        streaming.  Applies user-turn truncation (5.1), stray-token removal, and
         whitespace normalisation (5.4).
         """
         # 5.1 Truncate at any generated User-turn pattern
@@ -772,11 +786,11 @@ class ConversationManager:
     def _is_quality_response(self, response: str) -> bool:
         """Return True if a response passes basic quality checks (2.4).
 
-        Rejects responses that are too short, break character by generating
-        User-turn markers, or are exact duplicates of the previous AI turn.
-        Minimum length threshold is `_MIN_RESPONSE_LENGTH` (~10 tokens).
+        Rejects responses that are too short (< `_MIN_RESPONSE_CHARS` characters),
+        break character by generating User-turn markers, or are exact duplicates of
+        the previous AI turn.
         """
-        if len(response.strip()) < self._MIN_RESPONSE_LENGTH:
+        if len(response.strip()) < self._MIN_RESPONSE_CHARS:
             logger.warning("Response too short ({} chars), skipping history.", len(response.strip()))
             return False
 

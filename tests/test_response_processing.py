@@ -93,7 +93,7 @@ class TestIsQualityResponse(unittest.TestCase):
         self.assertTrue(self.mgr._is_quality_response(response))  # noqa: SLF001
 
     def test_rejects_too_short_response(self) -> None:
-        """A response shorter than _MIN_RESPONSE_LENGTH characters should be rejected."""
+        """A response shorter than _MIN_RESPONSE_CHARS characters should be rejected."""
         response = "Hello."
         self.assertFalse(self.mgr._is_quality_response(response))  # noqa: SLF001
 
@@ -105,6 +105,11 @@ class TestIsQualityResponse(unittest.TestCase):
     def test_rejects_response_with_uppercase_user_pattern(self) -> None:
         """Response containing USER: should be rejected."""
         response = "Pathetic. USER: is this fine?"
+        self.assertFalse(self.mgr._is_quality_response(response))  # noqa: SLF001
+
+    def test_rejects_response_with_lowercase_user_pattern(self) -> None:
+        """Response containing lowercase user: should be rejected."""
+        response = "Your kind bores me. user: please respond"
         self.assertFalse(self.mgr._is_quality_response(response))  # noqa: SLF001
 
     def test_rejects_exact_duplicate_of_last_ai_turn(self) -> None:
