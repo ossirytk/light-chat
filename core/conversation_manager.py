@@ -57,6 +57,7 @@ class ConversationManager:
         self.key_storage = self.configs.get("KEY_STORAGE", "./rag_data/")
         self.embedding_cache = self.configs.get("EMBEDDING_CACHE", "./embedding_models/")
         self.rag_k = int(self.configs.get("RAG_K", 7))
+        self.rag_k_mes = int(self.configs.get("RAG_K_MES", self.rag_k))
         self.rag_collection = self.configs.get("RAG_COLLECTION", self._sanitize_collection_name(self.character_name))
         self._vector_client: chromadb.PersistentClient | None = None
         self._vector_embedder: HuggingFaceEmbeddings | None = None
@@ -426,7 +427,7 @@ class ConversationManager:
     def _get_vector_embedder(self) -> HuggingFaceEmbeddings:
         if self._vector_embedder is None:
             model_kwargs = {"device": "cpu"}
-            encode_kwargs = {"normalize_embeddings": False}
+            encode_kwargs = {"normalize_embeddings": True}
             self._vector_embedder = HuggingFaceEmbeddings(
                 model_kwargs=model_kwargs,
                 encode_kwargs=encode_kwargs,
@@ -467,19 +468,41 @@ class ConversationManager:
         if k is None:
             k = self.rag_k
         db = self._get_vector_db(collection_name)
+        use_mmr = bool(self.configs.get("USE_MMR", False))
+        fetch_k = int(self.configs.get("RAG_FETCH_K", 20))
+        lambda_mult = float(self.configs.get("LAMBDA_MULT", 0.75))
+        score_threshold = self.configs.get("RAG_SCORE_THRESHOLD")
         for where in filters:
-            docs = db.similarity_search_with_score(query=query, k=k, filter=where)
-            if docs or where == {}:
-                return [doc.page_content for doc, _score in docs]
+            if use_mmr:
+                docs_list = db.max_marginal_relevance_search(
+                    query=query,
+                    k=k,
+                    # fetch_k must be >= k; if RAG_FETCH_K is smaller than k, use k as the floor
+                    fetch_k=max(k, fetch_k),
+                    lambda_mult=lambda_mult,
+                    filter=where,
+                )
+                if docs_list or where == {}:
+                    return [doc.page_content for doc in docs_list]
+            else:
+                docs = db.similarity_search_with_score(query=query, k=k, filter=where)
+                if score_threshold is not None:
+                    docs = [(doc, score) for doc, score in docs if score <= float(score_threshold)]
+                if docs or where == {}:
+                    return [doc.page_content for doc, _score in docs]
         return []
 
     def _get_vector_context(self, query: str, k: int | None = None) -> tuple[str, str]:
         if not self.rag_collection:
             return "", ""
+        # Enrich query with character name to orient embedding search toward the character domain
+        enriched_query = f"{self.character_name} {query}" if self.character_name else query
         matches = self._get_key_matches(query, self.rag_collection)
         filters = build_where_filters(matches)
-        context_chunks = self._search_collection(self.rag_collection, query, filters, k=k)
-        mes_chunks = self._search_collection(f"{self.rag_collection}_mes", query, filters, k=k)
+        context_chunks = self._search_collection(self.rag_collection, enriched_query, filters, k=k)
+        # Use unfiltered search for message examples: goal is stylistic match, not factual (Section 6.2)
+        k_mes = k if k is not None else self.rag_k_mes
+        mes_chunks = self._search_collection(f"{self.rag_collection}_mes", enriched_query, [None], k=k_mes)
         vector_context = "\n\n".join(chunk.strip() for chunk in context_chunks if chunk.strip())
         mes_example = "\n\n".join(chunk.strip() for chunk in mes_chunks if chunk.strip())
         return vector_context, mes_example

@@ -26,19 +26,25 @@ This guide is still roadmap-oriented; the items below capture the current implem
 - ✅ `extract_key_matches` now supports alias matching in addition to primary text matching.
 - ✅ Retrieval already follows staged filter fallback behavior via `build_where_filters` + search fallback (`$and` → `$or` → unfiltered fallback).
 - ✅ Source document quality has improved in `rag_data` for both SHODAN and Leonardo da Vinci (structured sections and curated message examples).
-- ⚠️ All active `.txt` RAG source files currently begin with an HTML header comment (`<!-- ... -->`) that is being embedded as content.
-- ⚠️ Most other items in this guide (MMR, re-ranking, sentence-aware chunking, embedding normalisation, separate `RAG_K_MES`) remain planned.
+- ✅ Leading HTML header comments are now stripped before chunking in `scripts/rag/push_rag_data.py`.
+- ✅ `normalize_embeddings: True` is now set in all three embedder instantiation sites.
+- ✅ MMR retrieval is now supported via `USE_MMR` config flag (`fetch_k`, `lambda_mult` configurable).
+- ✅ Score thresholding is now supported via `RAG_SCORE_THRESHOLD` config (applied when `USE_MMR=False`).
+- ✅ Separate `RAG_K_MES` parameter controls retrieval count for the message examples collection.
+- ✅ Message examples collection now uses unfiltered retrieval for better stylistic diversity.
+- ✅ Query enriched with character name prefix before embedding search for better oriented retrieval.
+- ⚠️ Most other items in this guide (sentence-aware chunking, cross-encoder re-ranking, multi-query, contextual compression) remain planned.
 
 ### Section Status
 
 | Section | Status | Notes |
 |---------|--------|-------|
-| 1. Chunking Strategy | ⚠️ In progress | Source files are better structured, but preprocessing/chunking quality gaps remain (header comments still embedded) |
-| 2. Embedding Model | ❌ Planned | `normalize_embeddings` still `False`; model upgrades not implemented |
+| 1. Chunking Strategy | ✅ Partially complete | Header comments stripped (1.0); sentence-aware/semantic chunking (1.1–1.3) remains planned |
+| 2. Embedding Model | ✅ Partially complete | `normalize_embeddings: True` enabled (2.1); model upgrade (2.2–2.3) remains planned |
 | 3. Metadata Filtering | ✅ Partially complete | Alias/category support and fallback behavior are in place |
-| 4. Query Expansion and Reformulation | ❌ Planned | Raw user query still used directly |
-| 5. Retrieval Re-Ranking | ❌ Planned | No MMR/re-ranker/thresholding in production path |
-| 6. Separate Retrieval for Context vs Examples | ❌ Planned | Same `k`/filters currently used for both collections |
+| 4. Query Expansion and Reformulation | ✅ Partially complete | Character-name query enrichment (4.2) implemented; multi-query (4.1) and history-aware (4.3) remain planned |
+| 5. Retrieval Re-Ranking | ✅ Partially complete | MMR (5.3) and score thresholding (5.2) implemented; cross-encoder re-ranking (5.1) remains planned |
+| 6. Separate Retrieval for Context vs Examples | ✅ Partially complete | `RAG_K_MES` (6.1) and unfiltered mes retrieval (6.2) implemented; cross-collection deduplication (6.3) remains planned |
 | 7. Contextual Compression | ❌ Planned | Retrieved chunks are still injected largely as-is |
 | 8. Collection Management | ⚠️ In progress | Tooling exists, but versioning/incremental metrics workflow is incomplete |
 

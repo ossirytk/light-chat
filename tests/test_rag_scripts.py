@@ -15,7 +15,7 @@ from scripts.analyze_rag_text import (
 )
 from scripts.fetch_character_context import clean_text, fetch_webpage_text, validate_url
 from scripts.manage_collections import extract_key_matches, normalize_keyfile
-from scripts.push_rag_data import enrich_documents_with_metadata, load_and_chunk_text_file
+from scripts.push_rag_data import enrich_documents_with_metadata, load_and_chunk_text_file, strip_leading_html_comment
 
 SHODAN_TEXT_PATH = Path("rag_data/shodan.txt")
 SHODAN_METADATA_PATH = Path("rag_data/shodan.json")
@@ -212,3 +212,37 @@ class TestRagScripts(unittest.TestCase):
         concept_entry = next((entry for entry in result.potential_metadata if entry.get("text") == "Many"), None)
         if concept_entry is not None:
             self.assertNotIn("category", concept_entry)
+
+    def test_strip_leading_html_comment(self) -> None:
+        """Validate that strip_leading_html_comment removes only the leading HTML comment."""
+        # Standard single-line header comment
+        text_with_comment = "<!-- character: SHODAN | version: 1.0 -->\n\nActual content here."
+        result = strip_leading_html_comment(text_with_comment)
+        self.assertNotIn("<!--", result)
+        self.assertIn("Actual content here.", result)
+
+        # No comment present — text should be unchanged
+        text_without_comment = "## Character Overview\n\nSHODAN is an AI."
+        result_no_comment = strip_leading_html_comment(text_without_comment)
+        self.assertEqual(result_no_comment, text_without_comment)
+
+        # Inline comment (not at start) should NOT be stripped
+        text_inline = "Some text\n<!-- inline comment -->\nMore text"
+        result_inline = strip_leading_html_comment(text_inline)
+        self.assertIn("<!-- inline comment -->", result_inline)
+
+        # Multi-line header comment should be stripped entirely
+        text_multiline = "<!-- multi\nline\nheader -->\n\nContent."
+        result_multiline = strip_leading_html_comment(text_multiline)
+        self.assertNotIn("<!--", result_multiline)
+        self.assertIn("Content.", result_multiline)
+
+    def test_load_and_chunk_strips_header_comment(self) -> None:
+        """Validate that load_and_chunk_text_file strips the leading HTML header from source files."""
+        documents = load_and_chunk_text_file(SHODAN_TEXT_PATH, CHUNK_SIZE, CHUNK_OVERLAP)
+        self.assertTrue(documents)
+        # The first chunk must not start with the HTML header comment
+        first_chunk = documents[0].page_content
+        self.assertFalse(first_chunk.startswith("<!--"), "First chunk should not contain the HTML header comment")
+        # The first chunk should contain actual SHODAN character content
+        self.assertIn("SHODAN", first_chunk, "First chunk should contain actual document content after stripping")
