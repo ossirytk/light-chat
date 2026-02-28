@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 import json
 import logging
+import re
 import threading
 from collections import deque
 from collections.abc import Callable
@@ -37,6 +38,7 @@ class ConversationManager:
         self.scenario: str = ""
         self.mes_example: str = ""
         self.first_message: str = ""
+        self.voice_instructions: str = ""
         self._greeting_in_history: bool = False
         self.llama_input: str = ""
         self.llama_instruction: str = ""
@@ -51,14 +53,15 @@ class ConversationManager:
         self.configs = self.load_configs()
         self.prompt = self.parse_prompt()
         self.llm_model = self.instantiate_llm()
-        self.user_message_history: deque[str] = deque(maxlen=3)
-        self.ai_message_history: deque[str] = deque(maxlen=3)
         self.persist_directory = self.configs.get("PERSIST_DIRECTORY", "./character_storage/")
         self.key_storage = self.configs.get("KEY_STORAGE", "./rag_data/")
         self.embedding_cache = self.configs.get("EMBEDDING_CACHE", "./embedding_models/")
         self.rag_k = int(self.configs.get("RAG_K", 7))
         self.rag_k_mes = int(self.configs.get("RAG_K_MES", self.rag_k))
         self.rag_collection = self.configs.get("RAG_COLLECTION", self._sanitize_collection_name(self.character_name))
+        max_history = int(self.configs.get("MAX_HISTORY_TURNS", 10))
+        self.user_message_history: deque[str] = deque(maxlen=max_history)
+        self.ai_message_history: deque[str] = deque(maxlen=max_history)
         self._vector_client: chromadb.PersistentClient | None = None
         self._vector_embedder: HuggingFaceEmbeddings | None = None
         self._vector_dbs: dict[str, Chroma] = {}
@@ -321,6 +324,7 @@ class ConversationManager:
         scenario = card.get("scenario") or card.get("world_scenario", "")
         mes_example = card.get("mes_example") or card.get("example_dialogue", "")
         first_message = card.get("first_mes") or card.get("char_greeting", "")
+        voice_instructions = card.get("voice_instructions", "")
 
         description = self._replace_template_variables(description, char_name=char_name)
         scenario = self._replace_template_variables(scenario, char_name=char_name)
@@ -331,6 +335,7 @@ class ConversationManager:
         self.scenario = scenario
         self.mes_example = mes_example
         self.first_message = first_message
+        self.voice_instructions = voice_instructions
 
         return prompt.partial(
             character=char_name,
@@ -363,7 +368,7 @@ class ConversationManager:
         model_type = self.configs.get("MODEL_TYPE", "").lower()
         add_bos = self.add_bos
         if model_type == "mistral":
-            stop_sequences = ["\nUser:", "User:", "\nUSER:", "USER:"]
+            stop_sequences = ["\nUser:", "User:", "\nUSER:", "USER:", "\n---", "\n==="]
             if self.character_name:
                 stop_sequences.append(f"\n{self.character_name}:")
             add_bos = True
@@ -537,14 +542,16 @@ class ConversationManager:
 
     def _build_mistral_prompt(self, message: str, vector_context: str, mes_example: str) -> str:
         # Build base system prompt WITHOUT vector context (it goes in final block only)
+        voice_section = f"\n{self.voice_instructions}" if self.voice_instructions else ""
         system_prompt = (
             f"You are roleplaying as {self.character_name} in a continuous fictional chat with User. "
             "Stay in character, follow the description and scenario, and use the examples "
-            f"and context as guidance. Reply only as {self.character_name}; never write any User lines "
-            "(for example, never include 'User:' in your output) or dialogue for User.\n\n"
+            f"and context as guidance.{voice_section}\n\n"
             f"{self.description}\n\n"
             f"Scenario:\n{self.scenario}\n\n"
-            f"Message Examples:\n{mes_example}"
+            f"Message Examples:\n{mes_example}\n\n"
+            f"Reply only as {self.character_name}; never write any User lines "
+            "(for example, never include 'User:' in your output) or dialogue for User."
         ).strip()
 
         user_message_history_list = list(self.user_message_history)
@@ -569,14 +576,16 @@ class ConversationManager:
 
     def _build_system_prompt_text(self, mes_example: str) -> str:
         """Build the system prompt text without vector context."""
+        voice_section = f"\n{self.voice_instructions}" if self.voice_instructions else ""
         return (
             f"You are roleplaying as {self.character_name} in a continuous fictional chat with User. "
             "Stay in character, follow the description and scenario, and use the examples "
-            f"and context as guidance. Reply only as {self.character_name}; never write any User lines "
-            "(for example, never include 'User:' in your output) or dialogue for User.\n\n"
+            f"and context as guidance.{voice_section}\n\n"
             f"{self.description}\n\n"
             f"Scenario:\n{self.scenario}\n\n"
-            f"Message Examples:\n{mes_example}"
+            f"Message Examples:\n{mes_example}\n\n"
+            f"Reply only as {self.character_name}; never write any User lines "
+            "(for example, never include 'User:' in your output) or dialogue for User."
         ).strip()
 
     def _prepare_vector_context(self, message: str) -> tuple[str, str]:
@@ -642,7 +651,11 @@ class ConversationManager:
             if not mes_example:
                 mes_example = self.mes_example
 
-        vector_context = f"Relevant context:\n{vector_context}" if vector_context else " "
+        vector_context = (
+            "[The following background information is relevant to the current topic. "
+            "Use it to inform your response but do not quote it directly.]\n"
+            f"{vector_context}"
+        ) if vector_context else " "
         return vector_context, mes_example
 
     def _build_conversation_chain(self, message: str, vector_context: str, mes_example: str) -> tuple[object, object]:
@@ -728,6 +741,60 @@ class ConversationManager:
         self.user_message_history.append(message)
         self.ai_message_history.append(result)
 
+    _STRAY_TOKENS: tuple[str, ...] = ("[/INST]", "<|im_end|>", "</s>", "<|eot_id|>", "<s>", "<|end|>")
+    # Patterns that identify a generated User turn. Newline-prefixed variants are used
+    # for truncation (5.1); bare variants are used for quality gating (2.4) to catch
+    # patterns that may appear without a leading newline after post-processing.
+    _USER_TURN_PATTERNS: tuple[str, ...] = ("\nUser:", "\nUSER:", "\n{{user}}", "\nuser:")
+    _USER_TURN_BASE_PATTERNS: tuple[str, ...] = ("User:", "USER:", "{{user}}")
+    _MIN_RESPONSE_LENGTH: int = 40  # approx 10 tokens; responses shorter than this are rejected
+
+    def _post_process_response(self, response: str) -> str:
+        """Clean up raw model output before display and history storage.
+
+        Applies user-turn truncation (5.1), stray-token removal, and
+        whitespace normalisation (5.4).
+        """
+        # 5.1 Truncate at any generated User-turn pattern
+        for pattern in self._USER_TURN_PATTERNS:
+            if pattern in response:
+                response = response[: response.index(pattern)]
+
+        # 5.4 Remove stray model-format tokens
+        for token in self._STRAY_TOKENS:
+            response = response.replace(token, "")
+
+        # 5.4 Collapse runs of 3+ newlines to a single blank line
+        response = re.sub(r"\n{3,}", "\n\n", response)
+
+        return response.strip()
+
+    def _is_quality_response(self, response: str) -> bool:
+        """Return True if a response passes basic quality checks (2.4).
+
+        Rejects responses that are too short, break character by generating
+        User-turn markers, or are exact duplicates of the previous AI turn.
+        Minimum length threshold is `_MIN_RESPONSE_LENGTH` (~10 tokens).
+        """
+        if len(response.strip()) < self._MIN_RESPONSE_LENGTH:
+            logger.warning("Response too short ({} chars), skipping history.", len(response.strip()))
+            return False
+
+        # Check for broken-character User-turn patterns
+        for pattern in self._USER_TURN_BASE_PATTERNS:
+            if pattern in response:
+                logger.warning("Response contains User-turn pattern '{}', skipping history.", pattern)
+                return False
+
+        # Reject exact duplicate of last AI turn
+        if self.ai_message_history:
+            last_ai = list(self.ai_message_history)[-1]
+            if response.strip() == last_ai.strip():
+                logger.warning("Response is identical to previous AI turn, skipping history.")
+                return False
+
+        return True
+
     async def ask_question(
         self,
         message: str,
@@ -746,4 +813,8 @@ class ConversationManager:
             first_token_event.set()
         if answer is None:
             return
-        self.update_history(message, answer)
+        answer = self._post_process_response(answer)
+        if self._is_quality_response(answer):
+            self.update_history(message, answer)
+        else:
+            logger.warning("Response did not pass quality check; turn not added to history.")
