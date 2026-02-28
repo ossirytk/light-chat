@@ -191,7 +191,7 @@ def main(
     embedding_device = str(app_config.get("EMBEDDING_DEVICE", "cpu"))
     embedding_cache = str(app_config.get("EMBEDDING_CACHE", "./embedding_models/"))
     model_kwargs = {"device": embedding_device}
-    encode_kwargs = {"normalize_embeddings": False}
+    encode_kwargs = {"normalize_embeddings": True}
     cache_folder = str(Path(embedding_cache))
     embedder = HuggingFaceEmbeddings(
         model_kwargs=model_kwargs,

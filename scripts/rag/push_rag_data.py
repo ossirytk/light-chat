@@ -10,6 +10,7 @@ This script provides comprehensive features for managing RAG data:
 
 import json
 import logging
+import re
 import sys
 import time
 from concurrent.futures import ProcessPoolExecutor
@@ -103,6 +104,18 @@ def enrich_document_with_metadata(document: Document, all_keys: list) -> Documen
     return document
 
 
+_LEADING_HTML_COMMENT_RE = re.compile(r"^\s*<!--.*?-->\s*", re.DOTALL)
+
+
+def strip_leading_html_comment(text: str) -> str:
+    """Strip a leading HTML comment block from document text.
+
+    Removes the first ``<!-- ... -->`` block at the start of the text so that
+    document header metadata is not embedded as retrievable content.
+    """
+    return _LEADING_HTML_COMMENT_RE.sub("", text, count=1)
+
+
 def load_and_chunk_text_file(
     file_path: Path,
     chunk_size: int,
@@ -115,6 +128,8 @@ def load_and_chunk_text_file(
     )
     loader = TextLoader(file_path, encoding="utf-8")
     documents = loader.load()
+    for doc in documents:
+        doc.page_content = strip_leading_html_comment(doc.page_content)
     return text_splitter.split_documents(documents)
 
 
@@ -282,7 +297,7 @@ def main(**kwargs: object) -> None:
     embedding_device = str(app_config.get("EMBEDDING_DEVICE", "cpu"))
     embedding_cache = str(app_config.get("EMBEDDING_CACHE", "./embedding_models/"))
     model_kwargs = {"device": embedding_device}
-    encode_kwargs = {"normalize_embeddings": False}
+    encode_kwargs = {"normalize_embeddings": True}
     cache_folder = str(Path(embedding_cache))
 
     embedder = HuggingFaceEmbeddings(
