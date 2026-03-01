@@ -34,13 +34,21 @@ def configure_logging(app_config: dict) -> None:
     """Configure logging based on app config."""
     show_logs = bool(app_config.get("SHOW_LOGS", True))
     log_level = str(app_config.get("LOG_LEVEL", "DEBUG")).upper()
+    log_to_file = bool(app_config.get("LOG_TO_FILE", True))
+    log_file = str(app_config.get("LOG_FILE", "./logs/light-chat.log"))
+
+    logger.remove()
+
+    if log_to_file:
+        log_path = Path(log_file)
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        logger.add(log_path, level=log_level, rotation="10 MB", retention=5)
+
     if show_logs:
         logging.basicConfig(level=log_level)
-        logger.remove()
         logger.add(sys.stderr, level=log_level)
     else:
         logging.disable(logging.CRITICAL)
-        logger.remove()
 
 
 class CharacterCard(Static):
@@ -340,13 +348,17 @@ class ChatApp(App):
         # Use a list to share state between async context and sync callback
         message_chunks: list[str] = []
 
-        def stream_callback(chunk: str) -> None:
-            """Callback to handle streaming text chunks."""
+        def append_chunk_ui(chunk: str) -> None:
+            """Apply streamed chunk to UI on Textual's main thread."""
             message_chunks.append(chunk)
             if ai_message_widget:
                 ai_message_widget.append_text(chunk)
             if self.chat_log_widget:
                 self.chat_log_widget.scroll_end(animate=False)
+
+        def stream_callback(chunk: str) -> None:
+            """Callback to handle streaming text chunks."""
+            self.call_from_thread(append_chunk_ui, chunk)
 
         try:
             # Run the async conversation in a thread to avoid blocking the event loop

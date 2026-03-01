@@ -1,319 +1,201 @@
-# Light Chat - Character AI Chatbot
+# Light Chat
 
-A character AI chatbot system using ChromaDB for RAG (Retrieval Augmented Generation) with comprehensive text analysis and collection management tools.
+Character-focused local chatbot with RAG support (ChromaDB + LangChain), CLI and Textual TUI entrypoints, and tooling for metadata generation and collection management.
 
-## Features
+## What It Includes
 
-- **RAG-powered conversations**: Uses ChromaDB vector database for context retrieval
-- **Character-specific knowledge**: Manages character data and message examples
-- **Comprehensive analysis tools**: Extract metadata and topics from text
-- **Collection management**: Full CRUD operations for ChromaDB collections
-- **Metadata enrichment**: Automatic metadata tagging for improved retrieval
-- **Flexible configuration**: Configurable chunking, embedding, and processing
+- Local chat runtime backed by `llama-cpp-python`
+- Character-card-driven prompting (`cards/*.json`)
+- RAG retrieval from ChromaDB collections
+- Dynamic context budgeting and history management
+- GPU offload auto-layer calculation and KV cache quant support
+- Scripted workflows for analyzing, pushing, and managing RAG data
 
-## Quick Start
+## Current Runtime Entry Points
 
-### Installation
+- CLI chat: `main.py`
+- Textual TUI chat: `chat_tui.py`
+- Web chat (FastAPI + Jinja2 + HTMX): `web_app.py`
+
+Run either with `uv`:
 
 ```bash
-# Using uv (recommended)
+uv run python main.py
+uv run python chat_tui.py
+uv run uvicorn web_app:app --host 127.0.0.1 --port 8000
+```
+
+Stop the web server (from another terminal):
+
+```bash
+pkill -f 'uvicorn web_app:app'
+```
+
+Web diagnostics endpoints:
+
+```bash
+curl -s http://127.0.0.1:8000/health
+curl -s http://127.0.0.1:8000/healthz/full
+```
+
+Notes for web chat behavior:
+
+- Shows status updates (`Ready`, `Sending`, `Thinking`, `Streaming`, `Timed out`).
+- Applies a stream timeout and surfaces a `Retry` button on stream failure.
+
+## Setup
+
+```bash
 uv sync
-
-# Or using pip
-pip install -r requirements.txt
 ```
 
-### Basic Usage
+Python requirement is defined in `pyproject.toml` (`>=3.13`).
 
-1. **Prepare RAG data** (legacy batch processing):
+## Quick RAG Workflow
+
+1. Analyze source text and generate metadata:
+
 ```bash
-uv run python scripts/rag/old_prepare_rag.py
+uv run python scripts/rag/analyze_rag_text.py analyze rag_data/shodan.txt -o rag_data/shodan.json --strict
 ```
 
-2. **Analyze text and extract metadata**:
+2. Validate metadata:
+
 ```bash
-uv run python scripts/rag/analyze_rag_text.py analyze rag_data/shodan.txt -v
+uv run python scripts/rag/analyze_rag_text.py validate rag_data/shodan.json
 ```
 
-3. **Push single file to ChromaDB**:
+3. Push text into a collection:
+
 ```bash
-uv run python scripts/rag/push_rag_data.py rag_data/shodan.txt -c shodan
+uv run python scripts/rag/push_rag_data.py rag_data/shodan.txt -c shodan -w
 ```
 
-4. **Manage collections**:
+4. Test retrieval quality:
+
 ```bash
-# List all collections
-uv run python scripts/rag/manage_collections.py list-collections -v
-
-# Test a collection
-uv run python scripts/rag/manage_collections.py test shodan -q "SHODAN artificial intelligence"
-
-# Delete a collection
-uv run python scripts/rag/manage_collections.py delete old_collection
+uv run python scripts/rag/manage_collections.py test shodan -q "SHODAN origin" -k 5
 ```
 
-## RAG Scripts
+## Script Surface (Current)
 
-### 1. scripts/rag/analyze_rag_text.py
+### `scripts/rag/analyze_rag_text.py`
 
-Analyze text files to extract metadata and topics:
+Commands:
 
-- Extract named entities (capitalized phrases, dates, numbers)
-- Identify key phrases (frequently occurring terms)
-- Generate metadata JSON files
-- Validate existing metadata files
-- Scan directories for missing metadata
+- `analyze`
+- `validate`
+- `scan`
 
-**Commands**: `analyze`, `validate`, `scan`
+Notable options:
 
-### 2. scripts/rag/push_rag_data.py
+- `--auto-categories/--no-auto-categories`
+- `--auto-aliases/--no-auto-aliases`
+- `--max-aliases`
+- `--strict`
+- `--review-report`
 
-Push individual text files to ChromaDB with enhanced features:
+### `scripts/rag/push_rag_data.py`
 
-- Single file processing with explicit collection naming
-- Dry-run mode for testing
-- Overwrite protection
-- Custom metadata file selection
-- Detailed progress tracking
+Notable options:
 
-### 3. scripts/rag/manage_collections.py
+- `-c/--collection-name` (required)
+- `-w/--overwrite`
+- `-d/--dry-run`
+- `-m/--metadata-file`
+- `-cs/--chunk-size`
+- `-co/--chunk-overlap`
+- `-t/--threads`
 
-Comprehensive collection management:
+Notes:
 
-- List collections with statistics
-- Delete single or multiple collections
-- Test collections with similarity search
-- Export collection data to JSON
-- Show detailed collection information
+- Leading HTML header comments are stripped before chunking.
+- Metadata auto-detection maps `<name>.txt` and `<name>_message_examples.txt` to `<name>.json`.
 
-### 4. scripts/rag/old_prepare_rag.py
+### `scripts/rag/manage_collections.py`
 
-Original batch processing script:
+Commands:
 
-- Process all text files in a directory
-- Create collections for base files and message examples
-- Parallel metadata enrichment
-- Automatic collection naming
+- `list-collections`
+- `delete`
+- `delete-multiple`
+- `test`
+- `export`
+- `info`
 
-### 5. core/collection_helper.py
+### Compatibility wrappers
 
-Original collection helper:
+Top-level wrappers exist for moved scripts:
 
-- List, delete, and test collections
-- Metadata-based filtering
-- Simple command-line interface
+- `scripts/analyze_rag_text.py`
+- `scripts/push_rag_data.py`
+- `scripts/manage_collections.py`
+- `scripts/fetch_character_context.py`
+- `scripts/build_flash_attention.py`
 
-## Documentation
+## Implementation Highlights (verified)
 
-See [docs/RAG_SCRIPTS_GUIDE.md](docs/RAG_SCRIPTS_GUIDE.md) for comprehensive documentation including:
+The following implementation points are reflected in current docs and code:
 
-- Detailed command reference
-- Configuration options
-- Common workflows
-- Troubleshooting guide
-- Best practices
+- RAG management script set is in place (`analyze_rag_text`, `push_rag_data`, `manage_collections`).
+- Metadata analysis + validation workflow is implemented and tested in `tests/test_rag_scripts.py`.
+- Collection management supports listing, deletion, pattern deletion, testing, export, and info commands.
+- Script workflows are documented in `docs/RAG_SCRIPTS_GUIDE.md`.
+- Architecture remains CLI-first with shared config usage via `configs/appconf.json`.
 
-## Project Structure
+This section intentionally focuses on active behavior and omits historical benchmark/commit snapshot details.
 
-```
-light-chat/
-├── rag_data/              # RAG text files and metadata
-│   ├── shodan.txt         # Character context data
-│   ├── shodan_message_examples.txt
-│   └── shodan.json        # Metadata keys
-├── configs/               # Configuration files
-│   └── appconf.json       # Application configuration
-├── character_storage/     # ChromaDB persistent storage
-├── docs/                  # Documentation
-│   └── RAG_SCRIPTS_GUIDE.md
-├── scripts/
-│   ├── rag/                    # RAG-related tooling
-│   │   ├── analyze_rag_text.py
-│   │   ├── push_rag_data.py
-│   │   ├── manage_collections.py
-│   │   └── old_prepare_rag.py
-│   ├── context/                # Context fetch/cleanup tooling
-│   │   └── fetch_character_context.py
-│   └── build/
-│       └── flash_attention/    # llama-cpp Flash Attention build helpers
-│           ├── build_flash_attention.py
-│           └── build_flash_attention.sh
-├── core/
-│   ├── collection_helper.py   # Original collection helper
-│   ├── context_manager.py     # Runtime RAG retrieval
-│   ├── conversation_manager.py # Conversation handling
-│   └── gpu_utils.py           # GPU helpers
-├── tests/                     # Script tests
-└── main.py                # Main application
-```
+## Current Config Notes
 
-## Configuration
-
-Edit `configs/appconf.json` to customize:
+### `configs/appconf.json` (selected active defaults)
 
 ```json
 {
-  "PERSIST_DIRECTORY": "./character_storage/",
-  "KEY_STORAGE": "./rag_data/",
-  "DOCUMENTS_DIRECTORY": "./rag_data/",
-  "CHUNK_SIZE": 2048,
-  "CHUNK_OVERLAP": 1024,
-  "THREADS": 6,
-  "EMBEDDING_DEVICE": "cpu",
   "RAG_COLLECTION": "shodan",
-  "RAG_K": 2
+  "RAG_K": 3,
+  "RAG_K_MES": 2,
+  "USE_MMR": true,
+  "USE_DYNAMIC_CONTEXT": true,
+  "MAX_HISTORY_TURNS": 10
 }
 ```
 
-## Metadata Format
-
-Metadata files should follow this structure:
+### `configs/modelconf.json` (selected active defaults)
 
 ```json
-[
-  {
-    "uuid": "unique-identifier",
-    "text": "Searchable content"
-  }
-]
+{
+  "MODEL_TYPE": "mistral",
+  "LAYERS": "auto",
+  "TARGET_VRAM_USAGE": 0.8,
+  "KV_CACHE_QUANT": "f16",
+  "N_CTX": 32768
+}
 ```
 
-Supported text field names: `text`, `content`, `value`, `text_field`, `text_fields`
+## Documentation Map
 
-## Common Workflows
+- RAG script usage: `docs/RAG_SCRIPTS_GUIDE.md`
+- Context management docs: `docs/context_management/00_README.md`
+- GPU layer auto-tuning: `docs/AUTO_GPU_LAYERS.md`
+- Flash attention build helper: `docs/FLASH_ATTENTION_BUILD.md`
+- Future work status: `docs/future_work/`
+- Legacy archived notes: `docs/legacy/`
 
-### Adding New Character Data
-
-```bash
-# 1. Analyze and extract metadata
-uv run python scripts/rag/analyze_rag_text.py analyze new_character.txt -o new_character.json
-
-# 2. Validate metadata
-uv run python scripts/rag/analyze_rag_text.py validate new_character.json
-
-# 3. Push to ChromaDB
-uv run python scripts/rag/push_rag_data.py new_character.txt -c new_character
-
-# 4. Test the collection
-uv run python scripts/rag/manage_collections.py test new_character -q "test query"
-```
-
-### Updating Existing Collection
+## Testing and Linting
 
 ```bash
-# 1. Backup
-uv run python scripts/rag/manage_collections.py export shodan -o shodan_backup.json
-
-# 2. Update with overwrite
-uv run python scripts/rag/push_rag_data.py rag_data/shodan.txt -c shodan -w
-
-# 3. Test
-uv run python scripts/rag/manage_collections.py test shodan -q "verification query"
-```
-
-### Batch Processing
-
-```bash
-# Scan and auto-generate missing metadata
-uv run python scripts/rag/analyze_rag_text.py scan rag_data/ --auto-generate
-
-# Process all files
-uv run python scripts/rag/old_prepare_rag.py
-```
-
-## Advanced Features
-
-### Dry-Run Mode
-
-Test configuration without making changes:
-
-```bash
-uv run python scripts/rag/push_rag_data.py file.txt -c collection -d
-```
-
-### Custom Chunk Sizes
-
-Optimize for your use case:
-
-```bash
-uv run python scripts/rag/push_rag_data.py file.txt -c collection -cs 1024 -co 512
-```
-
-### Metadata Filtering
-
-Search with metadata filters:
-
-```bash
-uv run python scripts/rag/manage_collections.py test collection -q "query with metadata"
-```
-
-### Bulk Operations
-
-Delete multiple collections:
-
-```bash
-uv run python scripts/rag/manage_collections.py delete-multiple --pattern "test_*" -y
-```
-
-## Dependencies
-
-- **chromadb**: Vector database for embeddings
-- **langchain**: RAG orchestration and document processing
-- **langchain-chroma**: ChromaDB integration
-- **langchain-huggingface**: Embedding models
-- **sentence-transformers**: Embedding backend
-- **click**: CLI framework
-- **loguru**: Logging
-
-## Development
-
-### Running Tests
-
-```bash
-# Test scripts with sample data
-uv run python scripts/rag/analyze_rag_text.py analyze rag_data/shodan.txt -v
-uv run python scripts/rag/manage_collections.py list-collections -v
-```
-
-### Linting
-
-```bash
-# Using ruff
-uv run ruff check .
 uv run ruff format .
+uv run ruff check .
+uv run python -m unittest
 ```
 
-## Troubleshooting
+Or run targeted tests:
 
-**No output from scripts?**
-- Set `SHOW_LOGS: true` in `configs/appconf.json`
-
-**Collection already exists?**
-- Use `--overwrite` flag or delete first: `uv run python scripts/rag/manage_collections.py delete <name> -y`
-
-**Out of memory?**
-- Reduce chunk size: `--chunk-size 1024`
-- Reduce threads: `--threads 2`
-
-**Metadata not applied?**
-- Validate: `uv run python scripts/rag/analyze_rag_text.py validate <file.json>`
-- Check filename matches (e.g., `shodan.txt` → `shodan.json`)
-
-## Contributing
-
-Contributions are welcome! Please:
-
-1. Follow the existing code style (ruff configuration)
-2. Add tests for new features
-3. Update documentation
-4. Submit pull requests
+```bash
+uv run python -m unittest tests.test_rag_scripts
+uv run python -m unittest tests.test_response_processing
+```
 
 ## License
 
-See [LICENSE](LICENSE) for details.
-
-## Support
-
-For issues or questions:
-- Check [docs/RAG_SCRIPTS_GUIDE.md](docs/RAG_SCRIPTS_GUIDE.md)
-- Open an issue on GitHub
+See `LICENSE`.

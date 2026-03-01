@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>light-chat web</title>
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    <style>
+        :root {
+            color-scheme: dark;
+            font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        }
+
+        body {
+            margin: 0;
+            background: #111418;
+            color: #e6edf3;
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            height: 100vh;
+        }
+
+        .sidebar {
+            border-right: 1px solid #2d3743;
+            padding: 1rem;
+        }
+
+        .sidebar h1 {
+            margin: 0 0 0.5rem;
+            font-size: 1.1rem;
+        }
+
+        .meta {
+            font-size: 0.9rem;
+            color: #98a6b6;
+            line-height: 1.5;
+        }
+
+        .main {
+            display: grid;
+            grid-template-rows: 1fr auto;
+            min-height: 0;
+        }
+
+        #chat-log {
+            overflow-y: auto;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .message {
+            padding: 0.75rem 0.9rem;
+            border-radius: 10px;
+            max-width: 78%;
+            white-space: pre-wrap;
+            line-height: 1.45;
+        }
+
+        .message.user {
+            background: #183047;
+            border: 1px solid #214a71;
+            align-self: end;
+        }
+
+        .message.assistant {
+            background: #1e242b;
+            border: 1px solid #2d3743;
+            align-self: start;
+        }
+
+        .composer {
+            border-top: 1px solid #2d3743;
+            padding: 1rem;
+        }
+
+        #status-line {
+            color: #98a6b6;
+            font-size: 0.85rem;
+            margin-bottom: 0.6rem;
+            min-height: 1.2em;
+        }
+
+        #chat-form {
+            display: flex;
+            gap: 0.65rem;
+        }
+
+        #user-input {
+            flex: 1;
+            border: 1px solid #2d3743;
+            background: #0f1317;
+            color: #e6edf3;
+            border-radius: 8px;
+            padding: 0.7rem 0.8rem;
+        }
+
+        button {
+            border: 1px solid #2d3743;
+            background: #1f6feb;
+            color: white;
+            border-radius: 8px;
+            padding: 0.7rem 1rem;
+            cursor: pointer;
+        }
+
+        button:disabled,
+        #user-input:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .retry-btn {
+            margin-top: 0.6rem;
+            background: #214a71;
+            border: 1px solid #2d3743;
+            padding: 0.45rem 0.7rem;
+            border-radius: 6px;
+            color: #e6edf3;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="layout">
+        <aside class="sidebar">
+            <h1>{{ character_name }}</h1>
+            <div class="meta">
+                <div><strong>Model:</strong> {{ model_name or "N/A" }}</div>
+                <div><strong>Type:</strong> {{ model_type or "N/A" }}</div>
+                <div><strong>RAG:</strong> {{ rag_collection or "N/A" }}</div>
+            </div>
+        </aside>
+
+        <main class="main">
+            <section id="chat-log">
+                {% if first_message %}
+                <div class="message assistant">{{ first_message }}</div>
+                {% endif %}
+            </section>
+
+            <section class="composer">
+                <div id="status-line">Ready</div>
+                <form id="chat-form" hx-post="/chat/send" hx-target="#chat-log" hx-swap="beforeend">
+                    <input id="user-input" name="message" placeholder="Type your message..." autocomplete="off"
+                        required />
+                    <button id="send-btn" type="submit">Send</button>
+                </form>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        const chatForm = document.getElementById("chat-form");
+        const chatLog = document.getElementById("chat-log");
+        const userInput = document.getElementById("user-input");
+        const sendButton = document.getElementById("send-btn");
+        const statusLine = document.getElementById("status-line");
+
+        const STREAM_TIMEOUT_MS = 90000;
+
+        function setSendingState(isSending) {
+            userInput.disabled = isSending;
+            sendButton.disabled = isSending;
+        }
+
+        function scrollChatToBottom() {
+            chatLog.scrollTop = chatLog.scrollHeight;
+        }
+
+        function setStatus(text) {
+            statusLine.textContent = text;
+        }
+
+        function showRetry(target, message, reason) {
+            target.textContent = "";
+            const reasonText = document.createElement("div");
+            reasonText.textContent = reason;
+            target.appendChild(reasonText);
+
+            const retryButton = document.createElement("button");
+            retryButton.type = "button";
+            retryButton.className = "retry-btn";
+            retryButton.textContent = "Retry";
+            retryButton.dataset.assistantId = target.id;
+            retryButton.dataset.message = message;
+            target.appendChild(retryButton);
+        }
+
+        async function streamAssistant(assistantId, message) {
+            const target = document.getElementById(assistantId);
+            if (!target) {
+                setSendingState(false);
+                setStatus("Error: missing response target");
+                return;
+            }
+
+            target.dataset.sourceMessage = message;
+
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => {
+                controller.abort("timeout");
+            }, STREAM_TIMEOUT_MS);
+
+            let receivedAnyToken = false;
+            setStatus("Thinking...");
+
+            try {
+                const response = await fetch("/chat/stream", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ message }),
+                    signal: controller.signal,
+                });
+
+                if (!response.ok || !response.body) {
+                    showRetry(target, message, "[Error: stream unavailable]");
+                    setStatus("Error: stream unavailable");
+                    return;
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                setStatus("Streaming response...");
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) {
+                        break;
+                    }
+                    receivedAnyToken = true;
+                    target.textContent += decoder.decode(value, { stream: true });
+                    scrollChatToBottom();
+                }
+
+                setStatus(receivedAnyToken ? "Response complete" : "No visible response");
+            } catch (error) {
+                const reason = error?.name === "AbortError"
+                    ? "[Timed out while waiting for model response]"
+                    : `[Error: ${error}]`;
+                showRetry(target, message, reason);
+                setStatus(error?.name === "AbortError" ? "Timed out" : "Error while streaming");
+            } finally {
+                clearTimeout(timeoutId);
+                setSendingState(false);
+                userInput.focus();
+                scrollChatToBottom();
+            }
+        }
+
+        chatForm.addEventListener("htmx:beforeRequest", () => {
+            setSendingState(true);
+            userInput.value = "";
+            setStatus("Sending...");
+        });
+
+        chatLog.addEventListener("htmx:afterSwap", (event) => {
+            if (event.detail.target !== chatLog) {
+                return;
+            }
+
+            const pendingNode = chatLog.querySelector("[data-pending-stream='1']");
+            if (!pendingNode) {
+                return;
+            }
+
+            const message = pendingNode.dataset.streamMessage;
+            pendingNode.removeAttribute("data-pending-stream");
+
+            if (!message) {
+                setSendingState(false);
+                setStatus("Error: empty message");
+                return;
+            }
+
+            scrollChatToBottom();
+            streamAssistant(pendingNode.id, message);
+        });
+
+        chatLog.addEventListener("click", (event) => {
+            const retryButton = event.target.closest(".retry-btn");
+            if (!retryButton) {
+                return;
+            }
+            const assistantId = retryButton.dataset.assistantId;
+            const message = retryButton.dataset.message;
+            if (!assistantId || !message) {
+                return;
+            }
+            setSendingState(true);
+            setStatus("Retrying...");
+            streamAssistant(assistantId, message);
+        });
+
+        scrollChatToBottom();
+    </script>
+</body>
+
+</html>

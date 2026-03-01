@@ -4,6 +4,7 @@
 dist/
 site/
 models/
+logs/
 embedding_models/
 character_storage/
 __pycache__/
