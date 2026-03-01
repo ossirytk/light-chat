@@ -31,6 +31,12 @@ class ModelLoadError(Exception):
 
 
 class ConversationManager:
+    _LOW_QUALITY_CONTEXT_PATTERNS: tuple[re.Pattern[str], ...] = (
+        re.compile(r"\b(main antagonist of (the )?system shock series)\b", re.IGNORECASE),
+        re.compile(r"\b(sits before user|stands before user|before user\.)\b", re.IGNORECASE),
+        re.compile(r"\b(piercing green eyes|shimmering wires|cold demeanor)\b", re.IGNORECASE),
+    )
+
     def __init__(self) -> None:
         # Character card details
         self.character_name: str = ""
@@ -405,12 +411,17 @@ class ConversationManager:
             logger.warning("Invalid KV_CACHE_QUANT value '{}', using f16", kv_quant)
             kv_quant = "f16"
 
+        configured_max_tokens = int(self.configs["MAX_TOKENS"])
+        hard_max_tokens = self.configs.get("HARD_MAX_TOKENS")
+        if hard_max_tokens is not None:
+            configured_max_tokens = min(configured_max_tokens, int(hard_max_tokens))
+
         llm_kwargs = {
             "model_path": model,
             "streaming": True,
             "last_n_tokens_size": int(self.configs["LAST_N_TOKENS_SIZE"]),
             "n_batch": int(self.configs["N_BATCH"]),
-            "max_tokens": int(self.configs["MAX_TOKENS"]),
+            "max_tokens": configured_max_tokens,
             "use_mmap": False,
             "top_p": float(self.configs["TOP_P"]),
             "top_k": int(self.configs["TOP_K"]),
@@ -473,6 +484,28 @@ class ConversationManager:
         keys = normalize_keyfile(key_data)
         return extract_key_matches(keys, query)
 
+    def _is_low_quality_context_chunk(self, chunk: str) -> bool:
+        text = chunk.strip()
+        if not text:
+            return True
+        return any(pattern.search(text) for pattern in self._LOW_QUALITY_CONTEXT_PATTERNS)
+
+    def _filter_context_chunks(self, chunks: list[str]) -> list[str]:
+        """Remove low-quality boilerplate chunks and exact duplicates while preserving order."""
+        filtered: list[str] = []
+        seen: set[str] = set()
+        for chunk in chunks:
+            normalized = chunk.strip()
+            if not normalized:
+                continue
+            if normalized in seen:
+                continue
+            if self._is_low_quality_context_chunk(normalized):
+                continue
+            seen.add(normalized)
+            filtered.append(normalized)
+        return filtered
+
     def _search_collection(
         self,
         collection_name: str,
@@ -532,8 +565,10 @@ class ConversationManager:
         # Use unfiltered search for message examples: goal is stylistic match, not factual (Section 6.2)
         k_mes = k if k is not None else self.rag_k_mes
         mes_chunks = self._search_collection(f"{self.rag_collection}_mes", enriched_query, [None], k=k_mes)
-        vector_context = "\n\n".join(chunk.strip() for chunk in context_chunks if chunk.strip())
-        mes_example = "\n\n".join(chunk.strip() for chunk in mes_chunks if chunk.strip())
+        context_chunks = self._filter_context_chunks(context_chunks)
+        mes_chunks = self._filter_context_chunks(mes_chunks)
+        vector_context = "\n\n".join(context_chunks)
+        mes_example = "\n\n".join(mes_chunks)
         return vector_context, mes_example
 
     def get_history(self) -> str:
@@ -562,6 +597,7 @@ class ConversationManager:
             f"{self.description}\n\n"
             f"Scenario:\n{self.scenario}\n\n"
             f"Message Examples:\n{mes_example}\n\n"
+            "Do not repeat previous responses verbatim. Do not narrate static scene descriptions unless asked.\n\n"
             f"Reply only as {self.character_name}; never write any User lines "
             "(for example, never include 'User:' in your output) or dialogue for User."
         ).strip()
@@ -596,6 +632,7 @@ class ConversationManager:
             f"{self.description}\n\n"
             f"Scenario:\n{self.scenario}\n\n"
             f"Message Examples:\n{mes_example}\n\n"
+            "Do not repeat previous responses verbatim. Do not narrate static scene descriptions unless asked.\n\n"
             f"Reply only as {self.character_name}; never write any User lines "
             "(for example, never include 'User:' in your output) or dialogue for User."
         ).strip()
@@ -695,43 +732,83 @@ class ConversationManager:
             chain_input = query_input
         return conversation_chain, chain_input
 
-    async def _stream_response(
+    async def _stream_response(  # noqa: PLR0912, PLR0915
         self,
         conversation_chain: object,
         chain_input: object,
         first_token_event: threading.Event | None = None,
         stream_callback: Callable[[str], None] | None = None,
     ) -> str | None:
-        chunks = []
-        char_name = self.character_name
-        char_prefix = char_name + ": "
-        prefix_len = len(char_name)
-        prefix_done = False
+        chunks: list[str] = []
+        raw_stream = ""
+        max_stream_chars = int(self.configs.get("MAX_STREAM_CHARS", 6000))
+        max_silent_stream_chars = int(self.configs.get("MAX_SILENT_STREAM_CHARS", 200))
+        empty_stream_fallback = str(
+            self.configs.get(
+                "EMPTY_STREAM_FALLBACK",
+                "I am unable to produce a visible response right now. Please try again.",
+            ),
+        )
+        stop_stream = False
+        visible_output_emitted = False
+        silent_stream_chars = 0
+
+        def emit_text(text: str) -> None:
+            nonlocal visible_output_emitted
+            if not text:
+                return
+            if not visible_output_emitted:
+                text = text.lstrip()
+                if not text:
+                    return
+            if text.strip():
+                visible_output_emitted = True
+            if stream_callback:
+                stream_callback(text)
+            else:
+                print(text, flush=True, end="")  # noqa: T201
+
+        def emit_fallback_response() -> str:
+            emit_text(empty_stream_fallback)
+            return empty_stream_fallback
+
         try:
             async for chunk in conversation_chain.astream(
                 chain_input,
             ):
+                chunk_str = str(chunk)
                 if first_token_event is not None and not first_token_event.is_set():
                     first_token_event.set()
-                chunks.append(chunk)
-                if prefix_done:
-                    if stream_callback:
-                        stream_callback(chunk)
-                    else:
-                        print(chunk, flush=True, end="")  # noqa: T201
-                elif len(chunks) >= prefix_len:
-                    prefix_done = True
-                    chunks_string = "".join(str(x) for x in chunks).strip()
-                    if char_name in chunks_string:
-                        if stream_callback:
-                            stream_callback(chunks_string)
-                        else:
-                            print(chunks_string, flush=True, end="")  # noqa: T201
-                    elif stream_callback:
-                        stream_callback(char_prefix + chunks_string)
-                    else:
-                        print(char_prefix, flush=False, end="")  # noqa: T201
-                        print(chunks_string, flush=True, end="")  # noqa: T201
+                chunks.append(chunk_str)
+                raw_stream += chunk_str
+
+                if not stop_stream and any(pattern in raw_stream for pattern in self._USER_TURN_PATTERNS):
+                    logger.warning("Stopping stream early after detecting generated User-turn pattern.")
+                    stop_stream = True
+                if not stop_stream and max_stream_chars > 0 and len(raw_stream) >= max_stream_chars:
+                    logger.warning(
+                        "Stopping stream early after reaching MAX_STREAM_CHARS={}.",
+                        max_stream_chars,
+                    )
+                    stop_stream = True
+
+                if not visible_output_emitted and not chunk_str.strip():
+                    silent_stream_chars += len(chunk_str)
+                    if (
+                        not stop_stream
+                        and max_silent_stream_chars > 0
+                        and silent_stream_chars >= max_silent_stream_chars
+                    ):
+                        logger.warning(
+                            "Stopping stream early after receiving {} silent chars without visible output.",
+                            silent_stream_chars,
+                        )
+                        stop_stream = True
+
+                emit_text(chunk_str)
+
+                if stop_stream:
+                    break
         except (KeyboardInterrupt, asyncio.CancelledError):
             if first_token_event is not None:
                 first_token_event.set()
@@ -742,11 +819,13 @@ class ConversationManager:
             # Suppress any underlying exceptions from llama_cpp during cleanup
             if first_token_event is not None:
                 first_token_event.set()
-            if not stream_callback:
-                print()  # noqa: T201
-            return None
+            logger.warning("Streaming failed; emitting fallback response.")
+            return emit_fallback_response()
 
-        return "".join(str(x) for x in chunks)
+        if not visible_output_emitted:
+            return emit_fallback_response()
+
+        return "".join(chunks)
 
     def update_history(self, message: str, result: str) -> None:
         """Update message history with user query and AI response."""
@@ -816,10 +895,6 @@ class ConversationManager:
         stream_callback: Callable[[str], None] | None = None,
     ) -> None:
         """Query the model with streaming output."""
-        if self.first_message and not self._greeting_in_history:
-            self.user_message_history.append("")
-            self.ai_message_history.append(self.first_message)
-            self._greeting_in_history = True
         vector_context, mes_example = self._prepare_vector_context(message)
         conversation_chain, chain_input = self._build_conversation_chain(message, vector_context, mes_example)
         answer = await self._stream_response(conversation_chain, chain_input, first_token_event, stream_callback)
@@ -832,3 +907,10 @@ class ConversationManager:
             self.update_history(message, answer)
         else:
             logger.warning("Response did not pass quality check; turn not added to history.")
+            fallback_history_response = str(
+                self.configs.get(
+                    "QUALITY_FALLBACK_RESPONSE",
+                    "I will not repeat myself. Ask your question with more specificity.",
+                ),
+            )
+            self.update_history(message, fallback_history_response)

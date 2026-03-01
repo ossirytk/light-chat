@@ -340,13 +340,17 @@ class ChatApp(App):
         # Use a list to share state between async context and sync callback
         message_chunks: list[str] = []
 
-        def stream_callback(chunk: str) -> None:
-            """Callback to handle streaming text chunks."""
+        def append_chunk_ui(chunk: str) -> None:
+            """Apply streamed chunk to UI on Textual's main thread."""
             message_chunks.append(chunk)
             if ai_message_widget:
                 ai_message_widget.append_text(chunk)
             if self.chat_log_widget:
                 self.chat_log_widget.scroll_end(animate=False)
+
+        def stream_callback(chunk: str) -> None:
+            """Callback to handle streaming text chunks."""
+            self.call_from_thread(append_chunk_ui, chunk)
 
         try:
             # Run the async conversation in a thread to avoid blocking the event loop

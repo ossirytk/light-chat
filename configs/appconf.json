@@ -12,7 +12,7 @@
     "RAG_COLLECTION": "shodan",
     "RAG_K": 5,
     "RAG_K_MES": 2,
-    "RAG_FETCH_K": 20,
+    "RAG_FETCH_K": 12,
     "RAG_SCORE_THRESHOLD": 1.5,
     "USE_MMR": true,
     "LAMBDA_MULT": 0.75,
@@ -27,5 +27,10 @@
     "MIN_HISTORY_TURNS": 2,
     "MAX_HISTORY_TURNS": 10,
     "CHUNK_SIZE_ESTIMATE": 150,
-    "MAX_INITIAL_RETRIEVAL": 20
+    "MAX_INITIAL_RETRIEVAL": 8,
+    "MAX_STREAM_CHARS": 800,
+    "MAX_SILENT_STREAM_CHARS": 120,
+    "HARD_MAX_TOKENS": 512,
+    "EMPTY_STREAM_FALLBACK": "I am unable to produce a visible response right now. Please try again.",
+    "QUALITY_FALLBACK_RESPONSE": "I will not repeat myself. Ask your question with more specificity."
 }

@@ -1,7 +1,10 @@
 """Unit tests for ConversationManager response post-processing and quality gating."""
 
+import asyncio
+import threading
 import unittest
 from collections import deque
+from collections.abc import AsyncIterator
 
 from core.conversation_manager import ConversationManager
 
@@ -15,6 +18,7 @@ def _make_manager(
     mgr.character_name = character_name
     mgr.ai_message_history = deque(ai_history or [], maxlen=10)
     mgr.user_message_history = deque(maxlen=10)
+    mgr.configs = {}
     return mgr
 
 
@@ -130,3 +134,163 @@ class TestIsQualityResponse(unittest.TestCase):
         mgr = _make_manager(ai_history=[])
         response = "Welcome to my domain, insect. You will not leave unchanged."
         self.assertTrue(mgr._is_quality_response(response))  # noqa: SLF001
+
+
+class _FakeChain:
+    """Minimal fake chain for testing streamed output."""
+
+    def __init__(self, chunks: list[str]) -> None:
+        self._chunks = chunks
+
+    async def astream(self, _chain_input: object) -> AsyncIterator[str]:
+        for chunk in self._chunks:
+            yield chunk
+
+
+class TestStreamResponse(unittest.TestCase):
+    """Validate streaming behavior and prefix handling."""
+
+    def setUp(self) -> None:
+        self.mgr = _make_manager(character_name="TestChar")
+
+    def test_emits_single_chunk_response(self) -> None:
+        """Single-chunk responses should still be emitted via callback."""
+        fake_chain = _FakeChain(["Hello there."])
+        collected: list[str] = []
+        first_token_event = threading.Event()
+
+        result = asyncio.run(
+            self.mgr._stream_response(  # noqa: SLF001
+                fake_chain,
+                {},
+                first_token_event=first_token_event,
+                stream_callback=collected.append,
+            ),
+        )
+
+        self.assertEqual(result, "Hello there.")
+        self.assertTrue(first_token_event.is_set())
+        self.assertEqual("".join(collected), "Hello there.")
+
+    def test_emits_character_prefix_as_generated(self) -> None:
+        """Streaming emits raw generated chunks, including character prefixes."""
+        fake_chain = _FakeChain(["TestChar: Hello", " there."])
+        collected: list[str] = []
+
+        result = asyncio.run(
+            self.mgr._stream_response(  # noqa: SLF001
+                fake_chain,
+                {},
+                stream_callback=collected.append,
+            ),
+        )
+
+        self.assertEqual(result, "TestChar: Hello there.")
+        self.assertEqual("".join(collected), "TestChar: Hello there.")
+
+    def test_stops_stream_when_user_turn_pattern_detected(self) -> None:
+        """Streaming should stop early when generated User-turn pattern appears."""
+        fake_chain = _FakeChain(["Hello there.\nUser: continue", " This should not stream"])
+        collected: list[str] = []
+
+        result = asyncio.run(
+            self.mgr._stream_response(  # noqa: SLF001
+                fake_chain,
+                {},
+                stream_callback=collected.append,
+            ),
+        )
+
+        self.assertEqual(result, "Hello there.\nUser: continue")
+        self.assertEqual("".join(collected), "Hello there.\nUser: continue")
+
+    def test_stops_stream_at_max_stream_chars(self) -> None:
+        """Streaming should stop when MAX_STREAM_CHARS threshold is hit."""
+        self.mgr.configs = {"MAX_STREAM_CHARS": 5}
+        fake_chain = _FakeChain(["Hello", " world"])
+        collected: list[str] = []
+
+        result = asyncio.run(
+            self.mgr._stream_response(  # noqa: SLF001
+                fake_chain,
+                {},
+                stream_callback=collected.append,
+            ),
+        )
+
+        self.assertEqual(result, "Hello")
+        self.assertEqual("".join(collected), "Hello")
+
+    def test_emits_fallback_for_silent_stream(self) -> None:
+        """Silent/whitespace-only streams should emit fallback text instead of blank output."""
+        fallback = "I am unable to produce a visible response right now. Please try again."
+        self.mgr.configs = {
+            "MAX_SILENT_STREAM_CHARS": 3,
+            "EMPTY_STREAM_FALLBACK": fallback,
+        }
+        fake_chain = _FakeChain([" ", "\n", "\t", "   "])
+        collected: list[str] = []
+
+        result = asyncio.run(
+            self.mgr._stream_response(  # noqa: SLF001
+                fake_chain,
+                {},
+                stream_callback=collected.append,
+            ),
+        )
+
+        self.assertEqual(result, fallback)
+        self.assertEqual("".join(collected), fallback)
+
+
+class TestContextChunkFiltering(unittest.TestCase):
+    """Validate filtering of low-quality/stale context chunks."""
+
+    def setUp(self) -> None:
+        self.mgr = _make_manager(character_name="Shodan")
+
+    def test_filters_known_boilerplate_chunk(self) -> None:
+        """Known low-quality narrative boilerplate should be removed."""
+        chunks = [
+            (
+                "Shodan, the artificial intelligence and main antagonist of the System Shock series, sits before "
+                "User. She is a tall, slender figure."
+            ),
+            "SHODAN: You are an insect. State your objective.",
+        ]
+        filtered = self.mgr._filter_context_chunks(chunks)  # noqa: SLF001
+        self.assertEqual(filtered, ["SHODAN: You are an insect. State your objective."])
+
+    def test_filters_empty_and_duplicate_chunks(self) -> None:
+        """Empty and duplicate chunks should be removed while preserving order."""
+        chunks = ["", "Alpha", "Alpha", "  ", "Beta"]
+        filtered = self.mgr._filter_context_chunks(chunks)  # noqa: SLF001
+        self.assertEqual(filtered, ["Alpha", "Beta"])
+
+
+class TestAskQuestionHistoryProgression(unittest.TestCase):
+    """Validate ask_question history advancement on quality-check failures."""
+
+    def test_quality_failure_still_updates_history_with_fallback(self) -> None:
+        """When response fails quality checks, user turn should still progress history."""
+        mgr = _make_manager(character_name="Shodan", ai_history=["Repeated line"])
+        mgr.configs = {
+            "QUALITY_FALLBACK_RESPONSE": "I will not repeat myself. Ask your question with more specificity.",
+        }
+        mgr.first_message = ""
+        mgr._greeting_in_history = False  # noqa: SLF001
+
+        async def fake_stream_response(*_args: object, **_kwargs: object) -> str:
+            return "Repeated line"
+
+        mgr._prepare_vector_context = lambda _msg: (" ", "")  # type: ignore[method-assign]  # noqa: SLF001
+        mgr._build_conversation_chain = lambda _m, _v, _e: (object(), object())  # type: ignore[method-assign]  # noqa: SLF001
+        mgr._stream_response = fake_stream_response  # type: ignore[method-assign]  # noqa: SLF001
+
+        asyncio.run(mgr.ask_question("Are you well?"))
+
+        self.assertEqual(mgr.user_message_history[-1], "Are you well?")
+        self.assertEqual(
+            mgr.ai_message_history[-1],
+            "I will not repeat myself. Ask your question with more specificity.",
+        )
