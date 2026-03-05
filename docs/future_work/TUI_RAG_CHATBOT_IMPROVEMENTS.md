@@ -1,65 +1,33 @@
-# TUI Future Work: RAG-Powered Character AI Chatbot
+# TUI Future Work — Current Scope
 
-This document outlines possible future improvements for the terminal UI experience of a RAG-powered character chatbot.
+Last verified: 2026-03-01
 
-## 1. Layout and Responsiveness
+The Textual UI (`chat_tui.py`) is currently stable with streaming output, status line updates, and a sidebar mode toggle.
 
-- Add adaptive breakpoints for narrow terminals (stack sidebar above chat instead of side-by-side).
-- Provide optional collapsible sidebar (`Tab` toggle) to maximize chat space.
-- Add explicit min/max widths for metadata panels to avoid truncation.
-- Improve resize behavior for wrapped messages (reflow + preserve scroll anchor).
+## Already Implemented
 
-## 2. Chat Experience
+- Two-pane layout with character card + chat area.
+- Streaming assistant output into live message widget.
+- Input lock while generation is active.
+- Sidebar mode toggle (`F2`) between metadata and summary.
+- Responsive refresh on terminal resize.
+- Shared backend behavior with `ConversationManager`.
 
-- Add message timestamps and optional relative-time display.
-- Add typing indicator / streaming cursor while model output is in progress.
-- Add command palette shortcuts (`/clear`, `/save`, `/reload`, `/rag`, `/help`).
-- Add copy/export for selected messages.
+## Open Improvements
 
-## 3. RAG Visibility and Debugging
+1. Add slash commands (`/clear`, `/reload`, `/help`).
+2. Add session save/load support.
+3. Add optional retrieval debug panel (active collection, retrieved chunk count).
+4. Add message copy/export helpers.
+5. Add keyboard navigation for previous prompts.
 
-- Add optional “RAG Inspector” panel showing:
-  - active collection,
-  - matched metadata keys,
-  - retrieved chunk count,
-  - top chunk previews.
-- Add per-response toggle to display retrieved context snippets.
-- Add debug mode to show whether strict metadata enrichment affected filtering.
+## Non-Goals for Now
 
-## 4. Character and Model Context
+- No separate web frontend.
+- No additional theme system beyond Textual defaults in current app.
 
-- Add model runtime stats in sidebar (context window, temperature, top_p, kv quantization).
-- Add quick character profile card with personality tags and greeting examples.
-- Add command to switch character/model config without restarting TUI.
+## Related Files
 
-## 5. Reliability and UX Safeguards
-
-- Add graceful cancellation of active generation (`Esc` / `Ctrl+C`).
-- Add retry-on-error action for failed model responses.
-- Add input history navigation (`Up`/`Down`) and draft preservation.
-- Add overflow-safe rendering for long unbroken tokens.
-
-## 6. Session Management
-
-- Save/load named chat sessions from disk.
-- Add auto-save and restore last session.
-- Add metadata tagging per session (character, model, date, topic).
-
-## 7. Accessibility and Theming
-
-- Add built-in high-contrast and low-brightness themes.
-- Add configurable color/style tokens for user vs assistant messages.
-- Improve keyboard-only navigation and focus cues.
-
-## 8. Performance
-
-- Add batched UI updates for streaming text to reduce redraw overhead.
-- Add configurable max message retention in live view with lazy history loading.
-- Add profiling mode for render latency and token throughput.
-
-## Suggested Phased Rollout
-
-1. **Phase 1 (UX baseline):** responsive layout + sidebar toggle + command shortcuts.
-2. **Phase 2 (RAG observability):** RAG Inspector and retrieval debug overlays.
-3. **Phase 3 (session tooling):** save/load sessions + character/model switching.
-4. **Phase 4 (polish):** themes, accessibility improvements, and performance tuning.
+- `chat_tui.py`
+- `main.py`
+- `core/conversation_manager.py`

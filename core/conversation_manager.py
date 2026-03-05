@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import hashlib
 import json
 import logging
 import re
@@ -17,7 +18,6 @@ from langchain_core.prompts import BasePromptTemplate, load_prompt
 from langchain_huggingface import HuggingFaceEmbeddings
 from loguru import logger
 
-from core.collection_helper import build_where_filters, extract_key_matches, normalize_keyfile
 from core.context_manager import ApproximateTokenCounter, ContextManager
 from core.gpu_utils import get_n_gpu_layers
 
@@ -30,7 +30,78 @@ class ModelLoadError(Exception):
     """Raised when a model fails to load."""
 
 
+def normalize_keyfile(raw_keys: object) -> list[dict[str, object]]:
+    if isinstance(raw_keys, dict) and "Content" in raw_keys:
+        raw_keys = raw_keys["Content"]
+    if not isinstance(raw_keys, list):
+        return []
+    return [item for item in raw_keys if isinstance(item, dict)]
+
+
+def _get_entry_value(item: dict[str, object]) -> str | None:
+    text_keys = ("text", "text_fields", "text_field", "content", "value")
+    for key in text_keys:
+        candidate = item.get(key)
+        if isinstance(candidate, str):
+            return candidate
+    for key, candidate in item.items():
+        if key in ("uuid", "aliases", "category"):
+            continue
+        if isinstance(candidate, str):
+            return candidate
+    return None
+
+
+def _matches_aliases(item: dict[str, object], text_lower: str) -> bool:
+    aliases = item.get("aliases")
+    if not isinstance(aliases, list):
+        return False
+    return any(isinstance(alias, str) and alias.lower() in text_lower for alias in aliases)
+
+
+def extract_key_matches(keys: list[dict[str, object]], text: str) -> list[dict[str, str]]:
+    if not text:
+        return []
+    text_lower = text.lower()
+    matches: list[dict[str, str]] = []
+    for item in keys:
+        uuid = item.get("uuid")
+        if not isinstance(uuid, str):
+            continue
+        value = _get_entry_value(item)
+        if not isinstance(value, str):
+            continue
+        if value.lower() in text_lower or _matches_aliases(item, text_lower):
+            matches.append({uuid: value})
+    return matches
+
+
+def build_where_filters(matches: list[dict[str, str]]) -> list[dict[str, object] | None]:
+    if not matches:
+        return [None]
+    if len(matches) == 1:
+        return [matches[0]]
+    return [{"$and": matches}, {"$or": matches}]
+
+
 class ConversationManager:
+    _LOW_QUALITY_CONTEXT_PATTERNS: tuple[re.Pattern[str], ...] = (
+        re.compile(r"\b(main antagonist of (the )?system shock series)\b", re.IGNORECASE),
+        re.compile(r"\b(sits before user|stands before user|before user\.)\b", re.IGNORECASE),
+        re.compile(r"\b(piercing green eyes|shimmering wires|cold demeanor)\b", re.IGNORECASE),
+    )
+    _SMALL_TALK_PATTERNS: tuple[re.Pattern[str], ...] = (
+        re.compile(r"\b(hi|hello|hey)\b", re.IGNORECASE),
+        re.compile(r"\bhow are you\b", re.IGNORECASE),
+        re.compile(r"\bhow('s| is) it going\b", re.IGNORECASE),
+        re.compile(r"\bwhat'?s up\b", re.IGNORECASE),
+        re.compile(r"\bgood (morning|afternoon|evening|night)\b", re.IGNORECASE),
+    )
+    _MARKDOWN_HEADING_RE: re.Pattern[str] = re.compile(r"^#{2,3}\s+(.+?)\s*$")
+    _CHUNK_SIGNATURE_LINES: int = 8
+    _DEFAULT_MAX_VECTOR_CONTEXT_CHARS: int = 2200
+    _MIN_DYNAMIC_CONTENT_TOKENS: int = 500
+
     def __init__(self) -> None:
         # Character card details
         self.character_name: str = ""
@@ -405,12 +476,17 @@ class ConversationManager:
             logger.warning("Invalid KV_CACHE_QUANT value '{}', using f16", kv_quant)
             kv_quant = "f16"
 
+        configured_max_tokens = int(self.configs["MAX_TOKENS"])
+        hard_max_tokens = self.configs.get("HARD_MAX_TOKENS")
+        if hard_max_tokens is not None:
+            configured_max_tokens = min(configured_max_tokens, int(hard_max_tokens))
+
         llm_kwargs = {
             "model_path": model,
             "streaming": True,
             "last_n_tokens_size": int(self.configs["LAST_N_TOKENS_SIZE"]),
             "n_batch": int(self.configs["N_BATCH"]),
-            "max_tokens": int(self.configs["MAX_TOKENS"]),
+            "max_tokens": configured_max_tokens,
             "use_mmap": False,
             "top_p": float(self.configs["TOP_P"]),
             "top_k": int(self.configs["TOP_K"]),
@@ -473,6 +549,129 @@ class ConversationManager:
         keys = normalize_keyfile(key_data)
         return extract_key_matches(keys, query)
 
+    def _is_low_quality_context_chunk(self, chunk: str) -> bool:
+        text = chunk.strip()
+        if not text:
+            return True
+        return any(pattern.search(text) for pattern in self._LOW_QUALITY_CONTEXT_PATTERNS)
+
+    def _filter_context_chunks(self, chunks: list[str]) -> list[str]:
+        """Remove low-quality boilerplate chunks and exact duplicates while preserving order."""
+        filtered: list[str] = []
+        seen: set[str] = set()
+        seen_signatures: set[str] = set()
+        for chunk in chunks:
+            normalized = chunk.strip()
+            if not normalized:
+                continue
+            normalized = self._dedupe_chunk_sections(normalized)
+            if not normalized:
+                continue
+            if normalized in seen:
+                continue
+            if self._is_low_quality_context_chunk(normalized):
+                continue
+            signature = self._chunk_signature(normalized)
+            if signature in seen_signatures:
+                continue
+            seen.add(normalized)
+            seen_signatures.add(signature)
+            filtered.append(normalized)
+        return filtered
+
+    def _dedupe_chunk_sections(self, chunk: str) -> str:
+        """Remove repeated markdown sections inside a single chunk."""
+        lines = chunk.splitlines()
+        if not lines:
+            return chunk
+
+        output_lines: list[str] = []
+        current_section: list[str] = []
+        seen_section_titles: set[str] = set()
+        current_title: str | None = None
+
+        def flush_section() -> None:
+            nonlocal current_section, current_title
+            if not current_section:
+                return
+            if current_title is None:
+                output_lines.extend(current_section)
+            else:
+                title_key = current_title.lower().strip()
+                if title_key not in seen_section_titles:
+                    seen_section_titles.add(title_key)
+                    output_lines.extend(current_section)
+            current_section = []
+            current_title = None
+
+        for line in lines:
+            heading_match = self._MARKDOWN_HEADING_RE.match(line.strip())
+            if heading_match:
+                flush_section()
+                current_title = heading_match.group(1)
+                current_section = [line]
+            elif current_section:
+                current_section.append(line)
+            else:
+                output_lines.append(line)
+
+        flush_section()
+
+        return "\n".join(output_lines).strip()
+
+    def _chunk_signature(self, chunk: str) -> str:
+        """Build a lightweight signature for near-duplicate chunk elimination."""
+        signature_lines: list[str] = []
+        for line in chunk.splitlines():
+            stripped = line.strip()
+            if not stripped:
+                continue
+            # Ignore heading markers in signature so equivalent sections with
+            # minor heading level differences collapse together.
+            stripped = self._MARKDOWN_HEADING_RE.sub(r"\\1", stripped)
+            stripped = re.sub(r"\s+", " ", stripped).lower()
+            signature_lines.append(stripped)
+            if len(signature_lines) >= self._CHUNK_SIGNATURE_LINES:
+                break
+        return "|".join(signature_lines)
+
+    def _cap_context_text(self, text: str) -> str:
+        """Cap vector context length to avoid prompt bloat while preserving boundaries."""
+        max_chars = int(self.configs.get("MAX_VECTOR_CONTEXT_CHARS", self._DEFAULT_MAX_VECTOR_CONTEXT_CHARS))
+        if max_chars <= 0 or len(text) <= max_chars:
+            return text
+        clipped = text[:max_chars]
+        if "\n\n" in clipped:
+            clipped = clipped.rsplit("\n\n", 1)[0]
+        elif "\n" in clipped:
+            clipped = clipped.rsplit("\n", 1)[0]
+        return clipped.strip()
+
+    def _should_skip_rag_for_message(self, message: str) -> bool:
+        """Return True for short small-talk turns where lore retrieval hurts quality."""
+        normalized = re.sub(r"\s+", " ", message).strip()
+        if not normalized:
+            return True
+        words = [word for word in normalized.split(" ") if word]
+        max_words = int(self.configs.get("SMALL_TALK_MAX_WORDS", 8))
+        if len(words) > max_words:
+            return False
+        return any(pattern.search(normalized) for pattern in self._SMALL_TALK_PATTERNS)
+
+    def _should_skip_rag_for_followup(self, message: str) -> bool:
+        """Skip RAG on short follow-up chat turns without lore/entity matches."""
+        normalized = re.sub(r"\s+", " ", message).strip()
+        if not normalized:
+            return True
+        max_words = int(self.configs.get("FOLLOWUP_RAG_MAX_WORDS", 12))
+        words = [word for word in normalized.split(" ") if word]
+        if len(words) > max_words:
+            return False
+        if not self.rag_collection:
+            return True
+        matches = self._get_key_matches(normalized, self.rag_collection)
+        return len(matches) == 0
+
     def _search_collection(
         self,
         collection_name: str,
@@ -532,8 +731,12 @@ class ConversationManager:
         # Use unfiltered search for message examples: goal is stylistic match, not factual (Section 6.2)
         k_mes = k if k is not None else self.rag_k_mes
         mes_chunks = self._search_collection(f"{self.rag_collection}_mes", enriched_query, [None], k=k_mes)
-        vector_context = "\n\n".join(chunk.strip() for chunk in context_chunks if chunk.strip())
-        mes_example = "\n\n".join(chunk.strip() for chunk in mes_chunks if chunk.strip())
+        context_chunks = self._filter_context_chunks(context_chunks)
+        mes_chunks = self._filter_context_chunks(mes_chunks)
+        vector_context = "\n\n".join(context_chunks)
+        vector_context = self._dedupe_chunk_sections(vector_context)
+        vector_context = self._cap_context_text(vector_context)
+        mes_example = "\n\n".join(mes_chunks)
         return vector_context, mes_example
 
     def get_history(self) -> str:
@@ -562,6 +765,7 @@ class ConversationManager:
             f"{self.description}\n\n"
             f"Scenario:\n{self.scenario}\n\n"
             f"Message Examples:\n{mes_example}\n\n"
+            "Do not repeat previous responses verbatim. Do not narrate static scene descriptions unless asked.\n\n"
             f"Reply only as {self.character_name}; never write any User lines "
             "(for example, never include 'User:' in your output) or dialogue for User."
         ).strip()
@@ -581,7 +785,7 @@ class ConversationManager:
 
         # Only include vector_context in the final current message block
         current_content = f"User: {message}" if blocks else f"{system_prompt}\n\nUser: {message}"
-        if vector_context and vector_context.strip() != " ":
+        if vector_context and vector_context.strip():
             current_content = f"{vector_context}\n\n{current_content}"
         blocks.append(f"<s>[INST] {current_content} [/INST]")
         return "\n".join(blocks)
@@ -596,9 +800,57 @@ class ConversationManager:
             f"{self.description}\n\n"
             f"Scenario:\n{self.scenario}\n\n"
             f"Message Examples:\n{mes_example}\n\n"
+            "Do not repeat previous responses verbatim. Do not narrate static scene descriptions unless asked.\n\n"
             f"Reply only as {self.character_name}; never write any User lines "
             "(for example, never include 'User:' in your output) or dialogue for User."
         ).strip()
+
+    def _prepare_static_vector_context(self, message: str, mes_example: str) -> tuple[str, str]:
+        vector_context, mes_from_rag = self._get_vector_context(message)
+        if mes_from_rag:
+            mes_example = f"{mes_example}\n\n{mes_from_rag}".strip() if mes_example else mes_from_rag
+        elif not mes_example:
+            mes_example = self.mes_example
+        return vector_context, mes_example
+
+    def _prepare_dynamic_vector_context(self, message: str, is_first_turn: bool, mes_example: str) -> tuple[str, str]:
+        system_prompt = self._build_system_prompt_text(self.mes_example if is_first_turn else "")
+        budget = self.context_manager.calculate_budget(system_prompt)
+
+        if budget.budget_for_dynamic_content < self._MIN_DYNAMIC_CONTENT_TOKENS:
+            logger.warning(
+                "Available budget ({} tokens) too small for dynamic allocation. Using static mode.",
+                budget.budget_for_dynamic_content,
+            )
+            return self._prepare_static_vector_context(message, mes_example)
+
+        chunk_size_estimate = int(self.configs.get("CHUNK_SIZE_ESTIMATE", 150))
+        context_budget_estimate = budget.budget_for_dynamic_content * 0.25
+        initial_k = max(self.rag_k, int(context_budget_estimate / chunk_size_estimate))
+        max_initial = int(self.configs.get("MAX_INITIAL_RETRIEVAL", 20))
+        initial_k = min(initial_k, max_initial)
+
+        vector_context_full, _mes_from_rag_full = self._get_vector_context(message, k=initial_k)
+        history = self.get_history()
+        allocation = self.context_manager.allocate_content(
+            budget,
+            self.mes_example if is_first_turn else "",
+            vector_context_full,
+            history,
+            message,
+        )
+        vector_context = allocation["allocated_context"]
+        if is_first_turn:
+            mes_example = allocation["allocated_examples"]
+        else:
+            mes_from_rag = allocation["allocated_examples"]
+            if mes_from_rag:
+                mes_example = mes_from_rag
+
+        if self.configs.get("DEBUG_CONTEXT", False):
+            logger.debug(self.context_manager.get_context_info(budget, allocation))
+
+        return vector_context, mes_example
 
     def _prepare_vector_context(self, message: str) -> tuple[str, str]:
         """Prepare vector context with optional dynamic allocation."""
@@ -606,57 +858,16 @@ class ConversationManager:
         is_first_turn = not self.user_message_history and not self.ai_message_history
         mes_example = self.mes_example if is_first_turn else ""
 
+        if self._should_skip_rag_for_message(message):
+            return " ", mes_example
+        if (not is_first_turn) and self._should_skip_rag_for_followup(message):
+            return " ", mes_example
+
         try:
             if self.use_dynamic_context and not is_first_turn:
-                # Only apply dynamic allocation after first turn to avoid initial prompt bloat
-                # Quick budget estimate to determine initial retrieval size
-                system_prompt = self._build_system_prompt_text(self.mes_example if is_first_turn else "")
-                budget = self.context_manager.calculate_budget(system_prompt)
-
-                # Safety check: if budget for dynamic content is too small, fall back to static
-                if budget.budget_for_dynamic_content < 500:
-                    logger.warning(
-                        "Available budget ({} tokens) too small for dynamic allocation. Using static mode.",
-                        budget.budget_for_dynamic_content,
-                    )
-                    vector_context, mes_from_rag = self._get_vector_context(message)
-                    if mes_from_rag:
-                        mes_example = f"{mes_example}\n\n{mes_from_rag}".strip() if mes_example else mes_from_rag
-                    elif not mes_example:
-                        mes_example = self.mes_example
-                else:
-                    # Start with conservative k, expand if budget allows
-                    chunk_size_estimate = int(self.configs.get("CHUNK_SIZE_ESTIMATE", 150))
-                    context_budget_estimate = budget.budget_for_dynamic_content * 0.45  # 45% for context
-                    initial_k = max(self.rag_k, int(context_budget_estimate / chunk_size_estimate))
-                    max_initial = int(self.configs.get("MAX_INITIAL_RETRIEVAL", 20))
-                    initial_k = min(initial_k, max_initial)  # Cap to avoid excessive queries
-
-                    vector_context_full, _mes_from_rag_full = self._get_vector_context(message, k=initial_k)
-
-                    history = self.get_history()
-                    allocation = self.context_manager.allocate_content(
-                        budget,
-                        self.mes_example if is_first_turn else "",
-                        vector_context_full,
-                        history,
-                        message,
-                    )
-                    vector_context = allocation["allocated_context"]
-                    if is_first_turn:
-                        mes_example = allocation["allocated_examples"]
-                    else:
-                        mes_from_rag = allocation["allocated_examples"]
-                        if mes_from_rag:
-                            mes_example = mes_from_rag
-                    if self.configs.get("DEBUG_CONTEXT", False):
-                        logger.debug(self.context_manager.get_context_info(budget, allocation))
+                vector_context, mes_example = self._prepare_dynamic_vector_context(message, is_first_turn, mes_example)
             else:
-                vector_context, mes_from_rag = self._get_vector_context(message)
-                if mes_from_rag:
-                    mes_example = f"{mes_example}\n\n{mes_from_rag}".strip() if mes_example else mes_from_rag
-                elif not mes_example:
-                    mes_example = self.mes_example
+                vector_context, mes_example = self._prepare_static_vector_context(message, mes_example)
         except Exception as e:
             logger.warning("Error in dynamic context allocation: {}. Using static fallback.", e)
             vector_context = ""
@@ -664,10 +875,14 @@ class ConversationManager:
                 mes_example = self.mes_example
 
         vector_context = (
-            "[The following background information is relevant to the current topic. "
-            "Use it to inform your response but do not quote it directly.]\n"
-            f"{vector_context}"
-        ) if vector_context else " "
+            (
+                "[The following background information is relevant to the current topic. "
+                "Use it to inform your response but do not quote it directly.]\n"
+                f"{vector_context}"
+            )
+            if vector_context
+            else " "
+        )
         return vector_context, mes_example
 
     def _build_conversation_chain(self, message: str, vector_context: str, mes_example: str) -> tuple[object, object]:
@@ -693,45 +908,101 @@ class ConversationManager:
                 logger.debug("Prompt template input: {}", query_input)
             conversation_chain = self.prompt | self.llm_model | output_parser
             chain_input = query_input
+        self._maybe_log_prompt_fingerprint(chain_input)
         return conversation_chain, chain_input
 
-    async def _stream_response(
+    def _maybe_log_prompt_fingerprint(self, chain_input: object) -> None:
+        """Log deterministic prompt fingerprints for cross-entrypoint comparisons."""
+        if not self.configs.get("DEBUG_PROMPT_FINGERPRINT", False):
+            return
+        payload = chain_input if isinstance(chain_input, str) else json.dumps(chain_input, sort_keys=True)
+        prompt_hash = hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+        history_turns = min(len(self.user_message_history), len(self.ai_message_history))
+        logger.debug(
+            "Prompt fingerprint: hash={} model_type={} history_turns={} chars={}",
+            prompt_hash,
+            self.configs.get("MODEL_TYPE", ""),
+            history_turns,
+            len(payload),
+        )
+
+    async def _stream_response(  # noqa: PLR0912, PLR0915
         self,
         conversation_chain: object,
         chain_input: object,
         first_token_event: threading.Event | None = None,
         stream_callback: Callable[[str], None] | None = None,
     ) -> str | None:
-        chunks = []
-        char_name = self.character_name
-        char_prefix = char_name + ": "
-        prefix_len = len(char_name)
-        prefix_done = False
+        chunks: list[str] = []
+        raw_stream = ""
+        max_stream_chars = int(self.configs.get("MAX_STREAM_CHARS", 6000))
+        max_silent_stream_chars = int(self.configs.get("MAX_SILENT_STREAM_CHARS", 200))
+        empty_stream_fallback = str(
+            self.configs.get(
+                "EMPTY_STREAM_FALLBACK",
+                "I am unable to produce a visible response right now. Please try again.",
+            ),
+        )
+        stop_stream = False
+        visible_output_emitted = False
+        silent_stream_chars = 0
+
+        def emit_text(text: str) -> None:
+            nonlocal visible_output_emitted
+            if not text:
+                return
+            if not visible_output_emitted:
+                text = text.lstrip()
+                if not text:
+                    return
+            if text.strip():
+                visible_output_emitted = True
+            if stream_callback:
+                stream_callback(text)
+            else:
+                print(text, flush=True, end="")  # noqa: T201
+
+        def emit_fallback_response() -> str:
+            emit_text(empty_stream_fallback)
+            return empty_stream_fallback
+
         try:
             async for chunk in conversation_chain.astream(
                 chain_input,
             ):
+                chunk_str = str(chunk)
                 if first_token_event is not None and not first_token_event.is_set():
                     first_token_event.set()
-                chunks.append(chunk)
-                if prefix_done:
-                    if stream_callback:
-                        stream_callback(chunk)
-                    else:
-                        print(chunk, flush=True, end="")  # noqa: T201
-                elif len(chunks) >= prefix_len:
-                    prefix_done = True
-                    chunks_string = "".join(str(x) for x in chunks).strip()
-                    if char_name in chunks_string:
-                        if stream_callback:
-                            stream_callback(chunks_string)
-                        else:
-                            print(chunks_string, flush=True, end="")  # noqa: T201
-                    elif stream_callback:
-                        stream_callback(char_prefix + chunks_string)
-                    else:
-                        print(char_prefix, flush=False, end="")  # noqa: T201
-                        print(chunks_string, flush=True, end="")  # noqa: T201
+                chunks.append(chunk_str)
+                raw_stream += chunk_str
+
+                if not stop_stream and any(pattern in raw_stream for pattern in self._USER_TURN_PATTERNS):
+                    logger.warning("Stopping stream early after detecting generated User-turn pattern.")
+                    stop_stream = True
+                if not stop_stream and max_stream_chars > 0 and len(raw_stream) >= max_stream_chars:
+                    logger.warning(
+                        "Stopping stream early after reaching MAX_STREAM_CHARS={}.",
+                        max_stream_chars,
+                    )
+                    stop_stream = True
+
+                if not visible_output_emitted and not chunk_str.strip():
+                    silent_stream_chars += len(chunk_str)
+                    if (
+                        not stop_stream
+                        and max_silent_stream_chars > 0
+                        and silent_stream_chars >= max_silent_stream_chars
+                    ):
+                        logger.warning(
+                            "Stopping stream early after receiving {} silent chars without visible output.",
+                            silent_stream_chars,
+                        )
+                        stop_stream = True
+
+                emit_text(chunk_str)
+
+                if stop_stream:
+                    break
         except (KeyboardInterrupt, asyncio.CancelledError):
             if first_token_event is not None:
                 first_token_event.set()
@@ -742,11 +1013,13 @@ class ConversationManager:
             # Suppress any underlying exceptions from llama_cpp during cleanup
             if first_token_event is not None:
                 first_token_event.set()
-            if not stream_callback:
-                print()  # noqa: T201
-            return None
+            logger.warning("Streaming failed; emitting fallback response.")
+            return emit_fallback_response()
 
-        return "".join(str(x) for x in chunks)
+        if not visible_output_emitted:
+            return emit_fallback_response()
+
+        return "".join(chunks)
 
     def update_history(self, message: str, result: str) -> None:
         """Update message history with user query and AI response."""
@@ -816,10 +1089,6 @@ class ConversationManager:
         stream_callback: Callable[[str], None] | None = None,
     ) -> None:
         """Query the model with streaming output."""
-        if self.first_message and not self._greeting_in_history:
-            self.user_message_history.append("")
-            self.ai_message_history.append(self.first_message)
-            self._greeting_in_history = True
         vector_context, mes_example = self._prepare_vector_context(message)
         conversation_chain, chain_input = self._build_conversation_chain(message, vector_context, mes_example)
         answer = await self._stream_response(conversation_chain, chain_input, first_token_event, stream_callback)
@@ -832,3 +1101,10 @@ class ConversationManager:
             self.update_history(message, answer)
         else:
             logger.warning("Response did not pass quality check; turn not added to history.")
+            fallback_history_response = str(
+                self.configs.get(
+                    "QUALITY_FALLBACK_RESPONSE",
+                    "I will not repeat myself. Ask your question with more specificity.",
+                ),
+            )
+            self.update_history(message, fallback_history_response)

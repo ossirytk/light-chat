@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import json
 import logging
 import sys
@@ -23,13 +24,21 @@ def load_app_config() -> dict:
 def configure_logging(app_config: dict) -> None:
     show_logs = bool(app_config.get("SHOW_LOGS", True))
     log_level = str(app_config.get("LOG_LEVEL", "DEBUG")).upper()
+    log_to_file = bool(app_config.get("LOG_TO_FILE", True))
+    log_file = str(app_config.get("LOG_FILE", "./logs/light-chat.log"))
+
+    logger.remove()
+
+    if log_to_file:
+        log_path = Path(log_file)
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        logger.add(log_path, level=log_level, rotation="10 MB", retention=5)
+
     if show_logs:
         logging.basicConfig(level=log_level)
-        logger.remove()
         logger.add(sys.stderr, level=log_level)
     else:
         logging.disable(logging.CRITICAL)
-        logger.remove()
 
 
 def run_spinner(message: str, stop_event: threading.Event) -> None:
@@ -67,7 +76,9 @@ async def main() -> None:
     try:
         while True:
             try:
-                query = input("User: ")
+                query = input("User: ").strip()
+                if not query:
+                    continue
                 thinking_stop = threading.Event()
                 thinking_thread = threading.Thread(
                     target=run_spinner,
@@ -75,14 +86,34 @@ async def main() -> None:
                     daemon=True,
                 )
                 thinking_thread.start()
-                await conversation_manager.ask_question(query, thinking_stop)
-                thinking_stop.set()
-                thinking_thread.join()
+
+                spinner_stopped = False
+
+                def stop_spinner_once(
+                    stop_event: threading.Event = thinking_stop,
+                    spinner: threading.Thread = thinking_thread,
+                ) -> None:
+                    nonlocal spinner_stopped
+                    if spinner_stopped:
+                        return
+                    stop_event.set()
+                    spinner.join()
+                    spinner_stopped = True
+
+                def stream_callback(chunk: str) -> None:
+                    stop_spinner_once()
+                    print(chunk, flush=True, end="")  # noqa: T201
+
+                await conversation_manager.ask_question(query, stream_callback=stream_callback)
+                stop_spinner_once()
                 print()  # noqa: T201
             except KeyboardInterrupt:
                 print()  # noqa: T201
                 raise
     finally:
+        with contextlib.suppress(Exception):
+            spinner_stop.set()
+            spinner_thread.join()
         del conversation_manager
 
 

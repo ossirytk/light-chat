@@ -139,8 +139,7 @@ class TestRagScripts(unittest.TestCase):
     def test_generate_aliases_for_entity(self) -> None:
         """Validate alias generation from normalization and parenthetical forms."""
         sample_text = (
-            "TriOptimum (Tri-Op) expanded rapidly. "
-            "The Sentient Hyper-Optimized Data Access Network (SHODAN) awakened."
+            "TriOptimum (Tri-Op) expanded rapidly. The Sentient Hyper-Optimized Data Access Network (SHODAN) awakened."
         )
         trioptimum_aliases = generate_aliases_for_entity("TriOptimum", sample_text)
         self.assertIn("Tri Optimum", trioptimum_aliases)
