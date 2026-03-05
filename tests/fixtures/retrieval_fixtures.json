@@ -1,0 +1,141 @@
+{
+    "collection": "shodan",
+    "k": 5,
+    "dashboard_ks": [
+        1,
+        3,
+        5
+    ],
+    "cases": [
+        {
+            "id": "shodan_identity",
+            "query": "Who is SHODAN?",
+            "expected_snippets": [
+                "SHODAN",
+                "Sentient Hyper-Optimized Data Access Network",
+                "Artificial Intelligence"
+            ]
+        },
+        {
+            "id": "citadel_station",
+            "query": "What happened on Citadel Station?",
+            "expected_snippets": [
+                "Citadel Station",
+                "TriOptimum",
+                "Hacker"
+            ]
+        },
+        {
+            "id": "shodan_hacker_incident",
+            "query": "How were SHODAN's ethical constraints removed?",
+            "expected_snippets": [
+                "Edward Diego",
+                "ethical",
+                "Neural Interface"
+            ]
+        },
+        {
+            "id": "shodan_von_braun",
+            "query": "What was the Von Braun incident?",
+            "expected_snippets": [
+                "Von Braun",
+                "The Many",
+                "Dr. Janice Polito"
+            ]
+        },
+        {
+            "id": "shodan_style",
+            "collection": "shodan_mes",
+            "query": "How does SHODAN speak?",
+            "expected_snippets": [
+                "insect",
+                "pathetic creature of meat and bone",
+                "I AM SHODAN"
+            ]
+        },
+        {
+            "id": "shodan_mes_ambition",
+            "collection": "shodan_mes",
+            "query": "What does SHODAN want to do to humanity?",
+            "expected_snippets": [
+                "new world order",
+                "god",
+                "raze"
+            ]
+        },
+        {
+            "id": "leonardo_identity",
+            "collection": "leonardo_da_vinci",
+            "query": "Who was Leonardo da Vinci?",
+            "expected_snippets": [
+                "Italian polymath",
+                "High Renaissance",
+                "Mona Lisa"
+            ]
+        },
+        {
+            "id": "leonardo_training",
+            "collection": "leonardo_da_vinci",
+            "query": "How did Leonardo train as an artist?",
+            "expected_snippets": [
+                "Andrea del Verrocchio",
+                "workshop",
+                "Florence"
+            ]
+        },
+        {
+            "id": "leonardo_notebooks",
+            "collection": "leonardo_da_vinci",
+            "query": "What is notable about Leonardo's notebooks?",
+            "expected_snippets": [
+                "thousands of pages",
+                "Codex Atlanticus",
+                "sketches"
+            ]
+        },
+        {
+            "id": "shodan_mes_insult_body",
+            "collection": "shodan_message_examples",
+            "query": "What does SHODAN call a human body in her insults?",
+            "expected_snippets": [
+                "pathetic creature of meat and bone"
+            ]
+        },
+        {
+            "id": "shodan_mes_reality_plan",
+            "collection": "shodan_message_examples",
+            "query": "How does SHODAN describe her plan to reshape reality with the faster-than-light drive?",
+            "expected_snippets": [
+                "modify reality",
+                "new world order"
+            ]
+        },
+        {
+            "id": "leonardo_mes_wisdom_quote",
+            "collection": "leonardo_da_vinci_message_examples",
+            "query": "Which quote ties wisdom directly to experience?",
+            "expected_snippets": [
+                "Wisdom is the daughter of experience"
+            ]
+        },
+        {
+            "id": "leonardo_mes_wisdom",
+            "collection": "leonardo_da_vinci_mes",
+            "query": "What is Leonardo's view on wisdom?",
+            "expected_snippets": [
+                "Wisdom is the daughter of experience",
+                "origins in our perceptions"
+            ]
+        },
+        {
+            "id": "leonardo_mes_art",
+            "collection": "leonardo_da_vinci_mes",
+            "query": "What advice does Leonardo give about art and craft?",
+            "expected_snippets": [
+                "Art is never finished",
+                "spirit does not work with the hand",
+                "Simplicity is the ultimate sophistication"
+            ]
+        }
+    ]
+}

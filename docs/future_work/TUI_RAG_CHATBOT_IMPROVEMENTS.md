@@ -1,6 +1,6 @@
 # TUI Future Work — Current Scope
 
-Last verified: 2026-03-01
+Last verified: 2026-03-07
 
 The Textual UI (`chat_tui.py`) is currently stable with streaming output, status line updates, and a sidebar mode toggle.
 

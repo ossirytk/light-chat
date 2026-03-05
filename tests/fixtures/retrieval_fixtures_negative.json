@@ -1,0 +1,68 @@
+{
+    "collection": "shodan",
+    "k": 7,
+    "dashboard_ks": [
+        1,
+        3,
+        5,
+        7
+    ],
+    "cases": [
+        {
+            "id": "neg_shodan_not_leonardo",
+            "query": "Describe SHODAN's origin and role on Citadel Station.",
+            "expected_snippets": [
+                "SHODAN",
+                "Citadel Station",
+                "TriOptimum"
+            ],
+            "forbidden_snippets": [
+                "Mona Lisa",
+                "Vitruvian Man",
+                "Leonardo"
+            ]
+        },
+        {
+            "id": "neg_shodan_mes_not_renaissance",
+            "collection": "shodan_mes",
+            "query": "Give SHODAN-like hostile lines addressing a human intruder.",
+            "expected_snippets": [
+                "insect",
+                "pathetic creature of meat and bone"
+            ],
+            "forbidden_snippets": [
+                "Simplicity is the ultimate sophistication",
+                "Wisdom is the daughter of experience"
+            ]
+        },
+        {
+            "id": "neg_leonardo_not_shodan",
+            "collection": "leonardo_da_vinci",
+            "query": "Summarize Leonardo's notebooks and scientific method.",
+            "expected_snippets": [
+                "notebooks",
+                "Codex Atlanticus",
+                "observation"
+            ],
+            "forbidden_snippets": [
+                "Citadel Station",
+                "Edward Diego",
+                "The Many"
+            ]
+        },
+        {
+            "id": "neg_leonardo_mes_not_shodan_voice",
+            "collection": "leonardo_da_vinci_mes",
+            "query": "Provide concise Leonardo-style guidance on study and craft.",
+            "expected_snippets": [
+                "Learning never exhausts the mind",
+                "Commence with experience and proceed to reason"
+            ],
+            "forbidden_snippets": [
+                "I AM SHODAN",
+                "insect",
+                "new world order"
+            ]
+        }
+    ]
+}

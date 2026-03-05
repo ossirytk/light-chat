@@ -1,12 +1,12 @@
 # Automatic GPU Layer Selection
 
-Last verified: 2026-03-01
+Last verified: 2026-03-07
 
 This project supports automatic `llama.cpp` GPU offload layer selection through `core/gpu_utils.py` and `ConversationManager`.
 
 ## What It Does
 
-When `LAYERS` is set to `"auto"` in `configs/modelconf.json`, runtime:
+When `model.layers` is set to `"auto"` in `configs/config.v2.json`, runtime:
 
 1. Reads GPU memory info from NVML (`pynvml`).
 2. Estimates model layer count and per-layer VRAM usage.
@@ -17,14 +17,16 @@ If GPU info is unavailable, it falls back to a conservative default.
 
 ## Key Configuration
 
-From `configs/modelconf.json`:
+From `configs/config.v2.json`:
 
 ```json
 {
-  "LAYERS": "auto",
-  "TARGET_VRAM_USAGE": 0.8,
-  "N_CTX": 32768,
-  "KV_CACHE_QUANT": "f16"
+  "model": {
+    "layers": "auto",
+    "target_vram_usage": 0.8,
+    "n_ctx": 32768,
+    "kv_cache_quant": "f16"
+  }
 }
 ```
 
@@ -32,7 +34,7 @@ From `configs/modelconf.json`:
 
 - `N_CTX`: larger context increases KV-cache memory usage per layer.
 - `KV_CACHE_QUANT`: `f16`, `q8_0`, or `q4_0` (validated at runtime).
-- `CHECK_MODEL_CONTEXT` and `AUTO_ADJUST_MODEL_CONTEXT` in `configs/appconf.json` control context-window sanity behavior.
+- `model.context.check` and `model.context.auto_adjust` in `configs/config.v2.json` control context-window sanity behavior.
 
 ## Quick Verification
 

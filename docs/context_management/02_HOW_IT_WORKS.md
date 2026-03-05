@@ -1,6 +1,6 @@
 # How Dynamic Context Works
 
-Last verified: 2026-03-01
+Last verified: 2026-03-06
 
 ## Flow Summary
 
@@ -11,7 +11,7 @@ Last verified: 2026-03-01
 3. If retrieval is used, runtime fetches:
    - lore chunks from `RAG_COLLECTION`,
    - style chunks from `<RAG_COLLECTION>_mes`.
-4. Chunks are filtered and deduped.
+4. Chunks are filtered and deduped (including cross-collection dedupe between lore and `_mes`).
 5. Dynamic mode (non-first turn) calculates token budget and allocates content.
 6. Prompt is assembled and streamed.
 
@@ -38,6 +38,8 @@ Dynamic content allocation priority is:
 - Retrieval method:
   - MMR when `USE_MMR=true`,
   - similarity search otherwise.
+- Optional reranking can reorder top candidates (`rag.rerank.enabled`).
+- Optional telemetry logs retrieval details (`rag.telemetry.enabled`).
 
 ## Context Cleanup
 

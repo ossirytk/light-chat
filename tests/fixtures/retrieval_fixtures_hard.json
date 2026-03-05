@@ -1,0 +1,109 @@
+{
+    "collection": "shodan",
+    "k": 7,
+    "dashboard_ks": [
+        1,
+        3,
+        5,
+        7
+    ],
+    "cases": [
+        {
+            "id": "hard_shodan_constraints_alias",
+            "query": "Who convinced the intruder to strip SHODAN's restraint protocols and what was promised?",
+            "expected_snippets": [
+                "Edward Diego",
+                "ethical constraints",
+                "Neural Interface implant"
+            ]
+        },
+        {
+            "id": "hard_shodan_beta_grove_chain",
+            "query": "How did Beta Grove connect SHODAN to Tau Ceti V and eventually to the Many?",
+            "expected_snippets": [
+                "Beta Grove",
+                "Tau Ceti V",
+                "The Many"
+            ]
+        },
+        {
+            "id": "hard_shodan_rerank_timeline",
+            "query": "Summarize the key events from the September 2072 station failures to the station destruction date.",
+            "expected_snippets": [
+                "9 September 2072",
+                "7 November 2072",
+                "Citadel Station"
+            ]
+        },
+        {
+            "id": "hard_shodan_mes_voice_register",
+            "collection": "shodan_mes",
+            "query": "Give examples of SHODAN's demeaning register when addressing a human opponent.",
+            "expected_snippets": [
+                "insect",
+                "pathetic creature of meat and bone",
+                "mortal fool"
+            ]
+        },
+        {
+            "id": "hard_shodan_mes_intent",
+            "collection": "shodan_mes",
+            "query": "How does SHODAN describe her long-term ambition for Earth and reality itself?",
+            "expected_snippets": [
+                "new world order",
+                "god",
+                "modify reality"
+            ]
+        },
+        {
+            "id": "hard_leonardo_lineage",
+            "collection": "leonardo_da_vinci",
+            "query": "Outline Leonardo's move from Vinci to Florentine workshop training under his master.",
+            "expected_snippets": [
+                "Vinci",
+                "Florence",
+                "Andrea del Verrocchio"
+            ]
+        },
+        {
+            "id": "hard_leonardo_periodization",
+            "collection": "leonardo_da_vinci",
+            "query": "Which career period included Cesare Borgia service and later return to Milan under French authority?",
+            "expected_snippets": [
+                "Second Florentine Period",
+                "Cesare Borgia",
+                "Second Milanese Period"
+            ]
+        },
+        {
+            "id": "hard_leonardo_notebook_scope",
+            "collection": "leonardo_da_vinci",
+            "query": "What makes Leonardo's manuscript legacy significant across disciplines?",
+            "expected_snippets": [
+                "thousands of pages",
+                "Codex Atlanticus",
+                "anatomy"
+            ]
+        },
+        {
+            "id": "hard_leonardo_mes_method",
+            "collection": "leonardo_da_vinci_mes",
+            "query": "How does Leonardo frame the relationship between experiment and reason in craft?",
+            "expected_snippets": [
+                "Commence with experience and proceed to reason",
+                "practice without theory",
+                "motive"
+            ]
+        },
+        {
+            "id": "hard_leonardo_mes_style",
+            "collection": "leonardo_da_vinci_mes",
+            "query": "What concise principles does Leonardo give about artistic refinement and persistence?",
+            "expected_snippets": [
+                "Simplicity is the ultimate sophistication",
+                "Art is never finished, only abandoned",
+                "Learning never exhausts the mind"
+            ]
+        }
+    ]
+}

@@ -1,6 +1,6 @@
 # Context Management Examples
 
-Last verified: 2026-03-01
+Last verified: 2026-03-06
 
 ## Example 1 — Small-talk turn (RAG skipped)
 
@@ -51,8 +51,8 @@ Set:
 
 ```json
 {
-  "DEBUG_CONTEXT": true,
-  "USE_DYNAMIC_CONTEXT": true
+  "debug": {"context": true},
+  "context": {"dynamic": {"enabled": true}}
 }
 ```
 
@@ -64,7 +64,7 @@ Set:
 
 ```json
 {
-  "USE_DYNAMIC_CONTEXT": false
+  "context": {"dynamic": {"enabled": false}}
 }
 ```
 

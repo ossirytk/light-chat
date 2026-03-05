@@ -9,9 +9,7 @@ This script provides comprehensive features for managing RAG data:
 """
 
 import json
-import logging
 import re
-import sys
 import time
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
@@ -28,25 +26,10 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from loguru import logger
 
+from core.config import configure_logging, load_app_config, load_rag_script_config
 
-def load_app_config() -> dict:
-    config_path = Path("./configs/") / "appconf.json"
-    if not config_path.exists():
-        return {}
-    with config_path.open() as f:
-        return json.load(f)
-
-
-def configure_logging(app_config: dict) -> None:
-    show_logs = bool(app_config.get("SHOW_LOGS", True))
-    log_level = str(app_config.get("LOG_LEVEL", "DEBUG")).upper()
-    if show_logs:
-        logging.basicConfig(level=log_level)
-        logger.remove()
-        logger.add(sys.stderr, level=log_level)
-    else:
-        logging.disable(logging.CRITICAL)
-        logger.remove()
+type MetadataItem = dict[str, object]
+type MetadataList = list[MetadataItem]
 
 
 @dataclass
@@ -68,13 +51,13 @@ class ProcessingContext:
     client: chromadb.PersistentClient
 
 
-def iter_key_items(all_keys: object) -> list[dict]:
+def iter_key_items(all_keys: object) -> MetadataList:
     if not isinstance(all_keys, list):
         return []
     return [item for item in all_keys if isinstance(item, dict)]
 
 
-def get_item_value(item: dict, text_keys: tuple[str, ...]) -> str | None:
+def get_item_value(item: MetadataItem, text_keys: tuple[str, ...]) -> str | None:
     for tk in text_keys:
         candidate = item.get(tk)
         if isinstance(candidate, str):
@@ -87,7 +70,7 @@ def get_item_value(item: dict, text_keys: tuple[str, ...]) -> str | None:
     return None
 
 
-def enrich_document_with_metadata(document: Document, all_keys: list) -> Document:
+def enrich_document_with_metadata(document: Document, all_keys: MetadataList) -> Document:
     """Enrich a document with metadata keys found in its content."""
     if not isinstance(document.metadata, dict):
         document.metadata = {} if document.metadata is None else dict(document.metadata)
@@ -256,16 +239,17 @@ def main(**kwargs: object) -> None:
     - Detailed progress tracking
     """
     app_config = load_app_config()
+    script_config = load_rag_script_config(app_config)
     configure_logging(app_config)
 
     file_path = kwargs.get("file_path")
     collection_name = kwargs.get("collection_name")
-    persist_directory = kwargs.get("persist_directory") or app_config.get("PERSIST_DIRECTORY", "./character_storage/")
-    key_storage = kwargs.get("key_storage") or app_config.get("KEY_STORAGE", "./rag_data/")
+    persist_directory = kwargs.get("persist_directory") or script_config.persist_directory
+    key_storage = kwargs.get("key_storage") or script_config.key_storage
     metadata_file = kwargs.get("metadata_file")
-    threads = kwargs.get("threads") or app_config.get("THREADS", 6)
-    chunk_size = kwargs.get("chunk_size") or app_config.get("CHUNK_SIZE", 2048)
-    chunk_overlap = kwargs.get("chunk_overlap") or app_config.get("CHUNK_OVERLAP", 1024)
+    threads = kwargs.get("threads") or script_config.threads
+    chunk_size = kwargs.get("chunk_size") or script_config.chunk_size
+    chunk_overlap = kwargs.get("chunk_overlap") or script_config.chunk_overlap
     dry_run = kwargs.get("dry_run", False)
     overwrite = kwargs.get("overwrite", False)
 
@@ -294,8 +278,8 @@ def main(**kwargs: object) -> None:
         logger.warning("No metadata file found, proceeding without enrichment")
 
     logger.info("Initializing ChromaDB client and embedder...")
-    embedding_device = str(app_config.get("EMBEDDING_DEVICE", "cpu"))
-    embedding_cache = str(app_config.get("EMBEDDING_CACHE", "./embedding_models/"))
+    embedding_device = script_config.embedding_device
+    embedding_cache = script_config.embedding_cache
     model_kwargs = {"device": embedding_device}
     encode_kwargs = {"normalize_embeddings": True}
     cache_folder = str(Path(embedding_cache))

@@ -13,11 +13,8 @@ Cleaning steps applied:
 """
 
 import ipaddress
-import json
-import logging
 import re
 import socket
-import sys
 import unicodedata
 from pathlib import Path
 from urllib.parse import urlparse
@@ -27,26 +24,7 @@ import requests
 from bs4 import BeautifulSoup
 from loguru import logger
 
-
-def load_app_config() -> dict:
-    config_path = Path("./configs/") / "appconf.json"
-    if not config_path.exists():
-        return {}
-    with config_path.open() as f:
-        return json.load(f)
-
-
-def configure_logging(app_config: dict) -> None:
-    show_logs = bool(app_config.get("SHOW_LOGS", True))
-    log_level = str(app_config.get("LOG_LEVEL", "DEBUG")).upper()
-    if show_logs:
-        logging.basicConfig(level=log_level)
-        logger.remove()
-        logger.add(sys.stderr, level=log_level)
-    else:
-        logging.disable(logging.CRITICAL)
-        logger.remove()
-
+from core.config import configure_logging, load_app_config
 
 MAX_CITATION_MARKER_LENGTH = 30
 CAPTION_MIN_COMMA_COUNT = 2

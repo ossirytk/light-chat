@@ -1,18 +1,13 @@
 """FastAPI + Jinja2 + HTMX web chat interface for light-chat."""
 
-from __future__ import annotations
-
 import asyncio
 import contextlib
-import json
-import logging
-import sys
 import threading
 import time
 import uuid
+from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
@@ -20,40 +15,8 @@ from fastapi.templating import Jinja2Templates
 from loguru import logger
 from pydantic import BaseModel
 
+from core.config import configure_logging, load_app_config
 from core.conversation_manager import ConversationManager
-
-if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator, Callable
-
-
-def load_app_config() -> dict:
-    """Load application configuration."""
-    config_path = Path("./configs/") / "appconf.json"
-    if not config_path.exists():
-        return {}
-    with config_path.open() as config_file:
-        return json.load(config_file)
-
-
-def configure_logging(app_config: dict) -> None:
-    """Configure logging based on app config."""
-    show_logs = bool(app_config.get("SHOW_LOGS", True))
-    log_level = str(app_config.get("LOG_LEVEL", "DEBUG")).upper()
-    log_to_file = bool(app_config.get("LOG_TO_FILE", True))
-    log_file = str(app_config.get("LOG_FILE", "./logs/light-chat.log"))
-
-    logger.remove()
-
-    if log_to_file:
-        log_path = Path(log_file)
-        log_path.parent.mkdir(parents=True, exist_ok=True)
-        logger.add(log_path, level=log_level, rotation="10 MB", retention=5)
-
-    if show_logs:
-        logging.basicConfig(level=log_level)
-        logger.add(sys.stderr, level=log_level)
-    else:
-        logging.disable(logging.CRITICAL)
 
 
 class StreamRequest(BaseModel):

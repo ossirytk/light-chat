@@ -1,0 +1,36 @@
+{
+    "collection": "shodan_message_examples",
+    "k": 5,
+    "dashboard_ks": [
+        1,
+        3,
+        5
+    ],
+    "cases": [
+        {
+            "id": "rerank_shodan_insult_body",
+            "collection": "shodan_message_examples",
+            "query": "What does SHODAN call a human body in her insults?",
+            "expected_snippets": [
+                "pathetic creature of meat and bone"
+            ]
+        },
+        {
+            "id": "rerank_shodan_reality_plan",
+            "collection": "shodan_message_examples",
+            "query": "How does SHODAN describe her plan to reshape reality with the faster-than-light drive?",
+            "expected_snippets": [
+                "modify reality",
+                "new world order"
+            ]
+        },
+        {
+            "id": "rerank_leonardo_wisdom",
+            "collection": "leonardo_da_vinci_message_examples",
+            "query": "Which quote ties wisdom directly to experience?",
+            "expected_snippets": [
+                "Wisdom is the daughter of experience"
+            ]
+        }
+    ]
+}

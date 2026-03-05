@@ -1,6 +1,6 @@
 # Legacy Allocation Examples (Archived)
 
-Last verified: 2026-03-01
+Last verified: 2026-03-07
 
 Historical example set retained for reference only.
 

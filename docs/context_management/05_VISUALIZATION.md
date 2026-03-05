@@ -1,6 +1,6 @@
 # Context Flow Visualizations
 
-Last verified: 2026-03-01
+Last verified: 2026-03-06
 
 ## High-Level Runtime Pipeline
 
@@ -19,6 +19,9 @@ Heuristic Gate (small-talk / follow-up skip)
             |
             v
       Retrieve lore + _mes chunks
+            |
+            v
+      Optional reranking of top candidates
             |
             v
       Filter/dedupe/cap context text
@@ -63,6 +66,9 @@ if metadata matches:
   if still no useful results -> unfiltered
 else:
   unfiltered
+
+(similarity mode can apply score-threshold filtering;
+MMR mode can apply optional reranking)
 ```
 
 ## Why this helps
