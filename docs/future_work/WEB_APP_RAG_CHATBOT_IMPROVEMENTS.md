@@ -36,5 +36,7 @@ The web app (`web_app.py`) is the primary interactive UI for chat and should rem
 - `core/conversation_manager.py`
 - `templates/index.html`
 - `templates/chat_message_pair.html`
+- `templates/chat_messages.html`
+- `templates/chat_single_message.html`
 - `.vscode/tasks.json`
 - `.vscode/launch.json`

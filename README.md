@@ -64,12 +64,18 @@ Web diagnostics endpoints:
 ```bash
 curl -s http://127.0.0.1:8000/health
 curl -s http://127.0.0.1:8000/healthz/full
+curl -s http://127.0.0.1:8000/chat/debug
+curl -s http://127.0.0.1:8000/chat/debug/history
+curl -s http://127.0.0.1:8000/chat/session/list
 ```
 
 Notes for web chat behavior:
 
 - Shows status updates (`Ready`, `Sending`, `Thinking`, `Streaming`, `Timed out`).
 - Applies a stream timeout and surfaces a `Retry` button on stream failure.
+- Supports named session save + explicit session picker load in the sidebar.
+- Shows both latest retrieval debug stats and per-turn retrieval trace history.
+- Provides quick actions for copy/export and command-equivalent controls (`clear`, `reload`, `help`).
 
 ## Setup
 
