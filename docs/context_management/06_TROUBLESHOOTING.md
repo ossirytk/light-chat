@@ -1,12 +1,12 @@
 # Context Management Troubleshooting
 
-Last verified: 2026-03-01
+Last verified: 2026-03-06
 
 ## 1) Dynamic mode seems inactive
 
 Check:
 
-- `USE_DYNAMIC_CONTEXT` is true in `configs/appconf.json`.
+- `context.dynamic.enabled` is true in `configs/config.v2.json`.
 - You are not only testing first-turn prompts (dynamic allocation is mainly used after first turn).
 - `DEBUG_CONTEXT` is enabled to inspect allocation logs.
 
@@ -18,6 +18,7 @@ Check:
 - `RAG_COLLECTION` points to the expected collection,
 - `RAG_K`, `RAG_FETCH_K`, and `LAMBDA_MULT` are tuned for your data,
 - `RAG_SCORE_THRESHOLD` is set only if using similarity mode (`USE_MMR=false`).
+- if reranking is enabled, ensure the reranker model is available (`rag.rerank.model`).
 
 ## 3) Responses are very short or fallback text appears
 
@@ -62,6 +63,6 @@ Tune:
 ```bash
 uv run python main.py
 uv run python chat_tui.py
-uv run python scripts/rag/manage_collections.py test shodan -q "SHODAN origin" -k 5
+uv run python -m scripts.rag.manage_collections test shodan -q "SHODAN origin" -k 5
 uv run python scripts/rag/analyze_rag_text.py validate rag_data/shodan.json
 ```

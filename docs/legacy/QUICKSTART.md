@@ -1,6 +1,6 @@
 # Legacy Quickstart (Archived)
 
-Last verified: 2026-03-01
+Last verified: 2026-03-07
 
 Archived historical note. For active quickstart guidance, use:
 

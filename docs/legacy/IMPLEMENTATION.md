@@ -1,6 +1,6 @@
 # Legacy Implementation Notes (Archived)
 
-Last verified: 2026-03-01
+Last verified: 2026-03-07
 
 This file is archived. Implementation details here were superseded by ongoing fixes and refactors.
 

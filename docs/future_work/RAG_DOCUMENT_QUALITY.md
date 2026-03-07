@@ -1,6 +1,6 @@
 # RAG Document Quality — Current State and Next Work
 
-Last verified: 2026-03-01
+Last verified: 2026-03-07
 
 This document tracks source-data quality for files in `rag_data/`.
 

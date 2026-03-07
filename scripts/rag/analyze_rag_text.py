@@ -8,9 +8,7 @@ This script provides comprehensive text analysis capabilities for RAG data:
 """
 
 import json
-import logging
 import re
-import sys
 import uuid
 from collections import Counter
 from dataclasses import dataclass
@@ -20,25 +18,7 @@ from typing import Any
 import click
 from loguru import logger
 
-
-def load_app_config() -> dict:
-    config_path = Path("./configs/") / "appconf.json"
-    if not config_path.exists():
-        return {}
-    with config_path.open() as f:
-        return json.load(f)
-
-
-def configure_logging(app_config: dict) -> None:
-    show_logs = bool(app_config.get("SHOW_LOGS", True))
-    log_level = str(app_config.get("LOG_LEVEL", "DEBUG")).upper()
-    if show_logs:
-        logging.basicConfig(level=log_level)
-        logger.remove()
-        logger.add(sys.stderr, level=log_level)
-    else:
-        logging.disable(logging.CRITICAL)
-        logger.remove()
+from core.config import configure_logging, load_app_config
 
 
 @dataclass

@@ -1,6 +1,4 @@
 import json
-import logging
-import sys
 import time
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
@@ -17,25 +15,7 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from loguru import logger
 
-
-def load_app_config() -> dict:
-    config_path = Path("./configs/") / "appconf.json"
-    if not config_path.exists():
-        return {}
-    with config_path.open() as f:
-        return json.load(f)
-
-
-def configure_logging(app_config: dict) -> None:
-    show_logs = bool(app_config.get("SHOW_LOGS", True))
-    log_level = str(app_config.get("LOG_LEVEL", "DEBUG")).upper()
-    if show_logs:
-        logging.basicConfig(level=log_level)
-        logger.remove()
-        logger.add(sys.stderr, level=log_level)
-    else:
-        logging.disable(logging.CRITICAL)
-        logger.remove()
+from core.config import configure_logging, load_app_config, load_rag_script_config
 
 
 @dataclass
@@ -197,13 +177,14 @@ def main(**kwargs: object) -> None:
     The resulting documents are pushed into Chroma vector data collections in persist-directory.
     """
     app_config = load_app_config()
+    script_config = load_rag_script_config(app_config)
     configure_logging(app_config)
-    documents_directory = kwargs.get("documents_directory") or app_config.get("DOCUMENTS_DIRECTORY", "./rag_data/")
-    persist_directory = kwargs.get("persist_directory") or app_config.get("PERSIST_DIRECTORY", "./character_storage/")
-    key_storage = kwargs.get("key_storage") or app_config.get("KEY_STORAGE", "./rag_data/")
-    threads = kwargs.get("threads") or app_config.get("THREADS", 6)
-    chunk_size = kwargs.get("chunk_size") or app_config.get("CHUNK_SIZE", 2048)
-    chunk_overlap = kwargs.get("chunk_overlap") or app_config.get("CHUNK_OVERLAP", 1024)
+    documents_directory = kwargs.get("documents_directory") or script_config.documents_directory
+    persist_directory = kwargs.get("persist_directory") or script_config.persist_directory
+    key_storage = kwargs.get("key_storage") or script_config.key_storage
+    threads = kwargs.get("threads") or script_config.threads
+    chunk_size = kwargs.get("chunk_size") or script_config.chunk_size
+    chunk_overlap = kwargs.get("chunk_overlap") or script_config.chunk_overlap
     docs_path = Path(str(documents_directory))
     all_txt_files = list(docs_path.glob("*.txt"))
 
@@ -218,8 +199,8 @@ def main(**kwargs: object) -> None:
 
     # Initialize embedder and client once
     logger.info("Using huggingface embeddings")
-    embedding_device = str(app_config.get("EMBEDDING_DEVICE", "cpu"))
-    embedding_cache = str(app_config.get("EMBEDDING_CACHE", "./embedding_models/"))
+    embedding_device = script_config.embedding_device
+    embedding_cache = script_config.embedding_cache
     model_kwargs = {"device": embedding_device}
     encode_kwargs = {"normalize_embeddings": False}
     cache_folder = str(Path(embedding_cache))

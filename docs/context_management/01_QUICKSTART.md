@@ -1,20 +1,32 @@
 # Context Management Quickstart
 
-Last verified: 2026-03-01
+Last verified: 2026-03-06
 
 ## 1) Check defaults
 
-`configs/appconf.json` currently enables dynamic behavior:
+`configs/config.v2.json` currently enables dynamic behavior:
 
 ```json
 {
-  "USE_DYNAMIC_CONTEXT": true,
-  "MIN_HISTORY_TURNS": 2,
-  "MAX_HISTORY_TURNS": 10,
-  "RESERVED_FOR_RESPONSE": 384,
-  "CHUNK_SIZE_ESTIMATE": 150,
-  "MAX_INITIAL_RETRIEVAL": 8,
-  "MAX_VECTOR_CONTEXT_CHARS": 2200
+  "context": {
+    "dynamic": {"enabled": true},
+    "budget": {"reserved_for_response": 384},
+    "history": {"min_turns": 2, "max_turns": 10},
+    "retrieval": {
+      "chunk_size_estimate": 150,
+      "max_initial_retrieval": 8,
+      "max_vector_context_chars": 2200
+    }
+  },
+  "rag": {
+    "k": 3,
+    "k_mes": 2,
+    "fetch_k": 8,
+    "use_mmr": true,
+    "lambda_mult": 0.75,
+    "rerank": {"enabled": true, "top_n": 8},
+    "telemetry": {"enabled": false}
+  }
 }
 ```
 
@@ -36,9 +48,11 @@ uv run python chat_tui.py
 
 ```json
 {
-  "DEBUG_CONTEXT": true,
-  "DEBUG_PROMPT": true,
-  "DEBUG_PROMPT_FINGERPRINT": true
+  "debug": {
+    "context": true,
+    "prompt": true,
+    "prompt_fingerprint": true
+  }
 }
 ```
 
@@ -52,7 +66,9 @@ uv run python chat_tui.py
 
 ```json
 {
-  "USE_DYNAMIC_CONTEXT": false
+  "context": {
+    "dynamic": {"enabled": false}
+  }
 }
 ```
 

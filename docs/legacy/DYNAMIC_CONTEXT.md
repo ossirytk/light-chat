@@ -1,6 +1,6 @@
 # Legacy Dynamic Context Design (Archived)
 
-Last verified: 2026-03-01
+Last verified: 2026-03-07
 
 This document previously described an earlier design phase for dynamic context allocation.
 

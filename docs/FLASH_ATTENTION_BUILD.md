@@ -1,6 +1,6 @@
 # Flash Attention Build Guide
 
-Last verified: 2026-03-01
+Last verified: 2026-03-07
 
 This repo includes build helpers for rebuilding `llama-cpp-python` with CUDA + Flash Attention.
 

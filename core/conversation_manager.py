@@ -17,9 +17,16 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import BasePromptTemplate, load_prompt
 from langchain_huggingface import HuggingFaceEmbeddings
 from loguru import logger
+from sentence_transformers import CrossEncoder
 
+from core.config import load_conversation_runtime_config, load_runtime_config
 from core.context_manager import ApproximateTokenCounter, ContextManager
 from core.gpu_utils import get_n_gpu_layers
+
+type KeyItem = dict[str, object]
+type KeyMatch = dict[str, str]
+type WhereFilter = dict[str, object] | None
+type RetrievalTrace = dict[str, object]
 
 
 class UnknownModelTypeError(Exception):
@@ -30,7 +37,7 @@ class ModelLoadError(Exception):
     """Raised when a model fails to load."""
 
 
-def normalize_keyfile(raw_keys: object) -> list[dict[str, object]]:
+def normalize_keyfile(raw_keys: object) -> list[KeyItem]:
     if isinstance(raw_keys, dict) and "Content" in raw_keys:
         raw_keys = raw_keys["Content"]
     if not isinstance(raw_keys, list):
@@ -38,7 +45,7 @@ def normalize_keyfile(raw_keys: object) -> list[dict[str, object]]:
     return [item for item in raw_keys if isinstance(item, dict)]
 
 
-def _get_entry_value(item: dict[str, object]) -> str | None:
+def _get_entry_value(item: KeyItem) -> str | None:
     text_keys = ("text", "text_fields", "text_field", "content", "value")
     for key in text_keys:
         candidate = item.get(key)
@@ -52,18 +59,18 @@ def _get_entry_value(item: dict[str, object]) -> str | None:
     return None
 
 
-def _matches_aliases(item: dict[str, object], text_lower: str) -> bool:
+def _matches_aliases(item: KeyItem, text_lower: str) -> bool:
     aliases = item.get("aliases")
     if not isinstance(aliases, list):
         return False
     return any(isinstance(alias, str) and alias.lower() in text_lower for alias in aliases)
 
 
-def extract_key_matches(keys: list[dict[str, object]], text: str) -> list[dict[str, str]]:
+def extract_key_matches(keys: list[KeyItem], text: str) -> list[KeyMatch]:
     if not text:
         return []
     text_lower = text.lower()
-    matches: list[dict[str, str]] = []
+    matches: list[KeyMatch] = []
     for item in keys:
         uuid = item.get("uuid")
         if not isinstance(uuid, str):
@@ -76,7 +83,7 @@ def extract_key_matches(keys: list[dict[str, object]], text: str) -> list[dict[s
     return matches
 
 
-def build_where_filters(matches: list[dict[str, str]]) -> list[dict[str, object] | None]:
+def build_where_filters(matches: list[KeyMatch]) -> list[WhereFilter]:
     if not matches:
         return [None]
     if len(matches) == 1:
@@ -98,9 +105,47 @@ class ConversationManager:
         re.compile(r"\bgood (morning|afternoon|evening|night)\b", re.IGNORECASE),
     )
     _MARKDOWN_HEADING_RE: re.Pattern[str] = re.compile(r"^#{2,3}\s+(.+?)\s*$")
+    _SENTENCE_SPLIT_RE: re.Pattern[str] = re.compile(r"(?<=[.!?])\s+")
     _CHUNK_SIGNATURE_LINES: int = 8
     _DEFAULT_MAX_VECTOR_CONTEXT_CHARS: int = 2200
     _MIN_DYNAMIC_CONTENT_TOKENS: int = 500
+    _MIN_QUERY_TERM_LEN: int = 2
+    _COMPACT_QUERY_TERM_COUNT: int = 3
+    _QUERY_STOPWORDS: frozenset[str] = frozenset(
+        {
+            "a",
+            "an",
+            "and",
+            "are",
+            "as",
+            "at",
+            "be",
+            "by",
+            "for",
+            "from",
+            "how",
+            "i",
+            "in",
+            "is",
+            "it",
+            "of",
+            "on",
+            "or",
+            "that",
+            "the",
+            "this",
+            "to",
+            "was",
+            "what",
+            "when",
+            "where",
+            "who",
+            "why",
+            "with",
+            "you",
+            "your",
+        }
+    )
 
     def __init__(self) -> None:
         # Character card details
@@ -122,15 +167,16 @@ class ConversationManager:
 
         # Init things
         self.configs = self.load_configs()
+        self.runtime_config = load_conversation_runtime_config(self.configs)
         self.prompt = self.parse_prompt()
         self.llm_model = self.instantiate_llm()
-        self.persist_directory = self.configs.get("PERSIST_DIRECTORY", "./character_storage/")
-        self.key_storage = self.configs.get("KEY_STORAGE", "./rag_data/")
-        self.embedding_cache = self.configs.get("EMBEDDING_CACHE", "./embedding_models/")
-        self.rag_k = int(self.configs.get("RAG_K", 7))
-        self.rag_k_mes = int(self.configs.get("RAG_K_MES", self.rag_k))
-        self.rag_collection = self.configs.get("RAG_COLLECTION", self._sanitize_collection_name(self.character_name))
-        _default_max_history = 10
+        self.persist_directory = self.runtime_config.persist_directory
+        self.key_storage = self.runtime_config.key_storage
+        self.embedding_cache = self.runtime_config.embedding_cache
+        self.rag_k = self.runtime_config.rag_k
+        self.rag_k_mes = self.runtime_config.rag_k_mes
+        self.rag_collection = self.runtime_config.rag_collection or self._sanitize_collection_name(self.character_name)
+        _default_max_history = self.runtime_config.max_history_turns
         _raw_max_history = self.configs.get("MAX_HISTORY_TURNS", _default_max_history)
         try:
             max_history = int(_raw_max_history)
@@ -147,11 +193,12 @@ class ConversationManager:
         self.ai_message_history: deque[str] = deque(maxlen=max_history)
         self._vector_client: chromadb.PersistentClient | None = None
         self._vector_embedder: HuggingFaceEmbeddings | None = None
+        self._cross_encoder: CrossEncoder | None = None
         self._vector_dbs: dict[str, Chroma] = {}
 
         # Initialize context manager for dynamic context window allocation
         self.context_manager = self._initialize_context_manager()
-        self.use_dynamic_context = bool(self.configs.get("USE_DYNAMIC_CONTEXT", True))
+        self.use_dynamic_context = self.runtime_config.use_dynamic_context
 
     def __del__(self) -> None:
         """Cleanup the LlamaCpp model when the ConversationManager is destroyed."""
@@ -160,16 +207,8 @@ class ConversationManager:
                 self.llm_model.__del__()
 
     def load_configs(self) -> dict:
-        config_dir = Path("./configs/")
-        model_config_source = config_dir / "modelconf.json"
-        app_config_source = config_dir / "appconf.json"
-        logger.debug("Loading model config from: {}", model_config_source)
-        with model_config_source.open() as f:
-            model_config = json.load(f)
-        logger.debug("Loading app config from: {}", app_config_source)
-        with app_config_source.open() as f:
-            app_config = json.load(f)
-        merged_config = {**model_config, **app_config}
+        runtime_config = load_runtime_config()
+        merged_config = runtime_config.flat
         logger.debug("Loaded config type: {}", type(merged_config))
         return merged_config
 
@@ -199,14 +238,14 @@ class ConversationManager:
         except Exception:
             logger.debug("Could not detect context window, using default: {}", context_window)
 
-        reserved_for_response = int(self.configs.get("RESERVED_FOR_RESPONSE", 256))
+        reserved_for_response = self.runtime_config.reserved_for_response
 
         return ContextManager(
             context_window=context_window,
             token_counter=ApproximateTokenCounter(),
             reserved_for_response=reserved_for_response,
-            min_history_turns=int(self.configs.get("MIN_HISTORY_TURNS", 1)),
-            max_history_turns=int(self.configs.get("MAX_HISTORY_TURNS", 8)),
+            min_history_turns=self.runtime_config.min_history_turns,
+            max_history_turns=int(self.configs.get("MAX_HISTORY_TURNS", self.runtime_config.max_history_turns)),
         )
 
     def _get_model_format_tokens(self, model_type: str) -> dict[str, str]:
@@ -309,7 +348,7 @@ class ConversationManager:
         return None
 
     def _check_model_context(self, model: LlamaCpp, configured_n_ctx: int | None) -> None:
-        if not self.configs.get("CHECK_MODEL_CONTEXT", False):
+        if not self.runtime_config.check_model_context:
             return
         client = getattr(model, "client", None)
         if client is None:
@@ -340,7 +379,7 @@ class ConversationManager:
             trained_ctx = self._read_llama_ctx_value(client, "n_ctx_train")
             active_ctx = self._read_llama_ctx_value(client, "n_ctx")
 
-        if not self.configs.get("AUTO_ADJUST_MODEL_CONTEXT", False):
+        if not self.runtime_config.auto_adjust_model_context:
             self._check_model_context(model, configured_n_ctx)
             return model
 
@@ -448,7 +487,7 @@ class ConversationManager:
         # Setting MAX_TOKENS lower than the context size can sometimes fix this
 
         stop_sequences = None
-        model_type = self.configs.get("MODEL_TYPE", "").lower()
+        model_type = self.runtime_config.model_type.lower()
         add_bos = self.add_bos
         if model_type == "mistral":
             stop_sequences = ["\nUser:", "User:", "\nUSER:", "USER:", "\n---", "\n==="]
@@ -462,16 +501,16 @@ class ConversationManager:
             configured_n_ctx = int(configured_n_ctx)
 
         # Calculate optimal GPU layers (supports "auto" or integer values)
-        target_vram_usage = float(self.configs.get("TARGET_VRAM_USAGE", 0.8))
+        target_vram_usage = self.runtime_config.target_vram_usage
         n_gpu_layers = get_n_gpu_layers(
             model_path=model_path,
-            configured_layers=self.configs.get("LAYERS", "auto"),
+            configured_layers=self.runtime_config.layers,
             n_ctx=configured_n_ctx or 2048,
             target_vram_usage=target_vram_usage,
         )
 
         # Get KV cache quantization setting (q8_0, q4_0, or f16 for full precision)
-        kv_quant = self.configs.get("KV_CACHE_QUANT", "f16")
+        kv_quant = self.runtime_config.kv_cache_quant
         if kv_quant not in ("f16", "q8_0", "q4_0"):
             logger.warning("Invalid KV_CACHE_QUANT value '{}', using f16", kv_quant)
             kv_quant = "f16"
@@ -538,7 +577,213 @@ class ConversationManager:
             )
         return self._vector_dbs[collection_name]
 
-    def _get_key_matches(self, query: str, collection_name: str) -> list[dict[str, str]]:
+    def _get_cross_encoder(self) -> CrossEncoder:
+        if self._cross_encoder is None:
+            self._cross_encoder = CrossEncoder(self.runtime_config.rag_rerank_model, device="cpu")
+        return self._cross_encoder
+
+    @staticmethod
+    def _describe_where_filter(where: WhereFilter) -> str:
+        if where is None:
+            return "unfiltered"
+        if "$and" in where:
+            return "$and"
+        if "$or" in where:
+            return "$or"
+        return "metadata"
+
+    def _rerank_chunks(self, query: str, chunks: list[str], k: int) -> list[str]:
+        if not chunks:
+            return []
+
+        top_n = max(k, self.runtime_config.rag_rerank_top_n)
+        candidates = chunks[:top_n]
+        if len(candidates) <= 1:
+            return chunks[:k]
+
+        try:
+            cross_encoder = self._get_cross_encoder()
+            pairs = [(query, chunk) for chunk in candidates]
+            scores = cross_encoder.predict(pairs, show_progress_bar=False)
+            scored_chunks = list(zip(candidates, scores, strict=False))
+            scored_chunks.sort(key=lambda item: float(item[1]), reverse=True)
+            reranked = [chunk for chunk, _score in scored_chunks]
+            if len(chunks) > len(candidates):
+                reranked.extend(chunks[len(candidates) :])
+            return reranked[:k]
+        except Exception as error:
+            logger.warning("Reranking failed; using first-pass retrieval order. Error: {}", error)
+            return chunks[:k]
+
+    @staticmethod
+    def _score_spread(scores: list[float]) -> tuple[float | None, float | None, float | None]:
+        if not scores:
+            return None, None, None
+        min_score = min(scores)
+        max_score = max(scores)
+        return min_score, max_score, max_score - min_score
+
+    @staticmethod
+    def _run_mmr_search(
+        db: Chroma,
+        query: str,
+        where: WhereFilter,
+        search_options: dict[str, object],
+    ) -> list[str]:
+        search_kwargs: dict[str, object] = {
+            "query": query,
+            "k": int(search_options["retrieval_k"]),
+            "fetch_k": int(search_options["fetch_k"]),
+            "lambda_mult": float(search_options["lambda_mult"]),
+        }
+        if where is not None:
+            search_kwargs["filter"] = where
+        docs = db.max_marginal_relevance_search(**search_kwargs)
+        return [doc.page_content for doc in docs]
+
+    @staticmethod
+    def _run_similarity_search(
+        db: Chroma,
+        query: str,
+        where: WhereFilter,
+        retrieval_k: int,
+        score_threshold: object,
+    ) -> tuple[list[str], list[float]]:
+        search_kwargs: dict[str, object] = {"query": query, "k": retrieval_k}
+        if where is not None:
+            search_kwargs["filter"] = where
+
+        docs = db.similarity_search_with_score(**search_kwargs)
+        if score_threshold is not None:
+            threshold_value = float(score_threshold)
+            docs = [(doc, score) for doc, score in docs if score <= threshold_value]
+
+        chunks = [doc.page_content for doc, _score in docs]
+        scores = [float(score) for _doc, score in docs]
+        return chunks, scores
+
+    def _log_retrieval_telemetry(
+        self,
+        query: str,
+        main_trace: RetrievalTrace,
+        mes_trace: RetrievalTrace,
+        cleanup_stats: dict[str, int],
+    ) -> None:
+        if not self.runtime_config.rag_telemetry_enabled:
+            return
+
+        logger.info(
+            "RAG telemetry: query_chars={} main(mode={} filter={} cand={} out={} spread={}) "
+            "mes(mode={} filter={} cand={} out={} spread={}) cleanup(main={} mes={} cross_removed={})",
+            len(query),
+            main_trace.get("mode", "unknown"),
+            main_trace.get("filter_path", "n/a"),
+            main_trace.get("candidates", 0),
+            main_trace.get("returned", 0),
+            main_trace.get("score_spread", "n/a"),
+            mes_trace.get("mode", "unknown"),
+            mes_trace.get("filter_path", "n/a"),
+            mes_trace.get("candidates", 0),
+            mes_trace.get("returned", 0),
+            mes_trace.get("score_spread", "n/a"),
+            cleanup_stats.get("main", 0),
+            cleanup_stats.get("mes", 0),
+            cleanup_stats.get("cross_removed", 0),
+        )
+
+    def _dedupe_cross_collection_chunks(
+        self, context_chunks: list[str], mes_chunks: list[str]
+    ) -> tuple[list[str], list[str], int]:
+        if not context_chunks or not mes_chunks:
+            return context_chunks, mes_chunks, 0
+
+        seen_signatures = {self._chunk_signature(chunk) for chunk in context_chunks}
+        deduped_mes: list[str] = []
+        removed = 0
+
+        for chunk in mes_chunks:
+            signature = self._chunk_signature(chunk)
+            if signature in seen_signatures:
+                removed += 1
+                continue
+            seen_signatures.add(signature)
+            deduped_mes.append(chunk)
+
+        return context_chunks, deduped_mes, removed
+
+    def _search_collection_with_trace(
+        self,
+        collection_name: str,
+        query: str,
+        filters: list[WhereFilter],
+        k: int | None = None,
+    ) -> tuple[list[str], RetrievalTrace]:
+        trace: RetrievalTrace = {
+            "mode": "mmr" if self.runtime_config.use_mmr else "similarity",
+            "filter_path": "none",
+            "candidates": 0,
+            "returned": 0,
+            "score_spread": None,
+            "rerank_applied": False,
+        }
+
+        if not query:
+            return [], trace
+
+        if k is None:
+            k = self.rag_k
+
+        retrieval_k = max(k, self.runtime_config.rag_rerank_top_n) if self.runtime_config.rag_rerank_enabled else k
+        db = self._get_vector_db(collection_name)
+        use_mmr = self.runtime_config.use_mmr
+        fetch_k = self.runtime_config.rag_fetch_k
+        lambda_mult = self.runtime_config.lambda_mult
+        score_threshold = self.configs.get("RAG_SCORE_THRESHOLD")
+        candidate_chunks: list[str] = []
+        similarity_scores: list[float] = []
+
+        for where in filters:
+            trace["filter_path"] = self._describe_where_filter(where)
+            if use_mmr:
+                candidate_chunks = self._run_mmr_search(
+                    db,
+                    query,
+                    where,
+                    {
+                        "retrieval_k": retrieval_k,
+                        "fetch_k": max(retrieval_k, fetch_k),
+                        "lambda_mult": lambda_mult,
+                    },
+                )
+                if candidate_chunks or where is None:
+                    break
+                continue
+
+            candidate_chunks, similarity_scores = self._run_similarity_search(
+                db,
+                query,
+                where,
+                retrieval_k,
+                score_threshold,
+            )
+            if candidate_chunks or where is None:
+                break
+
+        result_chunks = candidate_chunks[:k]
+        if self.runtime_config.rag_rerank_enabled and candidate_chunks:
+            result_chunks = self._rerank_chunks(query=query, chunks=candidate_chunks, k=k)
+            trace["rerank_applied"] = True
+
+        score_min, score_max, score_spread = self._score_spread(similarity_scores)
+        trace["candidates"] = len(candidate_chunks)
+        trace["returned"] = len(result_chunks)
+        trace["score_min"] = score_min
+        trace["score_max"] = score_max
+        trace["score_spread"] = score_spread
+
+        return result_chunks, trace
+
+    def _get_key_matches(self, query: str, collection_name: str) -> list[KeyMatch]:
         if not query:
             return []
         keyfile_path = Path(self.key_storage) / f"{collection_name}.json"
@@ -637,7 +882,7 @@ class ConversationManager:
 
     def _cap_context_text(self, text: str) -> str:
         """Cap vector context length to avoid prompt bloat while preserving boundaries."""
-        max_chars = int(self.configs.get("MAX_VECTOR_CONTEXT_CHARS", self._DEFAULT_MAX_VECTOR_CONTEXT_CHARS))
+        max_chars = self.runtime_config.max_vector_context_chars
         if max_chars <= 0 or len(text) <= max_chars:
             return text
         clipped = text[:max_chars]
@@ -653,7 +898,7 @@ class ConversationManager:
         if not normalized:
             return True
         words = [word for word in normalized.split(" ") if word]
-        max_words = int(self.configs.get("SMALL_TALK_MAX_WORDS", 8))
+        max_words = self.runtime_config.small_talk_max_words
         if len(words) > max_words:
             return False
         return any(pattern.search(normalized) for pattern in self._SMALL_TALK_PATTERNS)
@@ -663,7 +908,7 @@ class ConversationManager:
         normalized = re.sub(r"\s+", " ", message).strip()
         if not normalized:
             return True
-        max_words = int(self.configs.get("FOLLOWUP_RAG_MAX_WORDS", 12))
+        max_words = self.runtime_config.followup_rag_max_words
         words = [word for word in normalized.split(" ") if word]
         if len(words) > max_words:
             return False
@@ -676,49 +921,162 @@ class ConversationManager:
         self,
         collection_name: str,
         query: str,
-        filters: list[dict[str, object] | None],
+        filters: list[WhereFilter],
         k: int | None = None,
     ) -> list[str]:
-        if not query:
+        chunks, _trace = self._search_collection_with_trace(collection_name, query, filters, k=k)
+        return chunks
+
+    def _query_terms(self, query: str) -> set[str]:
+        terms = re.findall(r"[a-zA-Z0-9_]+", query.lower())
+        return {term for term in terms if len(term) > self._MIN_QUERY_TERM_LEN and term not in self._QUERY_STOPWORDS}
+
+    def _build_multi_queries(self, query: str) -> list[str]:
+        normalized = re.sub(r"\s+", " ", query).strip()
+        if not normalized:
             return []
-        if k is None:
-            k = self.rag_k
-        db = self._get_vector_db(collection_name)
-        use_mmr = bool(self.configs.get("USE_MMR", True))
-        fetch_k = int(self.configs.get("RAG_FETCH_K", 20))
-        lambda_mult = float(self.configs.get("LAMBDA_MULT", 0.75))
-        score_threshold = self.configs.get("RAG_SCORE_THRESHOLD")
-        for where in filters:
-            if use_mmr:
-                if where is None:
-                    docs_list = db.max_marginal_relevance_search(
-                        query=query,
-                        k=k,
-                        # fetch_k must be >= k; if RAG_FETCH_K is smaller than k, use k as the floor
-                        fetch_k=max(k, fetch_k),
-                        lambda_mult=lambda_mult,
-                    )
-                else:
-                    docs_list = db.max_marginal_relevance_search(
-                        query=query,
-                        k=k,
-                        # fetch_k must be >= k; if RAG_FETCH_K is smaller than k, use k as the floor
-                        fetch_k=max(k, fetch_k),
-                        lambda_mult=lambda_mult,
-                        filter=where,
-                    )
-                if docs_list or where is None:
-                    return [doc.page_content for doc in docs_list]
-            else:
-                if where is None:
-                    docs = db.similarity_search_with_score(query=query, k=k)
-                else:
-                    docs = db.similarity_search_with_score(query=query, k=k, filter=where)
-                if score_threshold is not None:
-                    docs = [(doc, score) for doc, score in docs if score <= float(score_threshold)]
-                if docs or where is None:
-                    return [doc.page_content for doc, _score in docs]
-        return []
+
+        max_variants = max(1, self.runtime_config.rag_multi_query_max_variants)
+        variants: list[str] = [normalized]
+        terms = sorted(self._query_terms(normalized))
+
+        # Lexical reformulations that preserve intent while giving retrieval multiple angles.
+        compact_query_term_count = self._COMPACT_QUERY_TERM_COUNT
+        if len(terms) >= compact_query_term_count:
+            variants.append(" ".join(terms[:compact_query_term_count]))
+            variants.append(" ".join(terms[-compact_query_term_count:]))
+        elif terms:
+            variants.append(" ".join(terms))
+
+        # Keep deterministic order and uniqueness.
+        deduped: list[str] = []
+        seen: set[str] = set()
+        for variant in variants:
+            cleaned = variant.strip()
+            if not cleaned:
+                continue
+            key = cleaned.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            deduped.append(cleaned)
+            if len(deduped) >= max_variants:
+                break
+        return deduped
+
+    def _merge_multi_query_chunks(self, ranked_results: list[list[str]], k: int) -> list[str]:
+        if not ranked_results:
+            return []
+
+        merged: list[str] = []
+        seen_signatures: set[str] = set()
+        max_depth = max(len(result) for result in ranked_results)
+
+        for index in range(max_depth):
+            for result in ranked_results:
+                if index >= len(result):
+                    continue
+                chunk = result[index].strip()
+                if not chunk:
+                    continue
+                signature = self._chunk_signature(chunk)
+                if signature in seen_signatures:
+                    continue
+                seen_signatures.add(signature)
+                merged.append(chunk)
+                if len(merged) >= k:
+                    return merged
+        return merged
+
+    def _multi_query_search_with_trace(
+        self,
+        collection_name: str,
+        base_query: str,
+        filters: list[WhereFilter],
+        k: int,
+    ) -> tuple[list[str], RetrievalTrace]:
+        queries = [base_query]
+        if self.runtime_config.rag_multi_query_enabled:
+            queries = self._build_multi_queries(base_query)
+
+        if not queries:
+            return [], {
+                "mode": "mmr" if self.runtime_config.use_mmr else "similarity",
+                "filter_path": "none",
+                "candidates": 0,
+                "returned": 0,
+                "score_spread": None,
+                "rerank_applied": False,
+                "queries": 0,
+            }
+
+        traces: list[RetrievalTrace] = []
+        ranked_results: list[list[str]] = []
+        for retrieval_query in queries:
+            chunks, trace = self._search_collection_with_trace(collection_name, retrieval_query, filters, k=k)
+            traces.append(trace)
+            ranked_results.append(chunks)
+
+        merged_chunks = self._merge_multi_query_chunks(ranked_results, k)
+        aggregate_trace = traces[0] if traces else {}
+        aggregate_trace = {
+            **aggregate_trace,
+            "queries": len(queries),
+            "candidates": sum(int(trace.get("candidates", 0)) for trace in traces),
+            "returned": len(merged_chunks),
+            "multi_query_enabled": self.runtime_config.rag_multi_query_enabled,
+        }
+        return merged_chunks, aggregate_trace
+
+    def _score_context_sentences(self, query_terms: set[str], context: str) -> list[tuple[int, int, str]]:
+        blocks = [block.strip() for block in context.split("\n\n") if block.strip()]
+        scored_sentences: list[tuple[int, int, str]] = []
+        sentence_position = 0
+
+        for block in blocks:
+            normalized_block = re.sub(r"\s+", " ", block).strip()
+            if not normalized_block:
+                continue
+
+            sentences = [s.strip() for s in self._SENTENCE_SPLIT_RE.split(normalized_block) if s.strip()]
+            for sentence in sentences:
+                sentence_terms = self._query_terms(sentence)
+                overlap = len(query_terms.intersection(sentence_terms))
+                if overlap > 0:
+                    scored_sentences.append((overlap, -sentence_position, sentence))
+                sentence_position += 1
+
+        scored_sentences.sort(reverse=True)
+        return scored_sentences
+
+    def _compress_context_sentences(self, query: str, context: str) -> str:
+        if not context or not self.runtime_config.rag_sentence_compression_enabled:
+            return context
+
+        max_sentences = self.runtime_config.rag_sentence_compression_max_sentences
+        if max_sentences <= 0:
+            return context
+
+        query_terms = self._query_terms(query)
+        if not query_terms:
+            return context
+
+        scored_sentences = self._score_context_sentences(query_terms, context)
+        if not scored_sentences:
+            return context
+
+        selected: list[str] = []
+        seen_sentences: set[str] = set()
+        for _score, _position, sentence in scored_sentences:
+            sentence_key = sentence.lower()
+            if sentence_key in seen_sentences:
+                continue
+            seen_sentences.add(sentence_key)
+            selected.append(sentence)
+            if len(selected) >= max_sentences:
+                break
+
+        return "\n\n".join(selected) if selected else context
 
     def _get_vector_context(self, query: str, k: int | None = None) -> tuple[str, str]:
         if not self.rag_collection:
@@ -727,14 +1085,31 @@ class ConversationManager:
         enriched_query = f"{self.character_name} {query}" if self.character_name else query
         matches = self._get_key_matches(query, self.rag_collection)
         filters = build_where_filters(matches)
-        context_chunks = self._search_collection(self.rag_collection, enriched_query, filters, k=k)
+        retrieval_k = k if k is not None else self.rag_k
+        context_chunks, context_trace = self._multi_query_search_with_trace(
+            self.rag_collection, enriched_query, filters, k=retrieval_k
+        )
         # Use unfiltered search for message examples: goal is stylistic match, not factual (Section 6.2)
         k_mes = k if k is not None else self.rag_k_mes
-        mes_chunks = self._search_collection(f"{self.rag_collection}_mes", enriched_query, [None], k=k_mes)
+        mes_chunks, mes_trace = self._multi_query_search_with_trace(
+            f"{self.rag_collection}_mes",
+            enriched_query,
+            [None],
+            k=k_mes,
+        )
         context_chunks = self._filter_context_chunks(context_chunks)
         mes_chunks = self._filter_context_chunks(mes_chunks)
+        context_chunks, mes_chunks, cross_removed = self._dedupe_cross_collection_chunks(context_chunks, mes_chunks)
+        self._log_retrieval_telemetry(
+            query=enriched_query,
+            main_trace=context_trace,
+            mes_trace=mes_trace,
+            cleanup_stats={"main": len(context_chunks), "mes": len(mes_chunks), "cross_removed": cross_removed},
+        )
         vector_context = "\n\n".join(context_chunks)
         vector_context = self._dedupe_chunk_sections(vector_context)
+        vector_context = self._cap_context_text(vector_context)
+        vector_context = self._compress_context_sentences(query=enriched_query, context=vector_context)
         vector_context = self._cap_context_text(vector_context)
         mes_example = "\n\n".join(mes_chunks)
         return vector_context, mes_example
@@ -824,10 +1199,10 @@ class ConversationManager:
             )
             return self._prepare_static_vector_context(message, mes_example)
 
-        chunk_size_estimate = int(self.configs.get("CHUNK_SIZE_ESTIMATE", 150))
+        chunk_size_estimate = self.runtime_config.chunk_size_estimate
         context_budget_estimate = budget.budget_for_dynamic_content * 0.25
         initial_k = max(self.rag_k, int(context_budget_estimate / chunk_size_estimate))
-        max_initial = int(self.configs.get("MAX_INITIAL_RETRIEVAL", 20))
+        max_initial = self.runtime_config.max_initial_retrieval
         initial_k = min(initial_k, max_initial)
 
         vector_context_full, _mes_from_rag_full = self._get_vector_context(message, k=initial_k)
@@ -847,7 +1222,7 @@ class ConversationManager:
             if mes_from_rag:
                 mes_example = mes_from_rag
 
-        if self.configs.get("DEBUG_CONTEXT", False):
+        if self.runtime_config.debug_context:
             logger.debug(self.context_manager.get_context_info(budget, allocation))
 
         return vector_context, mes_example
@@ -886,13 +1261,13 @@ class ConversationManager:
         return vector_context, mes_example
 
     def _build_conversation_chain(self, message: str, vector_context: str, mes_example: str) -> tuple[object, object]:
-        model_type = self.configs.get("MODEL_TYPE", "").lower()
+        model_type = self.runtime_config.model_type.lower()
         output_parser = StrOutputParser()
         if model_type == "mistral":
             prompt_text = self._build_mistral_prompt(message, vector_context, mes_example)
             if prompt_text.startswith("<s>"):
                 prompt_text = prompt_text.removeprefix("<s>")
-            if self.configs.get("DEBUG_PROMPT", False):
+            if self.runtime_config.debug_prompt:
                 logger.debug("Mistral prompt:\n{}", prompt_text)
             conversation_chain = self.llm_model | output_parser
             chain_input = prompt_text
@@ -904,7 +1279,7 @@ class ConversationManager:
                 "vector_context": vector_context,
                 "mes_example": mes_example,
             }
-            if self.configs.get("DEBUG_PROMPT", False):
+            if self.runtime_config.debug_prompt:
                 logger.debug("Prompt template input: {}", query_input)
             conversation_chain = self.prompt | self.llm_model | output_parser
             chain_input = query_input
@@ -913,7 +1288,7 @@ class ConversationManager:
 
     def _maybe_log_prompt_fingerprint(self, chain_input: object) -> None:
         """Log deterministic prompt fingerprints for cross-entrypoint comparisons."""
-        if not self.configs.get("DEBUG_PROMPT_FINGERPRINT", False):
+        if not self.runtime_config.debug_prompt_fingerprint:
             return
         payload = chain_input if isinstance(chain_input, str) else json.dumps(chain_input, sort_keys=True)
         prompt_hash = hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
@@ -921,7 +1296,7 @@ class ConversationManager:
         logger.debug(
             "Prompt fingerprint: hash={} model_type={} history_turns={} chars={}",
             prompt_hash,
-            self.configs.get("MODEL_TYPE", ""),
+            self.runtime_config.model_type,
             history_turns,
             len(payload),
         )
@@ -935,14 +1310,9 @@ class ConversationManager:
     ) -> str | None:
         chunks: list[str] = []
         raw_stream = ""
-        max_stream_chars = int(self.configs.get("MAX_STREAM_CHARS", 6000))
-        max_silent_stream_chars = int(self.configs.get("MAX_SILENT_STREAM_CHARS", 200))
-        empty_stream_fallback = str(
-            self.configs.get(
-                "EMPTY_STREAM_FALLBACK",
-                "I am unable to produce a visible response right now. Please try again.",
-            ),
-        )
+        max_stream_chars = self.runtime_config.max_stream_chars
+        max_silent_stream_chars = self.runtime_config.max_silent_stream_chars
+        empty_stream_fallback = self.runtime_config.empty_stream_fallback
         stop_stream = False
         visible_output_emitted = False
         silent_stream_chars = 0
@@ -1101,10 +1471,5 @@ class ConversationManager:
             self.update_history(message, answer)
         else:
             logger.warning("Response did not pass quality check; turn not added to history.")
-            fallback_history_response = str(
-                self.configs.get(
-                    "QUALITY_FALLBACK_RESPONSE",
-                    "I will not repeat myself. Ask your question with more specificity.",
-                ),
-            )
+            fallback_history_response = self.runtime_config.quality_fallback_response
             self.update_history(message, fallback_history_response)

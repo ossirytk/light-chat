@@ -2,6 +2,14 @@
 
 Character-focused local chatbot with RAG support (ChromaDB + LangChain), CLI and Textual TUI entrypoints, and tooling for metadata generation and collection management.
 
+## Docs Quick Links
+
+- Detailed RAG management docs: `docs/rag_management/00_README.md`
+- RAG scripts guide: `docs/RAG_SCRIPTS_GUIDE.md`
+- Context management docs: `docs/context_management/00_README.md`
+- Config files docs: `docs/configs/00_README.md`
+- Future work: `docs/future_work/`
+
 ## What It Includes
 
 - Local chat runtime backed by `llama-cpp-python`
@@ -77,6 +85,21 @@ uv run python scripts/rag/push_rag_data.py rag_data/shodan.txt -c shodan -w
 uv run python scripts/rag/manage_collections.py test shodan -q "SHODAN origin" -k 5
 ```
 
+5. Evaluate retrieval fixtures with summary metrics:
+
+```bash
+uv run python -m scripts.rag.manage_collections evaluate-fixtures --fixture-file tests/fixtures/retrieval_fixtures.json
+```
+
+Optional report export:
+
+```bash
+uv run python -m scripts.rag.manage_collections evaluate-fixtures \
+  --fixture-file tests/fixtures/retrieval_fixtures.json \
+  --output-json logs/retrieval_eval.json \
+  --output-csv logs/retrieval_eval.csv
+```
+
 ## Script Surface (Current)
 
 ### `scripts/rag/analyze_rag_text.py`
@@ -141,41 +164,33 @@ The following implementation points are reflected in current docs and code:
 - Metadata analysis + validation workflow is implemented and tested in `tests/test_rag_scripts.py`.
 - Collection management supports listing, deletion, pattern deletion, testing, export, and info commands.
 - Script workflows are documented in `docs/RAG_SCRIPTS_GUIDE.md`.
-- Architecture remains CLI-first with shared config usage via `configs/appconf.json`.
+- Architecture remains CLI-first with shared config usage via `configs/config.v2.json`.
 
 This section intentionally focuses on active behavior and omits historical benchmark/commit snapshot details.
 
 ## Current Config Notes
 
-### `configs/appconf.json` (selected active defaults)
+Runtime config is defined in `configs/config.v2.json`.
+
+- Start from `configs/config.v2.example.json`.
+- Runtime loads `configs/config.v2.json` directly.
+
+### `configs/config.v2.json` (selected active defaults)
 
 ```json
 {
-  "RAG_COLLECTION": "shodan",
-  "RAG_K": 3,
-  "RAG_K_MES": 2,
-  "USE_MMR": true,
-  "USE_DYNAMIC_CONTEXT": true,
-  "MAX_HISTORY_TURNS": 10
-}
-```
-
-### `configs/modelconf.json` (selected active defaults)
-
-```json
-{
-  "MODEL_TYPE": "mistral",
-  "LAYERS": "auto",
-  "TARGET_VRAM_USAGE": 0.8,
-  "KV_CACHE_QUANT": "f16",
-  "N_CTX": 32768
+  "rag": {"collection": "shodan", "k": 3, "k_mes": 2, "use_mmr": true},
+  "context": {"dynamic": {"enabled": true}, "history": {"max_turns": 10}},
+  "model": {"type": "mistral", "layers": "auto", "target_vram_usage": 0.8, "kv_cache_quant": "f16", "n_ctx": 32768}
 }
 ```
 
 ## Documentation Map
 
 - RAG script usage: `docs/RAG_SCRIPTS_GUIDE.md`
+- Detailed RAG management docs: `docs/rag_management/00_README.md`
 - Context management docs: `docs/context_management/00_README.md`
+- Config files docs: `docs/configs/00_README.md`
 - GPU layer auto-tuning: `docs/AUTO_GPU_LAYERS.md`
 - Flash attention build helper: `docs/FLASH_ATTENTION_BUILD.md`
 - Future work status: `docs/future_work/`

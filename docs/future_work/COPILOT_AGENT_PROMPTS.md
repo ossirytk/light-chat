@@ -1,6 +1,6 @@
 # Copilot Agent Prompts — Maintenance Templates
 
-Last verified: 2026-03-01
+Last verified: 2026-03-07
 
 Use these prompts in Copilot Agent mode for repeatable repo maintenance.
 
@@ -19,7 +19,7 @@ Compare docs/RAG_SCRIPTS_GUIDE.md and docs/future_work/* against scripts/rag/*.p
 ## Prompt 3 — Keep context-management docs synchronized
 
 ```
-Cross-check docs/context_management/*.md against core/context_manager.py and dynamic retrieval logic in core/conversation_manager.py. Ensure default values and fallback behavior match current code paths and configs/appconf.json.
+Cross-check docs/context_management/*.md against core/context_manager.py and dynamic retrieval logic in core/conversation_manager.py. Ensure default values and fallback behavior match current code paths and configs/config.v2.json.
 ```
 
 ## Post-run checks

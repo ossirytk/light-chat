@@ -1,8 +1,19 @@
 # RAG Scripts Guide
 
-Last verified: 2026-03-01
+Last verified: 2026-03-06
 
 This guide documents the current CLI behavior for scripts in `scripts/rag/`.
+
+## Docs Quick Links
+
+- RAG management docs hub: `docs/rag_management/00_README.md`
+- RAG scripts guide (this file): `docs/RAG_SCRIPTS_GUIDE.md`
+- Context management docs: `docs/context_management/00_README.md`
+- Future work docs: `docs/future_work/`
+
+For detailed per-script documentation, see:
+
+- `docs/rag_management/00_README.md`
 
 ## Scripts
 
@@ -109,6 +120,19 @@ uv run python scripts/rag/manage_collections.py export shodan -o backups/shodan.
 ```bash
 uv run python scripts/rag/manage_collections.py info shodan
 ```
+
+### Evaluate fixtures
+
+```bash
+uv run python -m scripts.rag.manage_collections evaluate-fixtures --fixture-file tests/fixtures/retrieval_fixtures.json
+```
+
+Options:
+
+- `--show-failures`
+- `--output-json <path>`
+- `--output-csv <path>`
+- `--history-csv <path>` (append one summary row per run for trend tracking)
 
 ---
 

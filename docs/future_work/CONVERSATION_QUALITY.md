@@ -1,6 +1,6 @@
 # Conversation Quality — Current State and Next Work
 
-Last verified: 2026-03-01
+Last verified: 2026-03-07
 
 This document tracks what is implemented in conversation quality and what remains open.
 
@@ -31,17 +31,22 @@ This document tracks what is implemented in conversation quality and what remain
 
 ## Current Quality-Relevant Defaults
 
-From `configs/appconf.json`:
+From `configs/config.v2.json`:
 
 ```json
 {
-  "USE_DYNAMIC_CONTEXT": true,
-  "MIN_HISTORY_TURNS": 2,
-  "MAX_HISTORY_TURNS": 10,
-  "MAX_STREAM_CHARS": 800,
-  "MAX_SILENT_STREAM_CHARS": 120,
-  "EMPTY_STREAM_FALLBACK": "I am unable to produce a visible response right now. Please try again.",
-  "QUALITY_FALLBACK_RESPONSE": "I will not repeat myself. Ask your question with more specificity."
+  "context": {
+    "dynamic": {"enabled": true},
+    "history": {"min_turns": 2, "max_turns": 10}
+  },
+  "generation": {
+    "max_stream_chars": 800,
+    "max_silent_stream_chars": 120
+  },
+  "fallback": {
+    "empty_stream": "I am unable to produce a visible response right now. Please try again.",
+    "quality": "I will not repeat myself. Ask your question with more specificity."
+  }
 }
 ```
 
