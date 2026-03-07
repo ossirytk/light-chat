@@ -5,7 +5,7 @@ Last verified: 2026-03-07
 ## Runtime Entry Points
 
 - CLI chat: `main.py`
-- Textual TUI chat: `chat_tui.py`
+- Web chat: `web_app.py`
 
 Both instantiate `ConversationManager` and use the same backend logic.
 

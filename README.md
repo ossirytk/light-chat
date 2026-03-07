@@ -1,6 +1,6 @@
 # Light Chat
 
-Character-focused local chatbot with RAG support (ChromaDB + LangChain), CLI and Textual TUI entrypoints, and tooling for metadata generation and collection management.
+Character-focused local chatbot with RAG support (ChromaDB + LangChain), CLI and web entrypoints, and tooling for metadata generation and collection management.
 
 ## Docs Quick Links
 
@@ -22,14 +22,12 @@ Character-focused local chatbot with RAG support (ChromaDB + LangChain), CLI and
 ## Current Runtime Entry Points
 
 - CLI chat: `main.py`
-- Textual TUI chat: `chat_tui.py`
 - Web chat (FastAPI + Jinja2 + HTMX): `web_app.py`
 
 Run either with `uv`:
 
 ```bash
 uv run python main.py
-uv run python chat_tui.py
 uv run uvicorn web_app:app --host 127.0.0.1 --port 8000
 ```
 

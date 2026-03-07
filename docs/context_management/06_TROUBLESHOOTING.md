@@ -62,7 +62,7 @@ Tune:
 
 ```bash
 uv run python main.py
-uv run python chat_tui.py
+uv run uvicorn web_app:app --host 127.0.0.1 --port 8000
 uv run python -m scripts.rag.manage_collections test shodan -q "SHODAN origin" -k 5
 uv run python scripts/rag/analyze_rag_text.py validate rag_data/shodan.json
 ```
