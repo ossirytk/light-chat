@@ -1,6 +1,6 @@
 # push_rag_data.py
 
-Last verified: 2026-03-06
+Last verified: 2026-03-07
 
 Script path: `scripts/rag/push_rag_data.py`
 
@@ -44,6 +44,7 @@ Optional:
 ## Notes on Enrichment
 
 - Metadata enrichment is parallelized using `ProcessPoolExecutor`.
+- Worker processes use the `spawn` multiprocessing context to avoid Python 3.13 `fork()` deprecation warnings in multithreaded runs.
 - Matched entries are injected as `document.metadata[uuid] = value`.
 - If metadata file is absent, push continues without enrichment.
 

@@ -1,6 +1,6 @@
 # How Dynamic Context Works
 
-Last verified: 2026-03-06
+Last verified: 2026-03-07
 
 ## Flow Summary
 
@@ -13,7 +13,8 @@ Last verified: 2026-03-06
    - style chunks from `<RAG_COLLECTION>_mes`.
 4. Chunks are filtered and deduped (including cross-collection dedupe between lore and `_mes`).
 5. Dynamic mode (non-first turn) calculates token budget and allocates content.
-6. Prompt is assembled and streamed.
+6. Older history can be compacted into deterministic summary entries when summarization thresholds are met.
+7. Prompt is assembled and streamed.
 
 ## Budgeting Logic (`ContextManager`)
 
@@ -59,3 +60,4 @@ Before prompt injection, context passes through:
 
 - Early stream stop on generated user-turn patterns.
 - Response cleanup and quality gate before history append.
+- History update may compact old turns into summary entries with topic-shift notes.

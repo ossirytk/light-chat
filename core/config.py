@@ -44,6 +44,11 @@ V2_TO_LEGACY_KEY_MAP: dict[ConfigPath, str] = {
     ("context", "budget", "reserved_for_response"): "RESERVED_FOR_RESPONSE",
     ("context", "history", "min_turns"): "MIN_HISTORY_TURNS",
     ("context", "history", "max_turns"): "MAX_HISTORY_TURNS",
+    ("context", "history", "summarization", "enabled"): "HISTORY_SUMMARIZATION_ENABLED",
+    ("context", "history", "summarization", "threshold_turns"): "HISTORY_SUMMARIZATION_THRESHOLD",
+    ("context", "history", "summarization", "keep_recent_turns"): "HISTORY_SUMMARIZATION_KEEP_RECENT",
+    ("context", "history", "summarization", "max_entries"): "HISTORY_SUMMARIZATION_MAX_ENTRIES",
+    ("context", "history", "summarization", "max_chars_per_turn"): "HISTORY_SUMMARIZATION_MAX_CHARS",
     ("context", "retrieval", "chunk_size_estimate"): "CHUNK_SIZE_ESTIMATE",
     ("context", "retrieval", "max_initial_retrieval"): "MAX_INITIAL_RETRIEVAL",
     ("context", "retrieval", "max_vector_context_chars"): "MAX_VECTOR_CONTEXT_CHARS",
@@ -108,6 +113,11 @@ class ConversationRuntimeConfig:
     use_dynamic_context: bool
     reserved_for_response: int
     min_history_turns: int
+    history_summarization_enabled: bool
+    history_summarization_threshold: int
+    history_summarization_keep_recent: int
+    history_summarization_max_entries: int
+    history_summarization_max_chars: int
     check_model_context: bool
     auto_adjust_model_context: bool
     model_type: str
@@ -234,6 +244,11 @@ def load_conversation_runtime_config(app_config: Mapping[str, object]) -> Conver
         use_dynamic_context=_get_bool_value(app_config.get("USE_DYNAMIC_CONTEXT"), default=True),
         reserved_for_response=_get_int_value(app_config.get("RESERVED_FOR_RESPONSE"), 256),
         min_history_turns=_get_int_value(app_config.get("MIN_HISTORY_TURNS"), 1),
+        history_summarization_enabled=_get_bool_value(app_config.get("HISTORY_SUMMARIZATION_ENABLED"), default=True),
+        history_summarization_threshold=_get_int_value(app_config.get("HISTORY_SUMMARIZATION_THRESHOLD"), 8),
+        history_summarization_keep_recent=_get_int_value(app_config.get("HISTORY_SUMMARIZATION_KEEP_RECENT"), 6),
+        history_summarization_max_entries=_get_int_value(app_config.get("HISTORY_SUMMARIZATION_MAX_ENTRIES"), 12),
+        history_summarization_max_chars=_get_int_value(app_config.get("HISTORY_SUMMARIZATION_MAX_CHARS"), 140),
         check_model_context=_get_bool_value(app_config.get("CHECK_MODEL_CONTEXT"), default=False),
         auto_adjust_model_context=_get_bool_value(app_config.get("AUTO_ADJUST_MODEL_CONTEXT"), default=False),
         model_type=_get_str_value(app_config.get("MODEL_TYPE"), ""),

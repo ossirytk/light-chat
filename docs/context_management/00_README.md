@@ -1,6 +1,6 @@
 # Context Management Docs
 
-Last verified: 2026-03-06
+Last verified: 2026-03-07
 
 This section documents dynamic context allocation used by runtime chat generation.
 
@@ -8,6 +8,7 @@ This section documents dynamic context allocation used by runtime chat generatio
 
 - Dynamic context is enabled by default: `USE_DYNAMIC_CONTEXT: true`.
 - It is applied after the first turn.
+- Older history is compacted into configurable summary entries (with topic-shift notes) once summarization thresholds are met.
 - Small-talk and short follow-up turns may skip RAG retrieval.
 - Retrieval output is filtered, deduplicated, and capped before prompt injection.
 - Optional reranking can reorder top retrieved chunks (`rag.rerank.*`).
