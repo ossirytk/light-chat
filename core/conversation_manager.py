@@ -193,6 +193,13 @@ class ConversationManager:
         self.ai_message_history: deque[str] = deque(maxlen=max_history)
         self.history_summaries: deque[str] = deque(maxlen=self.runtime_config.history_summarization_max_entries)
         self._last_summary_topic_terms: set[str] = set()
+        self.last_retrieval_debug: dict[str, object] = {
+            "collection": self.rag_collection,
+            "key_match_count": 0,
+            "main": {"mode": "unknown", "returned": 0, "candidates": 0, "queries": 0, "rerank_applied": False},
+            "mes": {"mode": "unknown", "returned": 0, "candidates": 0, "queries": 0, "rerank_applied": False},
+            "cleanup": {"main": 0, "mes": 0, "cross_removed": 0},
+        }
         self._vector_client: chromadb.PersistentClient | None = None
         self._vector_embedder: HuggingFaceEmbeddings | None = None
         self._cross_encoder: CrossEncoder | None = None
@@ -1102,6 +1109,31 @@ class ConversationManager:
         context_chunks = self._filter_context_chunks(context_chunks)
         mes_chunks = self._filter_context_chunks(mes_chunks)
         context_chunks, mes_chunks, cross_removed = self._dedupe_cross_collection_chunks(context_chunks, mes_chunks)
+        self.last_retrieval_debug = {
+            "collection": self.rag_collection,
+            "key_match_count": len(matches),
+            "main": {
+                "mode": str(context_trace.get("mode", "unknown")),
+                "filter_path": str(context_trace.get("filter_path", "none")),
+                "candidates": int(context_trace.get("candidates", 0) or 0),
+                "returned": int(context_trace.get("returned", 0) or 0),
+                "queries": int(context_trace.get("queries", 0) or 0),
+                "rerank_applied": bool(context_trace.get("rerank_applied", False)),
+            },
+            "mes": {
+                "mode": str(mes_trace.get("mode", "unknown")),
+                "filter_path": str(mes_trace.get("filter_path", "none")),
+                "candidates": int(mes_trace.get("candidates", 0) or 0),
+                "returned": int(mes_trace.get("returned", 0) or 0),
+                "queries": int(mes_trace.get("queries", 0) or 0),
+                "rerank_applied": bool(mes_trace.get("rerank_applied", False)),
+            },
+            "cleanup": {
+                "main": len(context_chunks),
+                "mes": len(mes_chunks),
+                "cross_removed": cross_removed,
+            },
+        }
         self._log_retrieval_telemetry(
             query=enriched_query,
             main_trace=context_trace,
@@ -1171,10 +1203,7 @@ class ConversationManager:
         if user_terms:
             self._last_summary_topic_terms = user_terms
         topic_label = self._topic_label(user_terms)
-        return (
-            f"- User asked about {topic_label}: {user_text} | "
-            f"{self.character_name}: {ai_text}{topic_shift_note}"
-        )
+        return f"- User asked about {topic_label}: {user_text} | {self.character_name}: {ai_text}{topic_shift_note}"
 
     def _compact_history_if_needed(self) -> None:
         if not self.runtime_config.history_summarization_enabled:
@@ -1469,6 +1498,43 @@ class ConversationManager:
         self.user_message_history.append(message)
         self.ai_message_history.append(result)
         self._compact_history_if_needed()
+
+    def clear_conversation_state(self) -> None:
+        """Reset user/assistant history and summarization state."""
+        self.user_message_history.clear()
+        self.ai_message_history.clear()
+        self.history_summaries.clear()
+        self._last_summary_topic_terms = set()
+
+    def export_conversation_state(self) -> dict[str, object]:
+        """Return serializable conversation history state."""
+        return {
+            "user_history": list(self.user_message_history),
+            "ai_history": list(self.ai_message_history),
+            "history_summaries": list(self.history_summaries),
+            "last_summary_topic_terms": sorted(self._last_summary_topic_terms),
+        }
+
+    def import_conversation_state(self, state: dict[str, object]) -> None:
+        """Load conversation history from a serialized state object."""
+        user_history = state.get("user_history", [])
+        ai_history = state.get("ai_history", [])
+        history_summaries = state.get("history_summaries", [])
+        summary_terms = state.get("last_summary_topic_terms", [])
+
+        normalized_user_history = [item for item in user_history if isinstance(item, str)]
+        normalized_ai_history = [item for item in ai_history if isinstance(item, str)]
+        paired_count = min(len(normalized_user_history), len(normalized_ai_history))
+        normalized_user_history = normalized_user_history[:paired_count]
+        normalized_ai_history = normalized_ai_history[:paired_count]
+
+        self.user_message_history = deque(normalized_user_history, maxlen=self.user_message_history.maxlen)
+        self.ai_message_history = deque(normalized_ai_history, maxlen=self.ai_message_history.maxlen)
+        self.history_summaries = deque(
+            [item for item in history_summaries if isinstance(item, str)],
+            maxlen=self.history_summaries.maxlen,
+        )
+        self._last_summary_topic_terms = {item for item in summary_terms if isinstance(item, str)}
 
     _STRAY_TOKENS: tuple[str, ...] = ("[/INST]", "<|im_end|>", "</s>", "<|eot_id|>", "<s>", "<|end|>")
     # Patterns that identify a generated User turn. Newline-prefixed variants are used

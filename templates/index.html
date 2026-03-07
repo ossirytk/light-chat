@@ -40,6 +40,40 @@
             line-height: 1.5;
         }
 
+        .sidebar-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .sidebar-actions button {
+            padding: 0.45rem 0.55rem;
+            font-size: 0.82rem;
+            background: #1e242b;
+        }
+
+        .debug-panel {
+            margin-top: 1rem;
+            border: 1px solid #2d3743;
+            border-radius: 8px;
+            padding: 0.6rem;
+            background: #0f1317;
+        }
+
+        .debug-panel h2 {
+            margin: 0 0 0.4rem;
+            font-size: 0.9rem;
+        }
+
+        #debug-content {
+            font-size: 0.8rem;
+            line-height: 1.4;
+            white-space: pre-wrap;
+            color: #98a6b6;
+            min-height: 4.8em;
+        }
+
         .main {
             display: grid;
             grid-template-rows: 1fr auto;
@@ -77,6 +111,22 @@
         .composer {
             border-top: 1px solid #2d3743;
             padding: 1rem;
+        }
+
+        .quick-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 0.6rem;
+            flex-wrap: wrap;
+        }
+
+        .quick-actions button {
+            background: #1e242b;
+            border: 1px solid #2d3743;
+            padding: 0.45rem 0.65rem;
+            border-radius: 6px;
+            color: #e6edf3;
+            font-size: 0.82rem;
         }
 
         #status-line {
@@ -135,17 +185,38 @@
                 <div><strong>Type:</strong> {{ model_type or "N/A" }}</div>
                 <div><strong>RAG:</strong> {{ rag_collection or "N/A" }}</div>
             </div>
+            <div class="sidebar-actions">
+                <button type="button" id="help-btn" hx-post="/chat/action/help" hx-target="#chat-log"
+                    hx-swap="beforeend">Help</button>
+                <button type="button" id="clear-btn" hx-post="/chat/action/clear" hx-target="#chat-log"
+                    hx-swap="innerHTML">Clear</button>
+                <button type="button" id="reload-btn" hx-post="/chat/action/reload" hx-target="#chat-log"
+                    hx-swap="innerHTML">Reload</button>
+                <button type="button" id="load-latest-btn" hx-post="/chat/session/load-latest" hx-target="#chat-log"
+                    hx-swap="innerHTML">Load Latest</button>
+            </div>
+            <div class="debug-panel">
+                <h2>Retrieval Debug</h2>
+                <div id="debug-content">No retrievals yet.</div>
+                <button type="button" id="refresh-debug-btn">Refresh Debug</button>
+            </div>
         </aside>
 
         <main class="main">
             <section id="chat-log">
-                {% if first_message %}
-                <div class="message assistant">{{ first_message }}</div>
-                {% endif %}
+                {% for item in messages %}
+                <div class="message {{ item.role }}" data-role="{{ item.role }}">{{ item.content }}</div>
+                {% endfor %}
             </section>
 
             <section class="composer">
                 <div id="status-line">Ready</div>
+                <div class="quick-actions">
+                    <button type="button" id="save-session-btn">Save Session</button>
+                    <button type="button" id="copy-last-btn">Copy Last</button>
+                    <button type="button" id="export-txt-btn">Export TXT</button>
+                    <button type="button" id="export-json-btn">Export JSON</button>
+                </div>
                 <form id="chat-form" hx-post="/chat/send" hx-target="#chat-log" hx-swap="beforeend">
                     <input id="user-input" name="message" placeholder="Type your message..." autocomplete="off"
                         required />
@@ -161,6 +232,18 @@
         const userInput = document.getElementById("user-input");
         const sendButton = document.getElementById("send-btn");
         const statusLine = document.getElementById("status-line");
+        const debugContent = document.getElementById("debug-content");
+        const refreshDebugButton = document.getElementById("refresh-debug-btn");
+        const saveSessionButton = document.getElementById("save-session-btn");
+        const copyLastButton = document.getElementById("copy-last-btn");
+        const exportTxtButton = document.getElementById("export-txt-btn");
+        const exportJsonButton = document.getElementById("export-json-btn");
+        const clearButton = document.getElementById("clear-btn");
+        const reloadButton = document.getElementById("reload-btn");
+        const helpButton = document.getElementById("help-btn");
+
+        const promptHistory = [];
+        let promptHistoryIndex = 0;
 
         const STREAM_TIMEOUT_MS = 90000;
 
@@ -175,6 +258,68 @@
 
         function setStatus(text) {
             statusLine.textContent = text;
+        }
+
+        function collectMessages() {
+            const nodes = Array.from(chatLog.querySelectorAll(".message[data-role]"));
+            return nodes.map((node) => ({
+                role: node.dataset.role,
+                content: node.textContent ?? "",
+            }));
+        }
+
+        function downloadText(filename, text, mimeType) {
+            const blob = new Blob([text], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const anchor = document.createElement("a");
+            anchor.href = url;
+            anchor.download = filename;
+            document.body.appendChild(anchor);
+            anchor.click();
+            anchor.remove();
+            URL.revokeObjectURL(url);
+        }
+
+        function capturePrompt(message) {
+            const normalized = (message ?? "").trim();
+            if (!normalized) {
+                return;
+            }
+            const previous = promptHistory[promptHistory.length - 1];
+            if (previous === normalized) {
+                promptHistoryIndex = promptHistory.length;
+                return;
+            }
+            promptHistory.push(normalized);
+            if (promptHistory.length > 100) {
+                promptHistory.shift();
+            }
+            promptHistoryIndex = promptHistory.length;
+        }
+
+        async function refreshDebugPanel() {
+            try {
+                const response = await fetch("/chat/debug", { method: "GET" });
+                if (!response.ok) {
+                    debugContent.textContent = "Debug endpoint unavailable";
+                    return;
+                }
+                const payload = await response.json();
+                const retrieval = payload?.retrieval ?? {};
+                const main = retrieval?.main ?? {};
+                const mes = retrieval?.mes ?? {};
+                const cleanup = retrieval?.cleanup ?? {};
+                debugContent.textContent = [
+                    `Collection: ${retrieval?.collection ?? "n/a"}`,
+                    `Key matches: ${retrieval?.key_match_count ?? 0}`,
+                    `Main chunks: ${main.returned ?? 0}/${main.candidates ?? 0} (queries=${main.queries ?? 0}, rerank=${main.rerank_applied ? "yes" : "no"})`,
+                    `Mes chunks: ${mes.returned ?? 0}/${mes.candidates ?? 0} (queries=${mes.queries ?? 0}, rerank=${mes.rerank_applied ? "yes" : "no"})`,
+                    `Cross removed: ${cleanup.cross_removed ?? 0}`,
+                    `History turns: ${payload?.history_turns ?? 0}`,
+                ].join("\n");
+            } catch {
+                debugContent.textContent = "Debug endpoint unavailable";
+            }
         }
 
         function showRetry(target, message, reason) {
@@ -239,6 +384,7 @@
                 }
 
                 setStatus(receivedAnyToken ? "Response complete" : "No visible response");
+                await refreshDebugPanel();
             } catch (error) {
                 const reason = error?.name === "AbortError"
                     ? "[Timed out while waiting for model response]"
@@ -254,6 +400,7 @@
         }
 
         chatForm.addEventListener("htmx:beforeRequest", () => {
+            capturePrompt(userInput.value);
             setSendingState(true);
             userInput.value = "";
             setStatus("Sending...");
@@ -297,7 +444,121 @@
             streamAssistant(assistantId, message);
         });
 
+        refreshDebugButton.addEventListener("click", async () => {
+            setStatus("Refreshing debug...");
+            await refreshDebugPanel();
+            setStatus("Ready");
+        });
+
+        saveSessionButton.addEventListener("click", async () => {
+            setStatus("Saving session...");
+            try {
+                const response = await fetch("/chat/session/save", { method: "POST" });
+                const payload = await response.json();
+                if (response.ok) {
+                    setStatus(`Session saved: ${payload.session_id}`);
+                } else {
+                    setStatus("Failed to save session");
+                }
+            } catch {
+                setStatus("Failed to save session");
+            }
+        });
+
+        copyLastButton.addEventListener("click", async () => {
+            const messages = collectMessages();
+            const lastAssistant = [...messages].reverse().find((item) => item.role === "assistant");
+            if (!lastAssistant?.content) {
+                setStatus("No assistant message to copy");
+                return;
+            }
+            try {
+                await navigator.clipboard.writeText(lastAssistant.content);
+                setStatus("Copied latest assistant response");
+            } catch {
+                setStatus("Clipboard copy failed");
+            }
+        });
+
+        exportTxtButton.addEventListener("click", () => {
+            const lines = collectMessages().map((item) => `${item.role === "user" ? "User" : "Assistant"}: ${item.content}`);
+            downloadText(`chat_export_${Date.now()}.txt`, lines.join("\n\n"), "text/plain;charset=utf-8");
+            setStatus("Exported TXT");
+        });
+
+        exportJsonButton.addEventListener("click", () => {
+            const payload = {
+                exported_at: new Date().toISOString(),
+                messages: collectMessages(),
+            };
+            downloadText(
+                `chat_export_${Date.now()}.json`,
+                JSON.stringify(payload, null, 2),
+                "application/json;charset=utf-8",
+            );
+            setStatus("Exported JSON");
+        });
+
+        userInput.addEventListener("keydown", (event) => {
+            if (event.key === "Enter" && event.ctrlKey) {
+                event.preventDefault();
+                if (!sendButton.disabled) {
+                    chatForm.requestSubmit();
+                }
+                return;
+            }
+
+            if (event.key === "ArrowUp") {
+                if (!promptHistory.length) {
+                    return;
+                }
+                if (promptHistoryIndex > 0) {
+                    promptHistoryIndex -= 1;
+                }
+                userInput.value = promptHistory[promptHistoryIndex] ?? "";
+                event.preventDefault();
+                return;
+            }
+
+            if (event.key === "ArrowDown") {
+                if (!promptHistory.length) {
+                    return;
+                }
+                if (promptHistoryIndex < promptHistory.length - 1) {
+                    promptHistoryIndex += 1;
+                    userInput.value = promptHistory[promptHistoryIndex] ?? "";
+                } else {
+                    promptHistoryIndex = promptHistory.length;
+                    userInput.value = "";
+                }
+                event.preventDefault();
+            }
+        });
+
+        document.addEventListener("keydown", (event) => {
+            if (event.altKey && event.key.toLowerCase() === "h") {
+                event.preventDefault();
+                helpButton.click();
+                return;
+            }
+            if (event.altKey && event.key.toLowerCase() === "c") {
+                event.preventDefault();
+                clearButton.click();
+                return;
+            }
+            if (event.altKey && event.key.toLowerCase() === "r") {
+                event.preventDefault();
+                reloadButton.click();
+            }
+        });
+
+        chatLog.addEventListener("htmx:afterSwap", () => {
+            scrollChatToBottom();
+            refreshDebugPanel();
+        });
+
         scrollChatToBottom();
+        refreshDebugPanel();
     </script>
 </body>
 
