@@ -31,6 +31,28 @@ uv run python main.py
 uv run uvicorn web_app:app --host 127.0.0.1 --port 8000
 ```
 
+VS Code task shortcuts (no manual shell command typing):
+
+- Run `Tasks: Run Task` and choose `web:start` to launch the web server.
+- Run `Tasks: Run Task` and choose `web:stop` to stop it.
+- Run `Tasks: Run Task` and choose `web:restart` to do both in sequence.
+- Run `Tasks: Run Task` and choose `web:start+open` to launch and open the URL.
+- Run `Tasks: Run Task` and choose `web:open` to open `http://127.0.0.1:8000` manually.
+
+Task config lives in `.vscode/tasks.json`.
+
+VS Code Run/Debug workflow:
+
+- Open Run and Debug (`Ctrl+Shift+D`).
+- Select `Web App (Uvicorn)` from `.vscode/launch.json`.
+- Press `F5` to start the server.
+- Press Stop in the Debug toolbar to terminate it.
+
+Recommended daily workflow:
+
+- Fast run loop: `Tasks: Run Task` → `web:start+open`, and stop with `web:stop`.
+- Breakpoint debugging: Run and Debug → `Web App (Uvicorn)` → `F5`, then Stop.
+
 Stop the web server (from another terminal):
 
 ```bash

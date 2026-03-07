@@ -11,14 +11,17 @@ The web app (`web_app.py`) is the primary interactive UI for chat and should rem
 - Timeout handling with retry affordance in UI.
 - Shared backend behavior with `ConversationManager`.
 - Health diagnostics endpoints for runtime checks.
+- Session save/load support in the web flow.
+- Retrieval debug panel (collection, chunk count, rerank summary).
+- Message copy/export helpers (copy last, export TXT/JSON).
+- UI equivalents for slash commands (`clear`, `reload`, `help`).
+- Keyboard usability enhancements (prompt history and quick shortcuts).
+- VS Code task and debug workflow for one-click start/stop.
 
 ## Open Improvements
 
-1. Add session save/load support in the web flow.
-2. Add retrieval debug panel (collection, retrieved chunk count, rerank info).
-3. Add message copy/export helpers.
-4. Add slash-command equivalents via UI actions (`clear`, `reload`, `help`).
-5. Add keyboard usability enhancements for prompt history and quick actions.
+1. Add explicit in-UI session picker (not just load-latest) with naming.
+2. Add per-turn retrieval trace history (instead of latest-only panel).
 
 ## Non-Goals for Now
 
@@ -32,3 +35,5 @@ The web app (`web_app.py`) is the primary interactive UI for chat and should rem
 - `core/conversation_manager.py`
 - `templates/index.html`
 - `templates/chat_message_pair.html`
+- `.vscode/tasks.json`
+- `.vscode/launch.json`
