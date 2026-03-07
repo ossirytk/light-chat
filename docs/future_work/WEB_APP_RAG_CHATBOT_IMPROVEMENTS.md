@@ -17,11 +17,12 @@ The web app (`web_app.py`) is the primary interactive UI for chat and should rem
 - UI equivalents for slash commands (`clear`, `reload`, `help`).
 - Keyboard usability enhancements (prompt history and quick shortcuts).
 - VS Code task and debug workflow for one-click start/stop.
+- Explicit in-UI session picker with naming support.
+- Per-turn retrieval trace history in the debug panel.
 
 ## Open Improvements
 
-1. Add explicit in-UI session picker (not just load-latest) with naming.
-2. Add per-turn retrieval trace history (instead of latest-only panel).
+- None currently scoped in this document.
 
 ## Non-Goals for Now
 

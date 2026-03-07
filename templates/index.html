@@ -61,6 +61,37 @@
             background: #0f1317;
         }
 
+        .session-panel {
+            margin-top: 1rem;
+            border: 1px solid #2d3743;
+            border-radius: 8px;
+            padding: 0.6rem;
+            background: #0f1317;
+        }
+
+        .session-panel h2 {
+            margin: 0 0 0.4rem;
+            font-size: 0.9rem;
+        }
+
+        .session-row {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 0.4rem;
+            margin-bottom: 0.45rem;
+        }
+
+        #session-name,
+        #session-picker {
+            border: 1px solid #2d3743;
+            background: #111418;
+            color: #e6edf3;
+            border-radius: 6px;
+            padding: 0.45rem;
+            font-size: 0.8rem;
+            min-width: 0;
+        }
+
         .debug-panel h2 {
             margin: 0 0 0.4rem;
             font-size: 0.9rem;
@@ -72,6 +103,17 @@
             white-space: pre-wrap;
             color: #98a6b6;
             min-height: 4.8em;
+        }
+
+        #debug-history-content {
+            font-size: 0.78rem;
+            line-height: 1.35;
+            white-space: pre-wrap;
+            color: #98a6b6;
+            min-height: 5.2em;
+            margin-top: 0.45rem;
+            border-top: 1px dashed #2d3743;
+            padding-top: 0.45rem;
         }
 
         .main {
@@ -195,9 +237,22 @@
                 <button type="button" id="load-latest-btn" hx-post="/chat/session/load-latest" hx-target="#chat-log"
                     hx-swap="innerHTML">Load Latest</button>
             </div>
+            <div class="session-panel">
+                <h2>Sessions</h2>
+                <div class="session-row">
+                    <input id="session-name" type="text" placeholder="Session name (optional)" maxlength="80" />
+                    <button type="button" id="save-named-btn">Save</button>
+                </div>
+                <div class="session-row">
+                    <select id="session-picker"></select>
+                    <button type="button" id="load-selected-btn">Load</button>
+                </div>
+                <button type="button" id="refresh-sessions-btn">Refresh List</button>
+            </div>
             <div class="debug-panel">
                 <h2>Retrieval Debug</h2>
                 <div id="debug-content">No retrievals yet.</div>
+                <div id="debug-history-content">No retrieval history yet.</div>
                 <button type="button" id="refresh-debug-btn">Refresh Debug</button>
             </div>
         </aside>
@@ -235,12 +290,19 @@
         const debugContent = document.getElementById("debug-content");
         const refreshDebugButton = document.getElementById("refresh-debug-btn");
         const saveSessionButton = document.getElementById("save-session-btn");
+        const saveNamedButton = document.getElementById("save-named-btn");
         const copyLastButton = document.getElementById("copy-last-btn");
         const exportTxtButton = document.getElementById("export-txt-btn");
         const exportJsonButton = document.getElementById("export-json-btn");
         const clearButton = document.getElementById("clear-btn");
         const reloadButton = document.getElementById("reload-btn");
         const helpButton = document.getElementById("help-btn");
+        const loadLatestButton = document.getElementById("load-latest-btn");
+        const sessionNameInput = document.getElementById("session-name");
+        const sessionPicker = document.getElementById("session-picker");
+        const loadSelectedButton = document.getElementById("load-selected-btn");
+        const refreshSessionsButton = document.getElementById("refresh-sessions-btn");
+        const debugHistoryContent = document.getElementById("debug-history-content");
 
         const promptHistory = [];
         let promptHistoryIndex = 0;
@@ -322,6 +384,66 @@
             }
         }
 
+        async function refreshDebugHistoryPanel() {
+            try {
+                const response = await fetch("/chat/debug/history", { method: "GET" });
+                if (!response.ok) {
+                    debugHistoryContent.textContent = "History endpoint unavailable";
+                    return;
+                }
+                const payload = await response.json();
+                const history = Array.isArray(payload?.history) ? payload.history : [];
+                if (!history.length) {
+                    debugHistoryContent.textContent = "No retrieval history yet.";
+                    return;
+                }
+                const recent = history.slice(-8).reverse();
+                debugHistoryContent.textContent = recent.map((entry) => {
+                    const retrieval = entry?.retrieval ?? {};
+                    const main = retrieval?.main ?? {};
+                    return `T${entry?.turn ?? "?"} k=${retrieval?.key_match_count ?? 0} main=${main?.returned ?? 0}/${main?.candidates ?? 0} q=${main?.queries ?? 0} rerank=${main?.rerank_applied ? "yes" : "no"}`;
+                }).join("\n");
+            } catch {
+                debugHistoryContent.textContent = "History endpoint unavailable";
+            }
+        }
+
+        async function refreshSessionList() {
+            try {
+                const response = await fetch("/chat/session/list", { method: "GET" });
+                if (!response.ok) {
+                    setStatus("Failed to list sessions");
+                    return;
+                }
+                const payload = await response.json();
+                const sessions = Array.isArray(payload?.sessions) ? payload.sessions : [];
+                const previous = sessionPicker.value;
+                sessionPicker.innerHTML = "";
+                if (!sessions.length) {
+                    const option = document.createElement("option");
+                    option.value = "";
+                    option.textContent = "No saved sessions";
+                    sessionPicker.appendChild(option);
+                    sessionPicker.disabled = true;
+                    loadSelectedButton.disabled = true;
+                    return;
+                }
+                sessions.forEach((session) => {
+                    const option = document.createElement("option");
+                    option.value = session.session_id;
+                    option.textContent = session.session_name || session.session_id;
+                    sessionPicker.appendChild(option);
+                });
+                sessionPicker.disabled = false;
+                loadSelectedButton.disabled = false;
+                if (previous && sessions.some((session) => session.session_id === previous)) {
+                    sessionPicker.value = previous;
+                }
+            } catch {
+                setStatus("Failed to list sessions");
+            }
+        }
+
         function showRetry(target, message, reason) {
             target.textContent = "";
             const reasonText = document.createElement("div");
@@ -385,6 +507,7 @@
 
                 setStatus(receivedAnyToken ? "Response complete" : "No visible response");
                 await refreshDebugPanel();
+                await refreshDebugHistoryPanel();
             } catch (error) {
                 const reason = error?.name === "AbortError"
                     ? "[Timed out while waiting for model response]"
@@ -447,6 +570,7 @@
         refreshDebugButton.addEventListener("click", async () => {
             setStatus("Refreshing debug...");
             await refreshDebugPanel();
+            await refreshDebugHistoryPanel();
             setStatus("Ready");
         });
 
@@ -456,13 +580,74 @@
                 const response = await fetch("/chat/session/save", { method: "POST" });
                 const payload = await response.json();
                 if (response.ok) {
-                    setStatus(`Session saved: ${payload.session_id}`);
+                    setStatus(`Session saved: ${payload.session_name || payload.session_id}`);
+                    await refreshSessionList();
                 } else {
                     setStatus("Failed to save session");
                 }
             } catch {
                 setStatus("Failed to save session");
             }
+        });
+
+        saveNamedButton.addEventListener("click", async () => {
+            setStatus("Saving named session...");
+            try {
+                const formData = new FormData();
+                formData.append("session_name", sessionNameInput.value ?? "");
+                const response = await fetch("/chat/session/save", {
+                    method: "POST",
+                    body: formData,
+                });
+                const payload = await response.json();
+                if (response.ok) {
+                    setStatus(`Session saved: ${payload.session_name || payload.session_id}`);
+                    sessionNameInput.value = "";
+                    await refreshSessionList();
+                } else {
+                    setStatus("Failed to save named session");
+                }
+            } catch {
+                setStatus("Failed to save named session");
+            }
+        });
+
+        loadSelectedButton.addEventListener("click", async () => {
+            const sessionId = sessionPicker.value;
+            if (!sessionId) {
+                setStatus("No session selected");
+                return;
+            }
+            setStatus("Loading selected session...");
+            try {
+                const formData = new FormData();
+                formData.append("session_id", sessionId);
+                const response = await fetch("/chat/session/load", {
+                    method: "POST",
+                    body: formData,
+                });
+                if (!response.ok) {
+                    setStatus("Failed to load selected session");
+                    return;
+                }
+                chatLog.innerHTML = await response.text();
+                scrollChatToBottom();
+                await refreshDebugPanel();
+                await refreshDebugHistoryPanel();
+                setStatus("Session loaded");
+            } catch {
+                setStatus("Failed to load selected session");
+            }
+        });
+
+        refreshSessionsButton.addEventListener("click", async () => {
+            setStatus("Refreshing sessions...");
+            await refreshSessionList();
+            setStatus("Ready");
+        });
+
+        loadLatestButton.addEventListener("click", async () => {
+            setStatus("Loading latest session...");
         });
 
         copyLastButton.addEventListener("click", async () => {
@@ -555,10 +740,14 @@
         chatLog.addEventListener("htmx:afterSwap", () => {
             scrollChatToBottom();
             refreshDebugPanel();
+            refreshDebugHistoryPanel();
+            refreshSessionList();
         });
 
         scrollChatToBottom();
         refreshDebugPanel();
+        refreshDebugHistoryPanel();
+        refreshSessionList();
     </script>
 </body>
 
