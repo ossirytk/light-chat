@@ -1,0 +1,3 @@
+{% for item in messages %}
+<div class="message {{ item.role }}" data-role="{{ item.role }}">{{ item.content }}</div>
+{% endfor %}

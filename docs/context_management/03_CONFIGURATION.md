@@ -1,6 +1,6 @@
 # Context Management Configuration
 
-Last verified: 2026-03-06
+Last verified: 2026-03-07
 
 This page lists context-related keys currently used in runtime code.
 
@@ -25,7 +25,17 @@ This page lists context-related keys currently used in runtime code.
 {
   "context": {
     "budget": {"reserved_for_response": 384},
-    "history": {"min_turns": 2, "max_turns": 10}
+    "history": {
+      "min_turns": 2,
+      "max_turns": 10,
+      "summarization": {
+        "enabled": true,
+        "threshold_turns": 8,
+        "keep_recent_turns": 6,
+        "max_entries": 12,
+        "max_chars_per_turn": 140
+      }
+    }
   },
   "generation": {
     "max_stream_chars": 800,
@@ -101,6 +111,8 @@ This page lists context-related keys currently used in runtime code.
 ## Notes
 
 - `MAX_HISTORY_TURNS` is validated at startup and written back into in-memory config.
+- History summarization compacts older turns when the threshold is exceeded and preserves the most recent turns in full.
+- Summary entries include topic-shift annotations when adjacent summarized turns have no lexical overlap.
 - `RAG_SCORE_THRESHOLD` is used only when `USE_MMR` is disabled.
 - `RAG_K_MES` applies to the `_mes` collection path.
 - Reranking is controlled by `rag.rerank.enabled` and uses `rag.rerank.top_n` candidate expansion.

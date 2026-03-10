@@ -73,7 +73,14 @@
         },
         "history": {
             "min_turns": 2,
-            "max_turns": 10
+            "max_turns": 10,
+            "summarization": {
+                "enabled": true,
+                "threshold_turns": 8,
+                "keep_recent_turns": 6,
+                "max_entries": 12,
+                "max_chars_per_turn": 140
+            }
         },
         "retrieval": {
             "chunk_size_estimate": 150,

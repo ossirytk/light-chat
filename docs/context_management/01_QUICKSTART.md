@@ -38,10 +38,10 @@ CLI:
 uv run python main.py
 ```
 
-TUI:
+Web:
 
 ```bash
-uv run python chat_tui.py
+uv run uvicorn web_app:app --host 127.0.0.1 --port 8000
 ```
 
 ## 3) Optional debug toggles

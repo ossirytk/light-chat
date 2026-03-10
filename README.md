@@ -1,6 +1,6 @@
 # Light Chat
 
-Character-focused local chatbot with RAG support (ChromaDB + LangChain), CLI and Textual TUI entrypoints, and tooling for metadata generation and collection management.
+Character-focused local chatbot with RAG support (ChromaDB + LangChain), CLI and web entrypoints, and tooling for metadata generation and collection management.
 
 ## Docs Quick Links
 
@@ -22,16 +22,36 @@ Character-focused local chatbot with RAG support (ChromaDB + LangChain), CLI and
 ## Current Runtime Entry Points
 
 - CLI chat: `main.py`
-- Textual TUI chat: `chat_tui.py`
 - Web chat (FastAPI + Jinja2 + HTMX): `web_app.py`
 
 Run either with `uv`:
 
 ```bash
 uv run python main.py
-uv run python chat_tui.py
 uv run uvicorn web_app:app --host 127.0.0.1 --port 8000
 ```
+
+VS Code task shortcuts (no manual shell command typing):
+
+- Run `Tasks: Run Task` and choose `web:start` to launch the web server.
+- Run `Tasks: Run Task` and choose `web:stop` to stop it.
+- Run `Tasks: Run Task` and choose `web:restart` to do both in sequence.
+- Run `Tasks: Run Task` and choose `web:start+open` to launch and open the URL.
+- Run `Tasks: Run Task` and choose `web:open` to open `http://127.0.0.1:8000` manually.
+
+Task config lives in `.vscode/tasks.json`.
+
+VS Code Run/Debug workflow:
+
+- Open Run and Debug (`Ctrl+Shift+D`).
+- Select `Web App (Uvicorn)` from `.vscode/launch.json`.
+- Press `F5` to start the server.
+- Press Stop in the Debug toolbar to terminate it.
+
+Recommended daily workflow:
+
+- Fast run loop: `Tasks: Run Task` → `web:start+open`, and stop with `web:stop`.
+- Breakpoint debugging: Run and Debug → `Web App (Uvicorn)` → `F5`, then Stop.
 
 Stop the web server (from another terminal):
 
@@ -44,12 +64,18 @@ Web diagnostics endpoints:
 ```bash
 curl -s http://127.0.0.1:8000/health
 curl -s http://127.0.0.1:8000/healthz/full
+curl -s http://127.0.0.1:8000/chat/debug
+curl -s http://127.0.0.1:8000/chat/debug/history
+curl -s http://127.0.0.1:8000/chat/session/list
 ```
 
 Notes for web chat behavior:
 
 - Shows status updates (`Ready`, `Sending`, `Thinking`, `Streaming`, `Timed out`).
 - Applies a stream timeout and surfaces a `Retry` button on stream failure.
+- Supports named session save + explicit session picker load in the sidebar.
+- Shows both latest retrieval debug stats and per-turn retrieval trace history.
+- Provides quick actions for copy/export and command-equivalent controls (`clear`, `reload`, `help`).
 
 ## Setup
 

@@ -9,6 +9,7 @@ This script provides comprehensive features for managing RAG data:
 """
 
 import json
+import multiprocessing as mp
 import re
 import time
 from concurrent.futures import ProcessPoolExecutor
@@ -137,7 +138,7 @@ def enrich_documents_with_metadata(
     tic = time.perf_counter()
 
     enrich_fn = partial(enrich_document_with_metadata, all_keys=all_keys)
-    with ProcessPoolExecutor(max_workers=threads) as executor:
+    with ProcessPoolExecutor(max_workers=threads, mp_context=mp.get_context("spawn")) as executor:
         chunksize = max(1, len(documents) // threads)
         enriched_docs = list(executor.map(enrich_fn, documents, chunksize=chunksize))
 

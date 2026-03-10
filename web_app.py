@@ -2,15 +2,17 @@
 
 import asyncio
 import contextlib
+import json
 import threading
 import time
 import uuid
 from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from loguru import logger
 from pydantic import BaseModel
@@ -28,10 +30,22 @@ class StreamRequest(BaseModel):
 class ChatRuntime:
     """Holds shared chat runtime state for web requests."""
 
+    MAX_RETRIEVAL_HISTORY_ENTRIES: int = 40
+
     def __init__(self, manager: ConversationManager) -> None:
         self.manager = manager
         self.lock = asyncio.Lock()
         self.started_at = time.time()
+        self.session_dir = Path("logs") / "web_sessions"
+        self.session_dir.mkdir(parents=True, exist_ok=True)
+        self.ui_messages: list[dict[str, str]] = []
+        self.retrieval_history: list[dict[str, object]] = []
+        self.reset_ui_messages()
+
+    def reset_ui_messages(self) -> None:
+        self.ui_messages = []
+        if self.manager.first_message:
+            self.ui_messages.append({"role": "assistant", "content": self.manager.first_message})
 
 
 templates = Jinja2Templates(directory="templates")
@@ -58,6 +72,101 @@ def _get_runtime(request: Request) -> ChatRuntime:
     return request.app.state.chat_runtime
 
 
+def _render_chat_log(messages: list[dict[str, str]]) -> str:
+    return templates.get_template("chat_messages.html").render(messages=messages)
+
+
+def _build_session_payload(runtime: ChatRuntime) -> dict[str, object]:
+    manager = runtime.manager
+    session_name = f"{manager.character_name} {datetime.now(tz=UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}"
+    return {
+        "version": 1,
+        "saved_at": datetime.now(tz=UTC).isoformat(),
+        "session_name": session_name,
+        "character_name": manager.character_name,
+        "rag_collection": str(manager.rag_collection),
+        "ui_messages": runtime.ui_messages,
+        "conversation_state": manager.export_conversation_state(),
+    }
+
+
+def _list_session_files(runtime: ChatRuntime) -> list[Path]:
+    return sorted(runtime.session_dir.glob("session_*.json"), key=lambda path: path.stat().st_mtime, reverse=True)
+
+
+def _normalize_session_name(raw_name: str | None, fallback_name: str) -> str:
+    if raw_name is None:
+        return fallback_name
+    candidate = " ".join(raw_name.split()).strip()
+    if not candidate:
+        return fallback_name
+    return candidate[:80]
+
+
+def _session_file_for_id(runtime: ChatRuntime, session_id: str) -> Path | None:
+    if not session_id or not all(char.isalnum() or char in {"-", "_", "T", "Z"} for char in session_id):
+        return None
+    candidate = runtime.session_dir / f"session_{session_id}.json"
+    if not candidate.exists() or not candidate.is_file():
+        return None
+    return candidate
+
+
+def _session_listing(runtime: ChatRuntime) -> list[dict[str, str]]:
+    sessions: list[dict[str, str]] = []
+    for path in _list_session_files(runtime):
+        session_name = path.stem.removeprefix("session_")
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(payload, dict):
+                raw_name = payload.get("session_name")
+                if isinstance(raw_name, str) and raw_name.strip():
+                    session_name = raw_name.strip()
+        except Exception:
+            logger.warning("Failed to parse session metadata from {}", path)
+        sessions.append(
+            {
+                "session_id": path.stem.removeprefix("session_"),
+                "session_name": session_name,
+                "file": path.name,
+                "modified": datetime.fromtimestamp(path.stat().st_mtime, tz=UTC).isoformat(),
+            }
+        )
+    return sessions
+
+
+def _record_retrieval_trace(runtime: ChatRuntime, message: str) -> None:
+    manager = runtime.manager
+    turn_number = min(len(manager.user_message_history), len(manager.ai_message_history))
+    trace = {
+        "turn": turn_number,
+        "at": datetime.now(tz=UTC).isoformat(),
+        "query": message[:200],
+        "retrieval": manager.last_retrieval_debug,
+    }
+    runtime.retrieval_history.append(trace)
+    history_cap = runtime.MAX_RETRIEVAL_HISTORY_ENTRIES
+    if len(runtime.retrieval_history) > history_cap:
+        runtime.retrieval_history = runtime.retrieval_history[-history_cap:]
+
+
+def _coerce_ui_messages(raw_messages: object) -> list[dict[str, str]]:
+    parsed: list[dict[str, str]] = []
+    if not isinstance(raw_messages, list):
+        return parsed
+    for entry in raw_messages:
+        if not isinstance(entry, dict):
+            continue
+        role = entry.get("role")
+        content = entry.get("content")
+        if role not in {"user", "assistant"}:
+            continue
+        if not isinstance(content, str):
+            continue
+        parsed.append({"role": str(role), "content": content})
+    return parsed
+
+
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request) -> HTMLResponse:
     """Render chat page."""
@@ -65,7 +174,7 @@ async def index(request: Request) -> HTMLResponse:
     context = {
         "request": request,
         "character_name": runtime.manager.character_name,
-        "first_message": runtime.manager.first_message,
+        "messages": runtime.ui_messages,
         "model_name": str(runtime.manager.configs.get("MODEL", "")),
         "model_type": str(runtime.manager.configs.get("MODEL_TYPE", "")),
         "rag_collection": str(runtime.manager.rag_collection),
@@ -124,13 +233,37 @@ async def health_full(request: Request) -> dict[str, object]:
     }
 
 
+@app.get("/chat/debug")
+async def chat_debug(request: Request) -> dict[str, object]:
+    """Expose retrieval debug metadata from the latest turn."""
+    runtime = _get_runtime(request)
+    return {
+        "status": "ok",
+        "retrieval": runtime.manager.last_retrieval_debug,
+        "history_turns": min(len(runtime.manager.user_message_history), len(runtime.manager.ai_message_history)),
+    }
+
+
+@app.get("/chat/debug/history")
+async def chat_debug_history(request: Request) -> dict[str, object]:
+    """Expose retrieval debug history keyed by turn."""
+    runtime = _get_runtime(request)
+    return {
+        "status": "ok",
+        "count": len(runtime.retrieval_history),
+        "history": runtime.retrieval_history,
+    }
+
+
 @app.post("/chat/send", response_class=HTMLResponse)
-async def chat_send(message: str = Form(...)) -> HTMLResponse:
+async def chat_send(request: Request, message: str = Form(...)) -> HTMLResponse:
     """Append user message and assistant placeholder via HTMX."""
     cleaned_message = message.strip()
     if not cleaned_message:
         return HTMLResponse(content="", status_code=204)
+    runtime = _get_runtime(request)
     logger.debug("chat_send received message_chars={}", len(cleaned_message))
+    runtime.ui_messages.append({"role": "user", "content": cleaned_message})
 
     assistant_id = f"assistant-{uuid.uuid4().hex}"
     html = templates.get_template("chat_message_pair.html").render(
@@ -194,10 +327,16 @@ async def chat_stream(request: Request, payload: StreamRequest) -> StreamingResp
             start = time.monotonic()
             emitted_chunks = 0
             emitted_chars = 0
+            prior_turn_count = min(len(runtime.manager.user_message_history), len(runtime.manager.ai_message_history))
             async for chunk in _stream_answer(payload.message, runtime.manager):
                 emitted_chunks += 1
                 emitted_chars += len(chunk)
                 yield chunk
+            final_turn_count = min(len(runtime.manager.user_message_history), len(runtime.manager.ai_message_history))
+            if final_turn_count > prior_turn_count and runtime.manager.ai_message_history:
+                latest_assistant = list(runtime.manager.ai_message_history)[-1]
+                runtime.ui_messages.append({"role": "assistant", "content": latest_assistant})
+                _record_retrieval_trace(runtime, payload.message)
             elapsed = time.monotonic() - start
             logger.debug(
                 "chat_stream done chunks={} chars={} elapsed={:.2f}s",
@@ -207,3 +346,117 @@ async def chat_stream(request: Request, payload: StreamRequest) -> StreamingResp
             )
 
     return StreamingResponse(guarded_stream(), media_type="text/plain; charset=utf-8")
+
+
+@app.post("/chat/action/help", response_class=HTMLResponse)
+async def chat_action_help(request: Request) -> HTMLResponse:
+    """Append an in-chat help message."""
+    runtime = _get_runtime(request)
+    help_message = (
+        "Quick actions: Clear, Reload, Save Session, Load Latest, Copy Last, Export TXT, Export JSON.\n"
+        "Keyboard: Ctrl+Enter send, ArrowUp/ArrowDown prompt history, Alt+H help, Alt+C clear, Alt+R reload."
+    )
+    runtime.ui_messages.append({"role": "assistant", "content": help_message})
+    html = templates.get_template("chat_single_message.html").render(role="assistant", content=help_message)
+    return HTMLResponse(content=html)
+
+
+@app.post("/chat/action/clear", response_class=HTMLResponse)
+async def chat_action_clear(request: Request) -> HTMLResponse:
+    """Clear chat history while keeping current model/runtime."""
+    runtime = _get_runtime(request)
+    async with runtime.lock:
+        runtime.manager.clear_conversation_state()
+        runtime.reset_ui_messages()
+        runtime.retrieval_history = []
+        return HTMLResponse(content=_render_chat_log(runtime.ui_messages))
+
+
+@app.post("/chat/action/reload", response_class=HTMLResponse)
+async def chat_action_reload(request: Request) -> HTMLResponse:
+    """Recreate ConversationManager and reset web-visible history."""
+    runtime = _get_runtime(request)
+    async with runtime.lock:
+        runtime.manager = await asyncio.to_thread(ConversationManager)
+        runtime.started_at = time.time()
+        runtime.reset_ui_messages()
+        runtime.retrieval_history = []
+        return HTMLResponse(content=_render_chat_log(runtime.ui_messages))
+
+
+@app.post("/chat/session/save")
+async def chat_session_save(request: Request, session_name: str | None = Form(default=None)) -> JSONResponse:
+    """Persist current web chat session to disk."""
+    runtime = _get_runtime(request)
+    async with runtime.lock:
+        timestamp = datetime.now(tz=UTC).strftime("%Y%m%dT%H%M%SZ")
+        session_id = f"{timestamp}_{uuid.uuid4().hex[:8]}"
+        session_path = runtime.session_dir / f"session_{session_id}.json"
+        payload = _build_session_payload(runtime)
+        provided_name = str(session_name) if session_name is not None else None
+        payload["session_name"] = _normalize_session_name(provided_name, str(payload["session_name"]))
+        session_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        return JSONResponse(
+            content={
+                "status": "ok",
+                "session_id": session_id,
+                "session_name": payload["session_name"],
+                "path": str(session_path),
+            }
+        )
+
+
+@app.get("/chat/session/list")
+async def chat_session_list(request: Request) -> dict[str, object]:
+    """List available persisted web sessions."""
+    runtime = _get_runtime(request)
+    return {
+        "status": "ok",
+        "sessions": _session_listing(runtime),
+    }
+
+
+@app.post("/chat/session/load-latest", response_class=HTMLResponse)
+async def chat_session_load_latest(request: Request) -> HTMLResponse:
+    """Load the most recently saved web chat session."""
+    runtime = _get_runtime(request)
+    async with runtime.lock:
+        files = _list_session_files(runtime)
+        if not files:
+            return HTMLResponse(content="", status_code=204)
+
+        latest = files[0]
+        raw = json.loads(latest.read_text(encoding="utf-8"))
+        state = raw.get("conversation_state", {}) if isinstance(raw, dict) else {}
+        ui_messages = _coerce_ui_messages(raw.get("ui_messages") if isinstance(raw, dict) else None)
+        runtime.manager.import_conversation_state(state if isinstance(state, dict) else {})
+        manager = runtime.manager
+
+        runtime.ui_messages = ui_messages
+        if not runtime.ui_messages and manager.first_message:
+            runtime.ui_messages = [{"role": "assistant", "content": manager.first_message}]
+
+        runtime.retrieval_history = []
+
+        return HTMLResponse(content=_render_chat_log(runtime.ui_messages))
+
+
+@app.post("/chat/session/load", response_class=HTMLResponse)
+async def chat_session_load(request: Request, session_id: str = Form(...)) -> HTMLResponse:
+    """Load a selected web chat session by ID."""
+    runtime = _get_runtime(request)
+    async with runtime.lock:
+        session_file = _session_file_for_id(runtime, session_id.strip())
+        if session_file is None:
+            return HTMLResponse(content="", status_code=404)
+
+        raw = json.loads(session_file.read_text(encoding="utf-8"))
+        state = raw.get("conversation_state", {}) if isinstance(raw, dict) else {}
+        ui_messages = _coerce_ui_messages(raw.get("ui_messages") if isinstance(raw, dict) else None)
+        runtime.manager.import_conversation_state(state if isinstance(state, dict) else {})
+        manager = runtime.manager
+        runtime.ui_messages = ui_messages
+        if not runtime.ui_messages and manager.first_message:
+            runtime.ui_messages = [{"role": "assistant", "content": manager.first_message}]
+        runtime.retrieval_history = []
+        return HTMLResponse(content=_render_chat_log(runtime.ui_messages))

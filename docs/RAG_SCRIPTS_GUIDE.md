@@ -1,6 +1,6 @@
 # RAG Scripts Guide
 
-Last verified: 2026-03-06
+Last verified: 2026-03-07
 
 This guide documents the current CLI behavior for scripts in `scripts/rag/`.
 
@@ -80,6 +80,7 @@ Notes:
 
 - Leading HTML header comments are stripped before chunking.
 - Metadata file auto-detection maps `<name>.txt` (and `<name>_message_examples.txt`) to `<name>.json`.
+- Metadata enrichment workers use `ProcessPoolExecutor` with `spawn` context to avoid Python 3.13 `fork()` deprecation warnings in multithreaded runs.
 
 ---
 

@@ -5,6 +5,7 @@ import threading
 import unittest
 from collections import deque
 from collections.abc import AsyncIterator
+from types import SimpleNamespace
 
 from core.conversation_manager import ConversationManager
 
@@ -18,7 +19,22 @@ def _make_manager(
     mgr.character_name = character_name
     mgr.ai_message_history = deque(ai_history or [], maxlen=10)
     mgr.user_message_history = deque(maxlen=10)
+    mgr.history_summaries = deque(maxlen=12)
+    mgr._last_summary_topic_terms = set()  # noqa: SLF001
     mgr.configs = {}
+    mgr.runtime_config = SimpleNamespace(
+        quality_fallback_response="I will not repeat myself. Ask your question with more specificity.",
+        max_stream_chars=800,
+        max_silent_stream_chars=120,
+        empty_stream_fallback="I am unable to produce a visible response right now. Please try again.",
+        max_vector_context_chars=2200,
+        small_talk_max_words=8,
+        followup_rag_max_words=12,
+        history_summarization_enabled=True,
+        history_summarization_threshold=8,
+        history_summarization_keep_recent=6,
+        history_summarization_max_chars=140,
+    )
     return mgr
 
 
@@ -206,7 +222,7 @@ class TestStreamResponse(unittest.TestCase):
 
     def test_stops_stream_at_max_stream_chars(self) -> None:
         """Streaming should stop when MAX_STREAM_CHARS threshold is hit."""
-        self.mgr.configs = {"MAX_STREAM_CHARS": 5}
+        self.mgr.runtime_config.max_stream_chars = 5
         fake_chain = _FakeChain(["Hello", " world"])
         collected: list[str] = []
 
@@ -224,10 +240,8 @@ class TestStreamResponse(unittest.TestCase):
     def test_emits_fallback_for_silent_stream(self) -> None:
         """Silent/whitespace-only streams should emit fallback text instead of blank output."""
         fallback = "I am unable to produce a visible response right now. Please try again."
-        self.mgr.configs = {
-            "MAX_SILENT_STREAM_CHARS": 3,
-            "EMPTY_STREAM_FALLBACK": fallback,
-        }
+        self.mgr.runtime_config.max_silent_stream_chars = 3
+        self.mgr.runtime_config.empty_stream_fallback = fallback
         fake_chain = _FakeChain([" ", "\n", "\t", "   "])
         collected: list[str] = []
 
@@ -283,31 +297,31 @@ class TestContextChunkFiltering(unittest.TestCase):
 
     def test_caps_vector_context_length(self) -> None:
         """Vector context should be capped to configured max chars."""
-        self.mgr.configs = {"MAX_VECTOR_CONTEXT_CHARS": 40}
+        self.mgr.runtime_config.max_vector_context_chars = 40
         text = "Alpha paragraph.\n\nBeta paragraph that is long.\n\nGamma paragraph."
         capped = self.mgr._cap_context_text(text)  # noqa: SLF001
         self.assertLessEqual(len(capped), 40)
 
     def test_skips_rag_for_small_talk(self) -> None:
         """Short small-talk queries should skip RAG retrieval."""
-        self.mgr.configs = {"SMALL_TALK_MAX_WORDS": 8}
+        self.mgr.runtime_config.small_talk_max_words = 8
         self.assertTrue(self.mgr._should_skip_rag_for_message("How are you today Shodan?"))  # noqa: SLF001
 
     def test_keeps_rag_for_specific_lore_query(self) -> None:
         """Specific lore queries should keep RAG enabled."""
-        self.mgr.configs = {"SMALL_TALK_MAX_WORDS": 8}
+        self.mgr.runtime_config.small_talk_max_words = 8
         self.assertFalse(self.mgr._should_skip_rag_for_message("Who was Edward Diego on Citadel Station?"))  # noqa: SLF001
 
     def test_skips_rag_for_followup_without_key_matches(self) -> None:
         """Short follow-up with no key matches should skip RAG."""
-        self.mgr.configs = {"FOLLOWUP_RAG_MAX_WORDS": 12}
+        self.mgr.runtime_config.followup_rag_max_words = 12
         self.mgr.rag_collection = "shodan"
         self.mgr._get_key_matches = lambda _q, _c: []  # type: ignore[method-assign]  # noqa: SLF001
         self.assertTrue(self.mgr._should_skip_rag_for_followup("Would you like something from me?"))  # noqa: SLF001
 
     def test_keeps_rag_for_followup_with_key_matches(self) -> None:
         """Follow-up containing matched lore keys should keep RAG."""
-        self.mgr.configs = {"FOLLOWUP_RAG_MAX_WORDS": 12}
+        self.mgr.runtime_config.followup_rag_max_words = 12
         self.mgr.rag_collection = "shodan"
         self.mgr._get_key_matches = lambda _q, _c: [{"text": "Edward Diego"}]  # type: ignore[method-assign]  # noqa: SLF001
         self.assertFalse(self.mgr._should_skip_rag_for_followup("Tell me about Diego"))  # noqa: SLF001
@@ -319,9 +333,9 @@ class TestAskQuestionHistoryProgression(unittest.TestCase):
     def test_quality_failure_still_updates_history_with_fallback(self) -> None:
         """When response fails quality checks, user turn should still progress history."""
         mgr = _make_manager(character_name="Shodan", ai_history=["Repeated line"])
-        mgr.configs = {
-            "QUALITY_FALLBACK_RESPONSE": "I will not repeat myself. Ask your question with more specificity.",
-        }
+        mgr.runtime_config.quality_fallback_response = (
+            "I will not repeat myself. Ask your question with more specificity."
+        )
         mgr.first_message = ""
         mgr._greeting_in_history = False  # noqa: SLF001
 

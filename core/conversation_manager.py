@@ -191,6 +191,15 @@ class ConversationManager:
         self.configs["MAX_HISTORY_TURNS"] = max_history
         self.user_message_history: deque[str] = deque(maxlen=max_history)
         self.ai_message_history: deque[str] = deque(maxlen=max_history)
+        self.history_summaries: deque[str] = deque(maxlen=self.runtime_config.history_summarization_max_entries)
+        self._last_summary_topic_terms: set[str] = set()
+        self.last_retrieval_debug: dict[str, object] = {
+            "collection": self.rag_collection,
+            "key_match_count": 0,
+            "main": {"mode": "unknown", "returned": 0, "candidates": 0, "queries": 0, "rerank_applied": False},
+            "mes": {"mode": "unknown", "returned": 0, "candidates": 0, "queries": 0, "rerank_applied": False},
+            "cleanup": {"main": 0, "mes": 0, "cross_removed": 0},
+        }
         self._vector_client: chromadb.PersistentClient | None = None
         self._vector_embedder: HuggingFaceEmbeddings | None = None
         self._cross_encoder: CrossEncoder | None = None
@@ -1100,6 +1109,31 @@ class ConversationManager:
         context_chunks = self._filter_context_chunks(context_chunks)
         mes_chunks = self._filter_context_chunks(mes_chunks)
         context_chunks, mes_chunks, cross_removed = self._dedupe_cross_collection_chunks(context_chunks, mes_chunks)
+        self.last_retrieval_debug = {
+            "collection": self.rag_collection,
+            "key_match_count": len(matches),
+            "main": {
+                "mode": str(context_trace.get("mode", "unknown")),
+                "filter_path": str(context_trace.get("filter_path", "none")),
+                "candidates": int(context_trace.get("candidates", 0) or 0),
+                "returned": int(context_trace.get("returned", 0) or 0),
+                "queries": int(context_trace.get("queries", 0) or 0),
+                "rerank_applied": bool(context_trace.get("rerank_applied", False)),
+            },
+            "mes": {
+                "mode": str(mes_trace.get("mode", "unknown")),
+                "filter_path": str(mes_trace.get("filter_path", "none")),
+                "candidates": int(mes_trace.get("candidates", 0) or 0),
+                "returned": int(mes_trace.get("returned", 0) or 0),
+                "queries": int(mes_trace.get("queries", 0) or 0),
+                "rerank_applied": bool(mes_trace.get("rerank_applied", False)),
+            },
+            "cleanup": {
+                "main": len(context_chunks),
+                "mes": len(mes_chunks),
+                "cross_removed": cross_removed,
+            },
+        }
         self._log_retrieval_telemetry(
             query=enriched_query,
             main_trace=context_trace,
@@ -1116,6 +1150,7 @@ class ConversationManager:
 
     def get_history(self) -> str:
         """Build conversation history from message deques."""
+        summary_block = self._get_history_summary_block()
         message_history = ""
         user_message_history_list = list(self.user_message_history)
         ai_message_history_list = list(self.ai_message_history)
@@ -1128,11 +1163,66 @@ class ConversationManager:
             ai_message = ai_message_history_list[x]
             new_line = f"User: {user_message}\n{self.character_name}:{ai_message}\n"
             message_history = message_history + new_line
-        return message_history
+        return f"{summary_block}{message_history}" if summary_block else message_history
+
+    def _get_history_summary_block(self) -> str:
+        if not self.history_summaries:
+            return ""
+        summary_lines = "\n".join(self.history_summaries)
+        return "[Conversation summary of earlier turns]\n" + summary_lines + "\n\n"
+
+    def _clip_summary_text(self, text: str) -> str:
+        max_chars = max(40, self.runtime_config.history_summarization_max_chars)
+        normalized = re.sub(r"\s+", " ", text).strip()
+        if len(normalized) <= max_chars:
+            return normalized
+        clipped = normalized[:max_chars].rsplit(" ", 1)[0]
+        return f"{clipped.rstrip('.!?')}." if clipped else normalized[:max_chars]
+
+    def _topic_label(self, terms: set[str]) -> str:
+        if not terms:
+            return "general"
+        return ", ".join(sorted(terms)[:3])
+
+    def _is_topic_shift(self, previous_terms: set[str], current_terms: set[str]) -> bool:
+        if not previous_terms or not current_terms:
+            return False
+        overlap = len(previous_terms.intersection(current_terms))
+        return overlap == 0
+
+    def _build_summary_entry(self, user_message: str, ai_message: str) -> str:
+        user_terms = self._query_terms(user_message)
+        topic_shift_note = ""
+        if self._is_topic_shift(self._last_summary_topic_terms, user_terms):
+            from_topic = self._topic_label(self._last_summary_topic_terms)
+            to_topic = self._topic_label(user_terms)
+            topic_shift_note = f" [Topic shift: {from_topic} -> {to_topic}]"
+
+        user_text = self._clip_summary_text(user_message)
+        ai_text = self._clip_summary_text(ai_message)
+        if user_terms:
+            self._last_summary_topic_terms = user_terms
+        topic_label = self._topic_label(user_terms)
+        return f"- User asked about {topic_label}: {user_text} | {self.character_name}: {ai_text}{topic_shift_note}"
+
+    def _compact_history_if_needed(self) -> None:
+        if not self.runtime_config.history_summarization_enabled:
+            return
+        threshold = max(2, self.runtime_config.history_summarization_threshold)
+        keep_recent = max(1, self.runtime_config.history_summarization_keep_recent)
+        keep_recent = min(keep_recent, len(self.user_message_history))
+
+        while len(self.user_message_history) > keep_recent and len(self.user_message_history) >= threshold:
+            user_message = self.user_message_history.popleft()
+            ai_message = self.ai_message_history.popleft()
+            summary_entry = self._build_summary_entry(user_message, ai_message)
+            self.history_summaries.append(summary_entry)
 
     def _build_mistral_prompt(self, message: str, vector_context: str, mes_example: str) -> str:
         # Build base system prompt WITHOUT vector context (it goes in final block only)
         voice_section = f"\n{self.voice_instructions}" if self.voice_instructions else ""
+        summary_block = self._get_history_summary_block()
+        summary_section = f"\n\nEarlier Conversation Summary:\n{summary_block}" if summary_block else ""
         system_prompt = (
             f"You are roleplaying as {self.character_name} in a continuous fictional chat with User. "
             "Stay in character, follow the description and scenario, and use the examples "
@@ -1140,6 +1230,7 @@ class ConversationManager:
             f"{self.description}\n\n"
             f"Scenario:\n{self.scenario}\n\n"
             f"Message Examples:\n{mes_example}\n\n"
+            f"{summary_section}\n\n"
             "Do not repeat previous responses verbatim. Do not narrate static scene descriptions unless asked.\n\n"
             f"Reply only as {self.character_name}; never write any User lines "
             "(for example, never include 'User:' in your output) or dialogue for User."
@@ -1168,6 +1259,8 @@ class ConversationManager:
     def _build_system_prompt_text(self, mes_example: str) -> str:
         """Build the system prompt text without vector context."""
         voice_section = f"\n{self.voice_instructions}" if self.voice_instructions else ""
+        summary_block = self._get_history_summary_block()
+        summary_section = f"\n\nEarlier Conversation Summary:\n{summary_block}" if summary_block else ""
         return (
             f"You are roleplaying as {self.character_name} in a continuous fictional chat with User. "
             "Stay in character, follow the description and scenario, and use the examples "
@@ -1175,6 +1268,7 @@ class ConversationManager:
             f"{self.description}\n\n"
             f"Scenario:\n{self.scenario}\n\n"
             f"Message Examples:\n{mes_example}\n\n"
+            f"{summary_section}\n\n"
             "Do not repeat previous responses verbatim. Do not narrate static scene descriptions unless asked.\n\n"
             f"Reply only as {self.character_name}; never write any User lines "
             "(for example, never include 'User:' in your output) or dialogue for User."
@@ -1393,8 +1487,54 @@ class ConversationManager:
 
     def update_history(self, message: str, result: str) -> None:
         """Update message history with user query and AI response."""
+        if (
+            self.runtime_config.history_summarization_enabled
+            and self.user_message_history.maxlen is not None
+            and len(self.user_message_history) >= self.user_message_history.maxlen
+        ):
+            user_message = self.user_message_history.popleft()
+            ai_message = self.ai_message_history.popleft()
+            self.history_summaries.append(self._build_summary_entry(user_message, ai_message))
         self.user_message_history.append(message)
         self.ai_message_history.append(result)
+        self._compact_history_if_needed()
+
+    def clear_conversation_state(self) -> None:
+        """Reset user/assistant history and summarization state."""
+        self.user_message_history.clear()
+        self.ai_message_history.clear()
+        self.history_summaries.clear()
+        self._last_summary_topic_terms = set()
+
+    def export_conversation_state(self) -> dict[str, object]:
+        """Return serializable conversation history state."""
+        return {
+            "user_history": list(self.user_message_history),
+            "ai_history": list(self.ai_message_history),
+            "history_summaries": list(self.history_summaries),
+            "last_summary_topic_terms": sorted(self._last_summary_topic_terms),
+        }
+
+    def import_conversation_state(self, state: dict[str, object]) -> None:
+        """Load conversation history from a serialized state object."""
+        user_history = state.get("user_history", [])
+        ai_history = state.get("ai_history", [])
+        history_summaries = state.get("history_summaries", [])
+        summary_terms = state.get("last_summary_topic_terms", [])
+
+        normalized_user_history = [item for item in user_history if isinstance(item, str)]
+        normalized_ai_history = [item for item in ai_history if isinstance(item, str)]
+        paired_count = min(len(normalized_user_history), len(normalized_ai_history))
+        normalized_user_history = normalized_user_history[:paired_count]
+        normalized_ai_history = normalized_ai_history[:paired_count]
+
+        self.user_message_history = deque(normalized_user_history, maxlen=self.user_message_history.maxlen)
+        self.ai_message_history = deque(normalized_ai_history, maxlen=self.ai_message_history.maxlen)
+        self.history_summaries = deque(
+            [item for item in history_summaries if isinstance(item, str)],
+            maxlen=self.history_summaries.maxlen,
+        )
+        self._last_summary_topic_terms = {item for item in summary_terms if isinstance(item, str)}
 
     _STRAY_TOKENS: tuple[str, ...] = ("[/INST]", "<|im_end|>", "</s>", "<|eot_id|>", "<s>", "<|end|>")
     # Patterns that identify a generated User turn. Newline-prefixed variants are used
