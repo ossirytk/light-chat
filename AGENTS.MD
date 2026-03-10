@@ -14,6 +14,7 @@ VS Code's agentic AI features can apply multi-file coordinated changes, so the r
 
 - **OS:** WSL 2 with Ubuntu
 - **Editors:** VS Code (primary), NvChad Neovim (alternative)
+- **VS Code Integrated Shell:** `fish`
 - **Package Manager:** `uv` (fast, dependency-locked)
 - **Formatter + Linter:** `ruff` (installed as tool via uv)
 - **Editor Integration:** `pyrefly` (installed as tool via uv, provides code insights and can suggest modifications)
@@ -36,24 +37,19 @@ All terminal commands should be reproducible on this stack.
 
 ---
 
-## 2. Python: Canonical Ruff Configuration
+## 2. Ruff Configuration Source
 
-```toml
-[tool.ruff]
-target-version = "py313"
-line-length = 120
-lint.select = [
-    "F","E","W","I","N","UP","YTT","ANN","ASYNC","S","FBT","B",
-    "A","COM","C4","DTZ","EM","EXE","FA","ISC","ICN","LOG","G",
-    "INP","PIE","T20","PYI","Q","RSE","RET","SLF","SLOT","SIM",
-    "TID","TC","INT","ARG","PTH","PD","PGH","PL","TRY","FLY",
-    "NPY","PERF","FURB","RUF",
-]
-lint.ignore = ["FBT001", "S603", "G004", "S607", "COM812"]
-lint.unfixable = [
-    "F401",
-]
-```
+- Do not duplicate Ruff rules in this file.
+- Treat `pyproject.toml` as the single source of truth for all Ruff settings (`[tool.ruff]`).
+- If lint behavior changes, update `pyproject.toml` and rely on `uv run ruff ...` output for validation.
+
+---
+
+## 2.1 Tooling Reliability Notes
+
+- VS Code agent/tool output can truncate long file previews and append helper text such as `Continue. The file is too long...`.
+- Never paste tool helper/output text into source files.
+- After large scripted edits, immediately validate file tails and rerun Ruff/tests before proceeding.
 
 ---
 
@@ -121,7 +117,7 @@ uv python pin 3.13
 ### VS Code Settings
 - Use Ruff extension for real-time linting
 - Pyrefly provides code insights and can identify improvements; use as needed
-- Terminal integration: Use integrated terminal to run `uv` commands
+- Terminal integration: Use integrated `fish` terminal to run `uv` commands
 
 ### NvChad/Neovim
 - Configure LSP to use linting results from Ruff

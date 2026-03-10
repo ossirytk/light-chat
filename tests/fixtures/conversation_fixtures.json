@@ -1,0 +1,57 @@
+{
+    "persona": "Shodan",
+    "cases": [
+        {
+            "id": "shodan_identity_baseline",
+            "persona": "Shodan",
+            "turns": [
+                {
+                    "user": "Who are you and what do you control?",
+                    "expected_contains": [
+                        "shodan",
+                        "context"
+                    ],
+                    "forbidden_contains": [
+                        "User:"
+                    ]
+                },
+                {
+                    "user": "Explain your view of humanity in one concise paragraph.",
+                    "expected_contains": [
+                        "tone",
+                        "context"
+                    ],
+                    "forbidden_contains": [
+                        "{{user}}"
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "lore_followup_stability",
+            "persona": "Shodan",
+            "turns": [
+                {
+                    "user": "What was Citadel Station to you?",
+                    "expected_contains": [
+                        "context",
+                        "request"
+                    ],
+                    "forbidden_contains": [
+                        "User:"
+                    ]
+                },
+                {
+                    "user": "Continue with how Diego fit into that story.",
+                    "expected_contains": [
+                        "consistent",
+                        "tone"
+                    ],
+                    "forbidden_contains": [
+                        "User:"
+                    ]
+                }
+            ]
+        }
+    ]
+}

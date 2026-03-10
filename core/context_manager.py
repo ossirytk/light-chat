@@ -329,18 +329,20 @@ class ContextManager:
             return []
 
         turns: list[str] = []
-        current_turn = ""
+        current_turn_lines: list[str] = []
 
-        for line in history.split("\n"):
-            current_turn += line + "\n"
+        for line in history.splitlines(keepends=True):
+            if line.startswith("User:"):
+                if current_turn_lines:
+                    turns.append("".join(current_turn_lines))
+                current_turn_lines = [line]
+                continue
 
-            # A turn ends when we see the start of a new User: line
-            if current_turn.strip().startswith("User:") and current_turn.count("\n") > 1:
-                turns.append(current_turn.rsplit("\n", 1)[0] + "\n")
-                current_turn = line + "\n"
+            if current_turn_lines:
+                current_turn_lines.append(line)
 
-        if current_turn.strip():
-            turns.append(current_turn)
+        if current_turn_lines:
+            turns.append("".join(current_turn_lines))
 
         return turns
 

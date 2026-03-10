@@ -150,6 +150,35 @@
             align-self: start;
         }
 
+        .message.assistant.streaming {
+            position: relative;
+            padding-right: 2.3rem;
+        }
+
+        .message.assistant.streaming::after {
+            content: "...";
+            position: absolute;
+            right: 0.8rem;
+            bottom: 0.7rem;
+            color: #98a6b6;
+            letter-spacing: 0.08em;
+            white-space: nowrap;
+            pointer-events: none;
+            animation: assistantTypingDots 1.05s ease-in-out infinite;
+        }
+
+        @keyframes assistantTypingDots {
+
+            0%,
+            100% {
+                opacity: 0.25;
+            }
+
+            50% {
+                opacity: 1;
+            }
+        }
+
         .composer {
             border-top: 1px solid #2d3743;
             padding: 1rem;
@@ -215,6 +244,11 @@
             border-radius: 6px;
             color: #e6edf3;
         }
+
+        .stream-error {
+            margin-top: 0.35rem;
+            color: #f8b4b4;
+        }
     </style>
 </head>
 
@@ -267,6 +301,7 @@
             <section class="composer">
                 <div id="status-line">Ready</div>
                 <div class="quick-actions">
+                    <button type="button" id="continue-btn">Continue</button>
                     <button type="button" id="save-session-btn">Save Session</button>
                     <button type="button" id="copy-last-btn">Copy Last</button>
                     <button type="button" id="export-txt-btn">Export TXT</button>
@@ -290,6 +325,7 @@
         const debugContent = document.getElementById("debug-content");
         const refreshDebugButton = document.getElementById("refresh-debug-btn");
         const saveSessionButton = document.getElementById("save-session-btn");
+        const continueButton = document.getElementById("continue-btn");
         const saveNamedButton = document.getElementById("save-named-btn");
         const copyLastButton = document.getElementById("copy-last-btn");
         const exportTxtButton = document.getElementById("export-txt-btn");
@@ -312,6 +348,7 @@
         function setSendingState(isSending) {
             userInput.disabled = isSending;
             sendButton.disabled = isSending;
+            continueButton.disabled = isSending;
         }
 
         function scrollChatToBottom() {
@@ -444,9 +481,12 @@
             }
         }
 
-        function showRetry(target, message, reason) {
-            target.textContent = "";
+        function showRetry(target, message, reason, preserveExisting = false) {
+            if (!preserveExisting) {
+                target.textContent = "";
+            }
             const reasonText = document.createElement("div");
+            reasonText.className = "stream-error";
             reasonText.textContent = reason;
             target.appendChild(reasonText);
 
@@ -456,10 +496,11 @@
             retryButton.textContent = "Retry";
             retryButton.dataset.assistantId = target.id;
             retryButton.dataset.message = message;
+            retryButton.dataset.preserveExisting = preserveExisting ? "1" : "0";
             target.appendChild(retryButton);
         }
 
-        async function streamAssistant(assistantId, message) {
+        async function streamAssistant(assistantId, message, options = {}) {
             const target = document.getElementById(assistantId);
             if (!target) {
                 setSendingState(false);
@@ -467,7 +508,14 @@
                 return;
             }
 
+            const preserveExisting = Boolean(options.preserveExisting);
+            const continueMode = Boolean(options.continueMode);
+
             target.dataset.sourceMessage = message;
+            target.querySelectorAll(".retry-btn, .stream-error").forEach((node) => {
+                node.remove();
+            });
+            target.classList.add("streaming");
 
             const controller = new AbortController();
             const timeoutId = setTimeout(() => {
@@ -481,12 +529,12 @@
                 const response = await fetch("/chat/stream", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ message }),
+                    body: JSON.stringify({ message, continue_mode: continueMode }),
                     signal: controller.signal,
                 });
 
                 if (!response.ok || !response.body) {
-                    showRetry(target, message, "[Error: stream unavailable]");
+                    showRetry(target, message, "[Error: stream unavailable]", preserveExisting);
                     setStatus("Error: stream unavailable");
                     return;
                 }
@@ -512,13 +560,85 @@
                 const reason = error?.name === "AbortError"
                     ? "[Timed out while waiting for model response]"
                     : `[Error: ${error}]`;
-                showRetry(target, message, reason);
+                showRetry(target, message, reason, preserveExisting);
                 setStatus(error?.name === "AbortError" ? "Timed out" : "Error while streaming");
             } finally {
                 clearTimeout(timeoutId);
+                target.classList.remove("streaming");
                 setSendingState(false);
                 userInput.focus();
                 scrollChatToBottom();
+            }
+        }
+
+        function startPendingStream() {
+            const pendingNode = chatLog.querySelector("[data-pending-stream='1']");
+            if (!pendingNode) {
+                return false;
+            }
+
+            const message = pendingNode.dataset.streamMessage;
+            pendingNode.removeAttribute("data-pending-stream");
+
+            if (!message) {
+                setSendingState(false);
+                setStatus("Error: empty message");
+                return false;
+            }
+
+            scrollChatToBottom();
+            streamAssistant(pendingNode.id, message);
+            return true;
+        }
+
+        async function requestContinuation() {
+            if (sendButton.disabled) {
+                return;
+            }
+            setSendingState(true);
+            setStatus("Requesting continuation...");
+            try {
+                const response = await fetch("/chat/action/continue", { method: "POST" });
+                if (response.status === 204) {
+                    setSendingState(false);
+                    setStatus("Nothing to continue yet");
+                    userInput.focus();
+                    return;
+                }
+                if (!response.ok) {
+                    setSendingState(false);
+                    setStatus("Failed to request continuation");
+                    userInput.focus();
+                    return;
+                }
+
+                const payload = await response.json();
+                const message = payload?.message;
+                if (!message) {
+                    setSendingState(false);
+                    setStatus("Failed to request continuation");
+                    userInput.focus();
+                    return;
+                }
+
+                const assistantNodes = Array.from(chatLog.querySelectorAll(".message.assistant[data-role='assistant']"));
+                const lastAssistantNode = assistantNodes[assistantNodes.length - 1];
+                if (!lastAssistantNode) {
+                    setSendingState(false);
+                    setStatus("No assistant response to continue");
+                    userInput.focus();
+                    return;
+                }
+
+                if (!lastAssistantNode.id) {
+                    lastAssistantNode.id = `assistant-${crypto.randomUUID().replaceAll("-", "")}`;
+                }
+
+                streamAssistant(lastAssistantNode.id, message, { preserveExisting: true, continueMode: true });
+            } catch {
+                setSendingState(false);
+                setStatus("Failed to request continuation");
+                userInput.focus();
             }
         }
 
@@ -533,23 +653,7 @@
             if (event.detail.target !== chatLog) {
                 return;
             }
-
-            const pendingNode = chatLog.querySelector("[data-pending-stream='1']");
-            if (!pendingNode) {
-                return;
-            }
-
-            const message = pendingNode.dataset.streamMessage;
-            pendingNode.removeAttribute("data-pending-stream");
-
-            if (!message) {
-                setSendingState(false);
-                setStatus("Error: empty message");
-                return;
-            }
-
-            scrollChatToBottom();
-            streamAssistant(pendingNode.id, message);
+            startPendingStream();
         });
 
         chatLog.addEventListener("click", (event) => {
@@ -559,12 +663,13 @@
             }
             const assistantId = retryButton.dataset.assistantId;
             const message = retryButton.dataset.message;
+            const preserveExisting = retryButton.dataset.preserveExisting === "1";
             if (!assistantId || !message) {
                 return;
             }
             setSendingState(true);
             setStatus("Retrying...");
-            streamAssistant(assistantId, message);
+            streamAssistant(assistantId, message, { preserveExisting });
         });
 
         refreshDebugButton.addEventListener("click", async () => {
@@ -572,6 +677,10 @@
             await refreshDebugPanel();
             await refreshDebugHistoryPanel();
             setStatus("Ready");
+        });
+
+        continueButton.addEventListener("click", () => {
+            requestContinuation();
         });
 
         saveSessionButton.addEventListener("click", async () => {
@@ -734,6 +843,11 @@
             if (event.altKey && event.key.toLowerCase() === "r") {
                 event.preventDefault();
                 reloadButton.click();
+                return;
+            }
+            if (event.altKey && event.key.toLowerCase() === "n") {
+                event.preventDefault();
+                requestContinuation();
             }
         });
 

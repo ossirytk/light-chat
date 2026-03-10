@@ -87,3 +87,8 @@ unfixable = [
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]

@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from loguru import logger
 from pydantic import BaseModel
@@ -25,6 +25,7 @@ class StreamRequest(BaseModel):
     """Streaming request payload."""
 
     message: str
+    continue_mode: bool = False
 
 
 class ChatRuntime:
@@ -49,6 +50,11 @@ class ChatRuntime:
 
 
 templates = Jinja2Templates(directory="templates")
+
+CONTINUE_PROMPT = (
+    "Continue from exactly where your previous answer stopped. "
+    "Do not repeat prior text. Start with the next unfinished sentence."
+)
 
 
 @asynccontextmanager
@@ -143,6 +149,7 @@ def _record_retrieval_trace(runtime: ChatRuntime, message: str) -> None:
         "at": datetime.now(tz=UTC).isoformat(),
         "query": message[:200],
         "retrieval": manager.last_retrieval_debug,
+        "persona": manager.last_persona_drift,
     }
     runtime.retrieval_history.append(trace)
     history_cap = runtime.MAX_RETRIEVAL_HISTORY_ENTRIES
@@ -240,6 +247,11 @@ async def chat_debug(request: Request) -> dict[str, object]:
     return {
         "status": "ok",
         "retrieval": runtime.manager.last_retrieval_debug,
+        "persona": {
+            "last": runtime.manager.last_persona_drift,
+            "history": list(runtime.manager.persona_drift_history),
+            "summary": runtime.manager.get_persona_drift_summary(),
+        },
         "history_turns": min(len(runtime.manager.user_message_history), len(runtime.manager.ai_message_history)),
     }
 
@@ -335,8 +347,19 @@ async def chat_stream(request: Request, payload: StreamRequest) -> StreamingResp
             final_turn_count = min(len(runtime.manager.user_message_history), len(runtime.manager.ai_message_history))
             if final_turn_count > prior_turn_count and runtime.manager.ai_message_history:
                 latest_assistant = list(runtime.manager.ai_message_history)[-1]
-                runtime.ui_messages.append({"role": "assistant", "content": latest_assistant})
-                _record_retrieval_trace(runtime, payload.message)
+                if payload.continue_mode:
+                    for item in reversed(runtime.ui_messages):
+                        if item.get("role") != "assistant":
+                            continue
+                        prior_content = item.get("content", "")
+                        if isinstance(prior_content, str):
+                            item["content"] = f"{prior_content}{latest_assistant}"
+                            break
+                    else:
+                        runtime.ui_messages.append({"role": "assistant", "content": latest_assistant})
+                else:
+                    runtime.ui_messages.append({"role": "assistant", "content": latest_assistant})
+                    _record_retrieval_trace(runtime, payload.message)
             elapsed = time.monotonic() - start
             logger.debug(
                 "chat_stream done chunks={} chars={} elapsed={:.2f}s",
@@ -353,8 +376,9 @@ async def chat_action_help(request: Request) -> HTMLResponse:
     """Append an in-chat help message."""
     runtime = _get_runtime(request)
     help_message = (
-        "Quick actions: Clear, Reload, Save Session, Load Latest, Copy Last, Export TXT, Export JSON.\n"
-        "Keyboard: Ctrl+Enter send, ArrowUp/ArrowDown prompt history, Alt+H help, Alt+C clear, Alt+R reload."
+        "Quick actions: Clear, Reload, Continue, Save Session, Load Latest, Copy Last, Export TXT, Export JSON.\n"
+        "Keyboard: Ctrl+Enter send, ArrowUp/ArrowDown prompt history, Alt+H help, Alt+C clear, "
+        "Alt+R reload, Alt+N continue."
     )
     runtime.ui_messages.append({"role": "assistant", "content": help_message})
     html = templates.get_template("chat_single_message.html").render(role="assistant", content=help_message)
@@ -370,6 +394,15 @@ async def chat_action_clear(request: Request) -> HTMLResponse:
         runtime.reset_ui_messages()
         runtime.retrieval_history = []
         return HTMLResponse(content=_render_chat_log(runtime.ui_messages))
+
+
+@app.post("/chat/action/continue")
+async def chat_action_continue(request: Request) -> JSONResponse:
+    """Return a continuation prompt for seamless in-place assistant extension."""
+    runtime = _get_runtime(request)
+    if not runtime.manager.ai_message_history:
+        return Response(status_code=204)
+    return JSONResponse(content={"status": "ok", "message": CONTINUE_PROMPT})
 
 
 @app.post("/chat/action/reload", response_class=HTMLResponse)

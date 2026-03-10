@@ -32,6 +32,10 @@ from core.config import configure_logging, load_app_config, load_rag_script_conf
 type MetadataItem = dict[str, object]
 type MetadataList = list[MetadataItem]
 
+EMBEDDING_MODEL_METADATA_KEY = "embedding:model"
+EMBEDDING_DIMENSION_METADATA_KEY = "embedding:dimension"
+EMBEDDING_NORMALIZE_METADATA_KEY = "embedding:normalize"
+
 
 @dataclass
 class PushConfig:
@@ -50,6 +54,65 @@ class PushConfig:
 class ProcessingContext:
     embedder: HuggingFaceEmbeddings
     client: chromadb.PersistentClient
+
+
+def infer_embedding_dimension(embedder: HuggingFaceEmbeddings) -> int | None:
+    try:
+        vector = embedder.embed_query("dimension_probe")
+    except Exception as error:
+        logger.warning(f"Could not infer embedding dimension for fingerprint metadata: {error}")
+        return None
+    return len(vector) if isinstance(vector, list) else None
+
+
+def build_embedding_fingerprint(
+    embedding_model: str,
+    normalize_embeddings: bool,
+    embedding_dimension: int | None,
+) -> dict[str, object]:
+    fingerprint: dict[str, object] = {
+        EMBEDDING_MODEL_METADATA_KEY: embedding_model,
+        EMBEDDING_NORMALIZE_METADATA_KEY: normalize_embeddings,
+    }
+    if embedding_dimension is not None:
+        fingerprint[EMBEDDING_DIMENSION_METADATA_KEY] = embedding_dimension
+    return fingerprint
+
+
+def assert_collection_fingerprint_compatible(
+    client: chromadb.PersistentClient,
+    collection_name: str,
+    expected_fingerprint: dict[str, object],
+) -> None:
+    try:
+        collection = client.get_collection(collection_name)
+    except ValueError:
+        return
+
+    metadata = collection.metadata or {}
+    missing_keys = [key for key in expected_fingerprint if key not in metadata]
+    mismatches = [
+        (key, metadata[key], expected_fingerprint[key])
+        for key in expected_fingerprint
+        if key in metadata and metadata[key] != expected_fingerprint[key]
+    ]
+
+    if mismatches:
+        mismatch_summary = ", ".join(
+            f"{key}: existing={actual!r} expected={expected!r}" for key, actual, expected in mismatches
+        )
+        msg = (
+            f"Collection '{collection_name}' has incompatible embedding fingerprint; refusing mixed-model write. "
+            f"{mismatch_summary}"
+        )
+        raise click.ClickException(msg)
+
+    if missing_keys:
+        logger.warning(
+            "Collection '{}' is missing embedding fingerprint metadata keys: {}",
+            collection_name,
+            ", ".join(missing_keys),
+        )
 
 
 def iter_key_items(all_keys: object) -> MetadataList:
@@ -153,6 +216,7 @@ def push_to_collection(
     documents: list[Document],
     config: PushConfig,
     context: ProcessingContext,
+    expected_fingerprint: dict[str, object],
 ) -> None:
     """Push documents to a ChromaDB collection."""
     if config.dry_run:
@@ -165,6 +229,8 @@ def push_to_collection(
             logger.info(f"Deleted existing collection: {collection_name}")
         except ValueError:
             logger.debug(f"Collection {collection_name} doesn't exist, creating new")
+    else:
+        assert_collection_fingerprint_compatible(context.client, collection_name, expected_fingerprint)
 
     logger.info(f"Pushing {len(documents)} documents to collection '{collection_name}'")
     tic = time.perf_counter()
@@ -175,7 +241,7 @@ def push_to_collection(
         embedding=context.embedder,
         persist_directory=config.persist_directory,
         collection_name=collection_name,
-        collection_metadata={"hnsw:space": "l2"},
+        collection_metadata={"hnsw:space": "l2", **expected_fingerprint},
     )
 
     toc = time.perf_counter()
@@ -227,6 +293,8 @@ class CliOptions:
 @click.option("--chunk-size", "-cs", default=None, type=int, help="Chunk size for text splitting")
 @click.option("--chunk-overlap", "-co", default=None, type=int, help="Overlap size for chunks")
 @click.option("--threads", "-t", default=None, type=int, help="Number of threads for processing")
+@click.option("--embedding-model", default=None, help="Override embedding model id for this run")
+@click.option("--embedding-device", default=None, help="Override embedding device for this run")
 @click.option("--dry-run", "-d", is_flag=True, help="Show what would be done without making changes")
 @click.option("--overwrite", "-w", is_flag=True, help="Overwrite existing collection if it exists")
 def main(**kwargs: object) -> None:
@@ -279,19 +347,28 @@ def main(**kwargs: object) -> None:
         logger.warning("No metadata file found, proceeding without enrichment")
 
     logger.info("Initializing ChromaDB client and embedder...")
-    embedding_device = script_config.embedding_device
+    embedding_device = kwargs.get("embedding_device") or script_config.embedding_device
+    embedding_model = kwargs.get("embedding_model") or script_config.embedding_model
     embedding_cache = script_config.embedding_cache
     model_kwargs = {"device": embedding_device}
-    encode_kwargs = {"normalize_embeddings": True}
+    normalize_embeddings = True
+    encode_kwargs = {"normalize_embeddings": normalize_embeddings}
     cache_folder = str(Path(embedding_cache))
 
     embedder = HuggingFaceEmbeddings(
+        model_name=embedding_model,
         model_kwargs=model_kwargs,
         encode_kwargs=encode_kwargs,
         cache_folder=cache_folder,
     )
 
     client = chromadb.PersistentClient(path=str(persist_directory), settings=Settings(anonymized_telemetry=False))
+    embedding_dimension = infer_embedding_dimension(embedder)
+    expected_fingerprint = build_embedding_fingerprint(
+        embedding_model=embedding_model,
+        normalize_embeddings=normalize_embeddings,
+        embedding_dimension=embedding_dimension,
+    )
 
     config = PushConfig(
         persist_directory=str(persist_directory),
@@ -305,7 +382,7 @@ def main(**kwargs: object) -> None:
 
     context = ProcessingContext(embedder=embedder, client=client)
 
-    push_to_collection(collection_name, documents, config, context)
+    push_to_collection(collection_name, documents, config, context, expected_fingerprint)
 
     if not dry_run:
         logger.info("✓ Successfully pushed data to ChromaDB")

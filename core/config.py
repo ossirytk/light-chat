@@ -21,6 +21,7 @@ V2_TO_LEGACY_KEY_MAP: dict[ConfigPath, str] = {
     ("paths", "embedding_cache"): "EMBEDDING_CACHE",
     ("paths", "documents_directory"): "DOCUMENTS_DIRECTORY",
     ("embedding", "device"): "EMBEDDING_DEVICE",
+    ("embedding", "model"): "EMBEDDING_MODEL",
     ("rag", "chunk_size"): "CHUNK_SIZE",
     ("rag", "chunk_overlap"): "CHUNK_OVERLAP",
     ("runtime", "threads"): "THREADS",
@@ -56,6 +57,12 @@ V2_TO_LEGACY_KEY_MAP: dict[ConfigPath, str] = {
     ("context", "retrieval", "sentence_compression", "max_sentences"): "RAG_SENTENCE_COMPRESSION_MAX_SENTENCES",
     ("heuristics", "small_talk_max_words"): "SMALL_TALK_MAX_WORDS",
     ("heuristics", "followup_rag_max_words"): "FOLLOWUP_RAG_MAX_WORDS",
+    ("conversation_quality", "persona_drift", "enabled"): "PERSONA_DRIFT_ENABLED",
+    ("conversation_quality", "persona_drift", "warning_threshold"): "PERSONA_DRIFT_WARNING_THRESHOLD",
+    ("conversation_quality", "persona_drift", "fail_threshold"): "PERSONA_DRIFT_FAIL_THRESHOLD",
+    ("conversation_quality", "persona_drift", "history_window"): "PERSONA_DRIFT_HISTORY_WINDOW",
+    ("conversation_quality", "persona_drift", "heuristic_weight"): "PERSONA_DRIFT_HEURISTIC_WEIGHT",
+    ("conversation_quality", "persona_drift", "semantic_weight"): "PERSONA_DRIFT_SEMANTIC_WEIGHT",
     ("generation", "max_stream_chars"): "MAX_STREAM_CHARS",
     ("generation", "max_silent_stream_chars"): "MAX_SILENT_STREAM_CHARS",
     ("generation", "hard_max_tokens"): "HARD_MAX_TOKENS",
@@ -96,6 +103,7 @@ class RagScriptConfig:
     key_storage: str
     embedding_cache: str
     embedding_device: str
+    embedding_model: str
     threads: int
     chunk_size: int
     chunk_overlap: int
@@ -106,6 +114,8 @@ class ConversationRuntimeConfig:
     persist_directory: str
     key_storage: str
     embedding_cache: str
+    embedding_device: str
+    embedding_model: str
     rag_collection: str
     rag_k: int
     rag_k_mes: int
@@ -127,6 +137,12 @@ class ConversationRuntimeConfig:
     max_vector_context_chars: int
     small_talk_max_words: int
     followup_rag_max_words: int
+    persona_drift_enabled: bool
+    persona_drift_warning_threshold: float
+    persona_drift_fail_threshold: float
+    persona_drift_history_window: int
+    persona_drift_heuristic_weight: float
+    persona_drift_semantic_weight: float
     use_mmr: bool
     rag_fetch_k: int
     lambda_mult: float
@@ -224,6 +240,7 @@ def load_rag_script_config(app_config: Mapping[str, object]) -> RagScriptConfig:
         key_storage=_get_str_value(app_config.get("KEY_STORAGE"), "./rag_data/"),
         embedding_cache=_get_str_value(app_config.get("EMBEDDING_CACHE"), "./embedding_models/"),
         embedding_device=_get_str_value(app_config.get("EMBEDDING_DEVICE"), "cpu"),
+        embedding_model=_get_str_value(app_config.get("EMBEDDING_MODEL"), "sentence-transformers/all-mpnet-base-v2"),
         threads=_get_int_value(app_config.get("THREADS"), 6),
         chunk_size=_get_int_value(app_config.get("CHUNK_SIZE"), 2048),
         chunk_overlap=_get_int_value(app_config.get("CHUNK_OVERLAP"), 1024),
@@ -237,6 +254,8 @@ def load_conversation_runtime_config(app_config: Mapping[str, object]) -> Conver
         persist_directory=_get_str_value(app_config.get("PERSIST_DIRECTORY"), "./character_storage/"),
         key_storage=_get_str_value(app_config.get("KEY_STORAGE"), "./rag_data/"),
         embedding_cache=_get_str_value(app_config.get("EMBEDDING_CACHE"), "./embedding_models/"),
+        embedding_device=_get_str_value(app_config.get("EMBEDDING_DEVICE"), "cpu"),
+        embedding_model=_get_str_value(app_config.get("EMBEDDING_MODEL"), "sentence-transformers/all-mpnet-base-v2"),
         rag_collection=_get_str_value(app_config.get("RAG_COLLECTION"), ""),
         rag_k=rag_k,
         rag_k_mes=rag_k_mes,
@@ -258,6 +277,12 @@ def load_conversation_runtime_config(app_config: Mapping[str, object]) -> Conver
         max_vector_context_chars=_get_int_value(app_config.get("MAX_VECTOR_CONTEXT_CHARS"), 2200),
         small_talk_max_words=_get_int_value(app_config.get("SMALL_TALK_MAX_WORDS"), 8),
         followup_rag_max_words=_get_int_value(app_config.get("FOLLOWUP_RAG_MAX_WORDS"), 12),
+        persona_drift_enabled=_get_bool_value(app_config.get("PERSONA_DRIFT_ENABLED"), default=True),
+        persona_drift_warning_threshold=_get_float_value(app_config.get("PERSONA_DRIFT_WARNING_THRESHOLD"), 0.45),
+        persona_drift_fail_threshold=_get_float_value(app_config.get("PERSONA_DRIFT_FAIL_THRESHOLD"), 0.65),
+        persona_drift_history_window=_get_int_value(app_config.get("PERSONA_DRIFT_HISTORY_WINDOW"), 20),
+        persona_drift_heuristic_weight=_get_float_value(app_config.get("PERSONA_DRIFT_HEURISTIC_WEIGHT"), 0.6),
+        persona_drift_semantic_weight=_get_float_value(app_config.get("PERSONA_DRIFT_SEMANTIC_WEIGHT"), 0.4),
         use_mmr=_get_bool_value(app_config.get("USE_MMR"), default=True),
         rag_fetch_k=_get_int_value(app_config.get("RAG_FETCH_K"), 20),
         lambda_mult=_get_float_value(app_config.get("LAMBDA_MULT"), 0.75),

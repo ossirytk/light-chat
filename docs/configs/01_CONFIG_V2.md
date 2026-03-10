@@ -41,6 +41,11 @@ Primary runtime configuration for model loading, generation, retrieval, context 
 - `embedding_cache`: embedding model cache directory
 - `documents_directory`: default source documents directory for scripts
 
+### `embedding`
+
+- `device`: embedding runtime device (for example `cpu`)
+- `model`: sentence-transformers model id used for vector embedding (for example `sentence-transformers/all-mpnet-base-v2`)
+
 ### `model`
 
 - `path`, `type`

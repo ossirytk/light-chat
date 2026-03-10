@@ -1,8 +1,8 @@
 # Automatic GPU Layer Selection
 
-Last verified: 2026-03-07
+Last verified: 2026-03-12
 
-This project supports automatic `llama.cpp` GPU offload layer selection through `core/gpu_utils.py` and `ConversationManager`.
+This project supports automatic `llama.cpp` GPU offload layer selection through `core/gpu_utils.py` and the model-setup path used by `ConversationManager`.
 
 ## What It Does
 
@@ -51,6 +51,6 @@ uv run python tests/test_kv_quantization.py
 ## Code References
 
 - `core/gpu_utils.py`
-- `core/conversation_manager.py`
+- `core/conversation_model_setup_mixin.py`
 - `tests/test_gpu_auto.py`
 - `tests/test_kv_quantization.py`

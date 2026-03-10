@@ -220,21 +220,20 @@ Runtime config is defined in `configs/config.v2.json`.
 - GPU layer auto-tuning: `docs/AUTO_GPU_LAYERS.md`
 - Flash attention build helper: `docs/FLASH_ATTENTION_BUILD.md`
 - Future work status: `docs/future_work/`
-- Legacy archived notes: `docs/legacy/`
 
 ## Testing and Linting
 
 ```bash
 uv run ruff format .
 uv run ruff check .
-uv run python -m unittest
+uv run pytest
 ```
 
 Or run targeted tests:
 
 ```bash
-uv run python -m unittest tests.test_rag_scripts
-uv run python -m unittest tests.test_response_processing
+uv run pytest tests/test_rag_scripts.py
+uv run pytest tests/test_response_processing.py
 ```
 
 ## License

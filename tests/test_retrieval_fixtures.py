@@ -30,7 +30,10 @@ def _make_eval_manager() -> ConversationManager:
     mgr.rag_k_mes = int(config.get("RAG_K_MES", mgr.rag_k))
     mgr.persist_directory = str(config.get("PERSIST_DIRECTORY", "./character_storage/"))
     mgr.embedding_cache = str(config.get("EMBEDDING_CACHE", "./embedding_models/"))
+    mgr.embedding_model = str(config.get("EMBEDDING_MODEL", "sentence-transformers/all-mpnet-base-v2"))
     mgr.runtime_config = SimpleNamespace(
+        embedding_device=str(config.get("EMBEDDING_DEVICE", "cpu")),
+        embedding_model=str(config.get("EMBEDDING_MODEL", "sentence-transformers/all-mpnet-base-v2")),
         use_mmr=bool(config.get("USE_MMR", True)),
         rag_fetch_k=int(config.get("RAG_FETCH_K", 20)),
         lambda_mult=float(config.get("LAMBDA_MULT", 0.75)),

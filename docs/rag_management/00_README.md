@@ -1,6 +1,6 @@
 # RAG Management Documentation
 
-Last verified: 2026-03-07
+Last verified: 2026-03-12
 
 This folder contains detailed, script-focused documentation for everything under `scripts/rag/`.
 
@@ -9,6 +9,7 @@ This folder contains detailed, script-focused documentation for everything under
 - Metadata analysis and generation
 - Document chunking + upload to ChromaDB
 - Collection operations and retrieval evaluation
+- Embedding fingerprint safeguards and legacy metadata migration
 - Legacy batch ingestion flow
 - Practical workflows and troubleshooting
 

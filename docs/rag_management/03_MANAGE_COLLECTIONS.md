@@ -1,12 +1,14 @@
 # manage_collections.py
 
-Last verified: 2026-03-07
+Last verified: 2026-03-12
 
 Script path: `scripts/rag/manage_collections.py`
 
 ## Purpose
 
 Operational CLI for Chroma collections: inspection, deletion, retrieval tests, exports, and fixture-based retrieval evaluation.
+
+Embedding fingerprint safety is enforced across retrieval/evaluation commands to prevent mixed-model reads.
 
 ## Command Group
 
@@ -83,6 +85,8 @@ Options:
 - `--k`
 - `--persist-directory, -p`
 - `--key-storage, -k`
+- `--embedding-model`
+- `--embedding-device`
 
 ### 5) `export`
 
@@ -162,12 +166,16 @@ Options:
 - `--k`
 - `--retrieval-mode` (`similarity` or `runtime`)
 - `--persist-directory, -p`
+- `--embedding-model`
+- `--embedding-device`
 - `--show-failures`
 - `--output-json`
 - `--output-csv`
 - `--history-csv` (append one summary row per run)
 
 `runtime` mode uses `ConversationManager` retrieval (`_search_collection`), so MMR/rerank behavior is included in evaluation.
+
+All collections are fingerprint-validated before evaluation. If a collection has conflicting fingerprint metadata, evaluation exits with a clear error.
 
 ### 8) `benchmark-rerank`
 
@@ -182,6 +190,43 @@ CI gate example (non-zero exit if runtime is worse than similarity on Recall@k o
 ```bash
 uv run python -m scripts.rag.manage_collections benchmark-rerank --require-runtime-win
 ```
+
+Optional embedding override flags:
+
+- `--embedding-model`
+- `--embedding-device`
+
+### 9) `backfill-embedding-fingerprint`
+
+Backfill fingerprint metadata for legacy collections created before fingerprint enforcement.
+
+Preview:
+
+```bash
+uv run python -m scripts.rag.manage_collections backfill-embedding-fingerprint --dry-run
+```
+
+Apply:
+
+```bash
+uv run python -m scripts.rag.manage_collections backfill-embedding-fingerprint
+```
+
+Target subset and force conflicts:
+
+```bash
+uv run python -m scripts.rag.manage_collections backfill-embedding-fingerprint \
+  --pattern "shodan*" --force
+```
+
+Options:
+
+- `--persist-directory, -p`
+- `--pattern`
+- `--embedding-model`
+- `--embedding-device`
+- `--force`
+- `--dry-run`
 
 ### Benchmarking Instructions (Recommended Workflow)
 
