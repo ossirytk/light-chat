@@ -4,6 +4,14 @@ from pathlib import Path
 
 import click
 
+from scripts.rag.benchmark_embedding_models import (
+    EmbeddingModelSpec,
+    format_benchmark_table,
+    load_model_specs_from_json,
+    run_embedding_benchmark,
+    write_benchmark_report_csv,
+    write_benchmark_report_json,
+)
 from scripts.rag.manage_collections_core import (
     FixtureEvalOptions,
     _append_fixture_history_csv,
@@ -155,7 +163,104 @@ def benchmark_rerank(**kwargs: object) -> None:
         raise click.ClickException(msg)
 
 
+@click.command("benchmark-embedding-models")
+@click.option(
+    "--config",
+    "config_path",
+    type=click.Path(path_type=Path),
+    default=None,
+    help="JSON file listing models to benchmark (model_id, normalize, device, label)",
+)
+@click.option(
+    "--model",
+    "inline_models",
+    multiple=True,
+    metavar="MODEL_ID[:LABEL]",
+    help="Inline model spec; repeatable. Overrides --config when provided.",
+)
+@click.option(
+    "--fixture-file",
+    "fixture_file",
+    default=Path("tests/fixtures/retrieval_fixtures.json"),
+    type=click.Path(path_type=Path),
+    show_default=True,
+    help="Retrieval fixture JSON to evaluate against",
+)
+@click.option(
+    "--persist-directory",
+    "-p",
+    default=None,
+    help="Directory where ChromaDB stores collections",
+)
+@click.option("--k", type=int, default=None, help="Override top-k for all fixture queries")
+@click.option("--device", default="cpu", show_default=True, help="Default device for inline --model specs")
+@click.option(
+    "--output-json",
+    type=click.Path(path_type=Path),
+    default=None,
+    help="Write benchmark report as JSON",
+)
+@click.option(
+    "--output-csv",
+    type=click.Path(path_type=Path),
+    default=None,
+    help="Write per-model metrics as CSV",
+)
+def benchmark_embedding_models(**kwargs: object) -> None:
+    """Compare embedding models on Recall@k, MRR, and MAP@k using in-memory reproductions.
+
+    Fetches corpus texts from existing collections, re-embeds them with each candidate
+    model in-memory, runs the fixture queries, and prints a ranked comparison table.
+
+    Provide models via --config (JSON file) or one or more --model flags.
+    """
+    config_path: Path | None = kwargs["config_path"]  # type: ignore[assignment]
+    inline_models: tuple[str, ...] = kwargs["inline_models"]  # type: ignore[assignment]
+    fixture_file: Path = kwargs["fixture_file"]  # type: ignore[assignment]
+    persist_directory: str | None = kwargs["persist_directory"]  # type: ignore[assignment]
+    k: int | None = kwargs["k"]  # type: ignore[assignment]
+    device = str(kwargs["device"])
+    output_json: Path | None = kwargs["output_json"]  # type: ignore[assignment]
+    output_csv: Path | None = kwargs["output_csv"]  # type: ignore[assignment]
+
+    model_specs: list[EmbeddingModelSpec] = []
+
+    if inline_models:
+        for entry in inline_models:
+            parts = entry.split(":", 1)
+            model_id = parts[0].strip()
+            label = parts[1].strip() if len(parts) > 1 else ""
+            if model_id:
+                model_specs.append(EmbeddingModelSpec(model_id=model_id, device=device, label=label))
+    elif config_path is not None:
+        model_specs = load_model_specs_from_json(config_path)
+    else:
+        msg = "Provide --config or at least one --model flag"
+        raise click.UsageError(msg)
+
+    if not model_specs:
+        msg = "No valid model specs resolved from input"
+        raise click.ClickException(msg)
+
+    run = run_embedding_benchmark(
+        model_specs=model_specs,
+        fixture_file=fixture_file,
+        persist_directory=persist_directory,
+        k_override=k,
+    )
+
+    click.echo("\n" + format_benchmark_table(run))
+
+    if output_json is not None:
+        write_benchmark_report_json(output_json, run)
+        click.echo(f"Wrote JSON report: {output_json}")
+    if output_csv is not None:
+        write_benchmark_report_csv(output_csv, run)
+        click.echo(f"Wrote CSV report: {output_csv}")
+
+
 def register_eval_commands(cli: click.Group) -> None:
     """Attach evaluation-related commands to a CLI group."""
     cli.add_command(evaluate_fixtures)
     cli.add_command(benchmark_rerank)
+    cli.add_command(benchmark_embedding_models)
