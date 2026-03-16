@@ -54,7 +54,8 @@ def coverage_score(
 ) -> None:
     """Score coverage of metadata against source document."""
     if not 0.0 <= threshold <= 1.0:
-        raise click.BadParameter("threshold must be between 0.0 and 1.0")
+        param_err = "threshold must be between 0.0 and 1.0"
+        raise click.BadParameter(param_err)
 
     if not source_file.exists():
         raise click.FileError(str(source_file), "Source file not found")
@@ -64,7 +65,8 @@ def coverage_score(
         with source_file.open(encoding="utf-8") as f:
             source_text = f.read()
     except Exception as e:
-        raise click.ClickException(f"Error loading files: {e}")
+        msg = f"Error loading files: {e}"
+        raise click.ClickException(msg) from e
 
     metrics = extract_coverage_metrics(source_text, metadata)
     report = format_coverage_report(metrics, threshold)

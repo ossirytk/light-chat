@@ -322,7 +322,7 @@ class CliOptions:
     is_flag=True,
     help="If set, entities below confidence threshold get category=null instead of fallback",
 )
-def main(**kwargs: object) -> None:
+def main(**kwargs: object) -> None:  # noqa: PLR0915
     """Push a text file to ChromaDB with metadata enrichment.
 
     This script provides enhanced features over prepare_rag.py:
@@ -350,6 +350,13 @@ def main(**kwargs: object) -> None:
     force_low_coverage = kwargs.get("force_low_coverage", False)
     category_confidence_threshold = kwargs.get("category_confidence_threshold", 0.75)
     allow_unassigned_categories = kwargs.get("allow_unassigned_categories", False)
+
+    # Category flags are applied at analyze-time; log them for visibility only
+    logger.debug(
+        "Category config (applies at analyze-time): threshold={}, allow_unassigned={}",
+        category_confidence_threshold,
+        allow_unassigned_categories,
+    )
 
     logger.info(f"Processing file: {file_path}")
     logger.info(f"Target collection: {collection_name}")
@@ -391,7 +398,7 @@ def main(**kwargs: object) -> None:
                         f"below threshold {coverage_threshold * 100:.0f}%. "
                         f"Pass --force-low-coverage to override."
                     )
-                    raise click.ClickException(msg)
+                    raise click.ClickException(msg)  # noqa: TRY301
                 logger.warning("Coverage below threshold but --force-low-coverage flag is set, proceeding")
         except click.ClickException:
             raise

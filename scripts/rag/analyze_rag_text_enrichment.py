@@ -7,7 +7,6 @@ from typing import Any
 
 from scripts.rag.analyze_rag_text_types import (
     ALIAS_STRICT_THRESHOLD,
-    CATEGORY_STRICT_THRESHOLD,
     EVENT_HINTS,
     FACTION_HINTS,
     LOCATION_HINTS,

@@ -8,7 +8,6 @@ import re
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Optional
 
 from loguru import logger
 
@@ -55,7 +54,7 @@ class MessageExamplesLinter:
     OLD_USER_LABEL_PATTERN = re.compile(r"^\s*(?:User|USER|user):\s*", re.IGNORECASE)
     OLD_ASSISTANT_LABEL_PATTERN = re.compile(r"^\s*(?:Assistant|ASSISTANT|assistant):\s*", re.IGNORECASE)
 
-    def __init__(self, auto_fix: bool = False, fail_severity: SeverityLevel = SeverityLevel.ERROR):
+    def __init__(self, *, auto_fix: bool = False, fail_severity: SeverityLevel = SeverityLevel.ERROR) -> None:
         """Initialize linter.
 
         Args:
@@ -135,19 +134,24 @@ class MessageExamplesLinter:
         violations: list[LintViolation] = []
         found_header = False
 
-        for i, line in enumerate(lines[:5]):  # Check first 5 lines
+        for _i, line in enumerate(lines[:5]):  # Check first 5 lines
             if self.HEADER_PATTERN.match(line):
                 found_header = True
                 break
 
+        header_msg = (
+            "Missing HTML metadata header:"
+            " <!-- character: NAME | source: SOURCE | version: VER | edited: DATE -->"
+        )
+        header_fix = "<!-- character: CHARACTER_NAME | source: SOURCE | version: 1 | edited: 2024-03-16 -->"
         if not found_header:
             violations.append(
                 LintViolation(
                     line_no=0,
                     rule_id="missing_header",
-                    message="Missing HTML metadata header: <!-- character: NAME | source: SOURCE | version: VER | edited: DATE -->",
+                    message=header_msg,
                     severity=SeverityLevel.ERROR,
-                    suggested_fix="<!-- character: CHARACTER_NAME | source: SOURCE | version: 1 | edited: 2024-03-16 -->",
+                    suggested_fix=header_fix,
                 )
             )
 
@@ -197,9 +201,8 @@ class MessageExamplesLinter:
         for i, line in enumerate(lines, 1):
             is_label = self.USER_MESSAGE_PATTERN.match(line) or self.ASSISTANT_MESSAGE_PATTERN.match(line)
 
-            if is_label and prev_was_message_end and i > 2:
-                if lines[i - 2].strip():
-                    violations.append(
+            if is_label and prev_was_message_end and i > 2 and lines[i - 2].strip():  # noqa: PLR2004
+                violations.append(
                         LintViolation(
                             line_no=i - 1,
                             rule_id="missing_blank_line",
@@ -247,14 +250,13 @@ class MessageExamplesLinter:
 
             else:
                 line_idx = violation.line_no - 1
-                if line_idx < len(fixed_lines):
-                    if violation.rule_id in ("old_label_format", "malformed_section_break"):
-                        fixed_lines[line_idx] = violation.suggested_fix + "\n"
+                if line_idx < len(fixed_lines) and violation.rule_id in ("old_label_format", "malformed_section_break"):
+                    fixed_lines[line_idx] = violation.suggested_fix + "\n"
 
         return fixed_lines
 
 
-def lint_file_path(file_path: Path, auto_fix: bool = False) -> LintReport:
+def lint_file_path(file_path: Path, *, auto_fix: bool = False) -> LintReport:
     """Convenience function to lint a single file."""
     linter = MessageExamplesLinter(auto_fix=auto_fix)
     return linter.lint_file(file_path)

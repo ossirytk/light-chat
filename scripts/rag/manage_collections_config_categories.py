@@ -22,7 +22,8 @@ class CategoryThresholdConfig:
     def validate(self) -> None:
         """Validate configuration values."""
         if not 0.0 <= self.strict_threshold <= 1.0:
-            raise ValueError(f"strict_threshold must be between 0.0 and 1.0, got {self.strict_threshold}")
+            msg = f"strict_threshold must be between 0.0 and 1.0, got {self.strict_threshold}"
+            raise ValueError(msg)
 
     def __repr__(self) -> str:
         return (

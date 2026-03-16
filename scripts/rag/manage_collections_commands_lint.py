@@ -4,13 +4,11 @@ import sys
 from pathlib import Path
 
 import click
-from loguru import logger
 
 from scripts.rag.lint_message_examples import (
     MessageExamplesLinter,
     SeverityLevel,
     format_lint_report,
-    lint_file_path,
 )
 
 

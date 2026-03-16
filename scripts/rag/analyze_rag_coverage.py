@@ -14,6 +14,7 @@ from typing import Any
 MIN_TEXT_LENGTH = 3
 MIN_SEGMENT_LENGTH = 20
 MAX_DISPLAY_LENGTH = 100
+REPORT_DISPLAY_TRUNCATE = 60
 
 @dataclass
 class CoverageMetrics:
@@ -47,7 +48,7 @@ def _fuzzy_match(text: str, source: str, threshold: float = 0.8) -> bool:
     return False
 
 
-def _extract_matched_segments(
+def _extract_matched_segments(  # noqa: PLR0912
     source_text: str,
     metadata_texts: list[str],
 ) -> tuple[int, list[str]]:
@@ -167,7 +168,8 @@ def extract_coverage_metrics(
 def load_metadata_file(metadata_path: Path) -> list[dict[str, Any]]:
     """Load and normalize metadata from JSON file."""
     if not metadata_path.exists():
-        raise FileNotFoundError(f"Metadata file not found: {metadata_path}")
+        msg = f"Metadata file not found: {metadata_path}"
+        raise FileNotFoundError(msg)
 
     with metadata_path.open(encoding="utf-8") as f:
         data = json.load(f)
@@ -176,7 +178,8 @@ def load_metadata_file(metadata_path: Path) -> list[dict[str, Any]]:
         data = data["Content"]
 
     if not isinstance(data, list):
-        raise ValueError(f"Expected metadata to be a list, got {type(data)}")
+        msg = f"Expected metadata to be a list, got {type(data)}"
+        raise TypeError(msg)
 
     return data
 
@@ -191,7 +194,10 @@ def format_coverage_report(metrics: CoverageMetrics, threshold: float = 0.75) ->
         f"Source chars total: {metrics.total_source_chars}",
         f"Source chars covered: {metrics.covered_chars}",
         f"Coverage ratio: {metrics.source_coverage_ratio * 100:.1f}%",
-        f"Status: {'✓ PASS' if metrics.source_coverage_ratio >= threshold else '✗ FAIL'} (threshold: {threshold * 100:.0f}%)",
+        (
+            f"Status: {'✓ PASS' if metrics.source_coverage_ratio >= threshold else '✗ FAIL'}"
+            f" (threshold: {threshold * 100:.0f}%)"
+        ),
         "",
     ]
 
@@ -204,16 +210,14 @@ def format_coverage_report(metrics: CoverageMetrics, threshold: float = 0.75) ->
     if metrics.unmapped_segments:
         lines.append(f"Top {len(metrics.unmapped_segments)} unmapped text segments:")
         for seg in metrics.unmapped_segments[:5]:
-            truncated = seg[:60] + "..." if len(seg) > 60 else seg
+            truncated = seg[:REPORT_DISPLAY_TRUNCATE] + "..." if len(seg) > REPORT_DISPLAY_TRUNCATE else seg
             lines.append(f"  - {truncated}")
         lines.append("")
 
     not_found = [item for item in metrics.entity_coverage.values() if not item["found"]]
     if not_found:
         lines.append(f"Entities not found in source ({len(not_found)}/{len(metrics.entity_coverage)}):")
-        for item in not_found[:10]:
-            lines.append(f"  - {item['text'][:50]}")
+        lines.extend(f"  - {item['text'][:50]}" for item in not_found[:10])
         lines.append("")
-
     lines.append("=" * 70)
     return "\n".join(lines)
