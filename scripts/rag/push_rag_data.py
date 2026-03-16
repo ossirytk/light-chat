@@ -28,6 +28,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from loguru import logger
 
 from core.config import configure_logging, load_app_config, load_rag_script_config
+from scripts.rag.analyze_rag_coverage import extract_coverage_metrics, format_coverage_report, load_metadata_file
 
 type MetadataItem = dict[str, object]
 type MetadataList = list[MetadataItem]
@@ -262,6 +263,8 @@ class CliOptions:
     threads: int | None
     dry_run: bool
     overwrite: bool
+    coverage_threshold: float = 0.75
+    force_low_coverage: bool = False
 
 
 @click.command()
@@ -297,6 +300,28 @@ class CliOptions:
 @click.option("--embedding-device", default=None, help="Override embedding device for this run")
 @click.option("--dry-run", "-d", is_flag=True, help="Show what would be done without making changes")
 @click.option("--overwrite", "-w", is_flag=True, help="Overwrite existing collection if it exists")
+@click.option(
+    "--coverage-threshold",
+    type=float,
+    default=0.75,
+    help="Minimum source coverage ratio (0.0-1.0) required for push; default 0.75",
+)
+@click.option(
+    "--force-low-coverage",
+    is_flag=True,
+    help="Bypass coverage threshold check if below minimum",
+)
+@click.option(
+    "--category-confidence-threshold",
+    type=float,
+    default=0.75,
+    help="Minimum confidence required to assign entity category (0.0-1.0); default 0.75",
+)
+@click.option(
+    "--allow-unassigned-categories",
+    is_flag=True,
+    help="If set, entities below confidence threshold get category=null instead of fallback",
+)
 def main(**kwargs: object) -> None:
     """Push a text file to ChromaDB with metadata enrichment.
 
@@ -321,6 +346,10 @@ def main(**kwargs: object) -> None:
     chunk_overlap = kwargs.get("chunk_overlap") or script_config.chunk_overlap
     dry_run = kwargs.get("dry_run", False)
     overwrite = kwargs.get("overwrite", False)
+    coverage_threshold = kwargs.get("coverage_threshold", 0.75)
+    force_low_coverage = kwargs.get("force_low_coverage", False)
+    category_confidence_threshold = kwargs.get("category_confidence_threshold", 0.75)
+    allow_unassigned_categories = kwargs.get("allow_unassigned_categories", False)
 
     logger.info(f"Processing file: {file_path}")
     logger.info(f"Target collection: {collection_name}")
@@ -345,6 +374,29 @@ def main(**kwargs: object) -> None:
         logger.info(f"Enriched {metadata_count} documents with metadata")
     else:
         logger.warning("No metadata file found, proceeding without enrichment")
+
+    # Phase 3b: Coverage quality gate
+    if metadata_file.exists():
+        try:
+            source_text = file_path.read_text(encoding="utf-8")
+            metadata = load_metadata_file(metadata_file)
+            metrics = extract_coverage_metrics(source_text, metadata)
+            report = format_coverage_report(metrics, coverage_threshold)
+            logger.info(f"\nCoverage Quality Gate:\n{report}")
+
+            if metrics.source_coverage_ratio < coverage_threshold:
+                if not force_low_coverage:
+                    msg = (
+                        f"Source coverage {metrics.source_coverage_ratio * 100:.1f}% "
+                        f"below threshold {coverage_threshold * 100:.0f}%. "
+                        f"Pass --force-low-coverage to override."
+                    )
+                    raise click.ClickException(msg)
+                logger.warning("Coverage below threshold but --force-low-coverage flag is set, proceeding")
+        except click.ClickException:
+            raise
+        except Exception as e:
+            logger.warning(f"Could not compute coverage metrics: {e}")
 
     logger.info("Initializing ChromaDB client and embedder...")
     embedding_device = kwargs.get("embedding_device") or script_config.embedding_device

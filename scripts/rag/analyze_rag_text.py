@@ -49,6 +49,17 @@ def cli() -> None:
 @click.option("--max-aliases", default=5, type=int, help="Maximum alias count to generate per metadata entry")
 @click.option("--strict", is_flag=True, help="Emit only high-confidence category and alias enrichments")
 @click.option(
+    "--category-confidence-threshold",
+    type=float,
+    default=0.75,
+    help="Minimum confidence required to assign entity category (0.0-1.0); default 0.75",
+)
+@click.option(
+    "--allow-unassigned-categories",
+    is_flag=True,
+    help="If set, entities below confidence threshold get category=null instead of fallback",
+)
+@click.option(
     "--review-report",
     type=click.Path(path_type=Path),
     help="Output JSON file with enrichment decision details",
@@ -62,6 +73,8 @@ def analyze(  # noqa: PLR0913
     auto_aliases: bool,
     max_aliases: int,
     strict: bool,
+    category_confidence_threshold: float,
+    allow_unassigned_categories: bool,
     review_report: Path | None,
     verbose: bool,
 ) -> None:
@@ -71,6 +84,8 @@ def analyze(  # noqa: PLR0913
         auto_aliases=auto_aliases,
         max_aliases=max_aliases,
         strict=strict,
+        category_confidence_threshold=category_confidence_threshold,
+        allow_unassigned_categories=allow_unassigned_categories,
     )
 
     result = analyze_text_file(

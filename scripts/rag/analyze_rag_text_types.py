@@ -27,6 +27,8 @@ class EnrichmentOptions:
     auto_aliases: bool = True
     max_aliases: int = 5
     strict: bool = False
+    category_confidence_threshold: float = 0.75
+    allow_unassigned_categories: bool = False
 
 
 STOPWORD_ALIASES = {

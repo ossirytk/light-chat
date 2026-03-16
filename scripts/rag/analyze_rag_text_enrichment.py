@@ -275,14 +275,19 @@ def generate_metadata_from_entities(
 
         if enrichment.auto_categories:
             category, confidence = infer_category_with_confidence(stripped_entity, text)
-            category_kept = not enrichment.strict or confidence >= CATEGORY_STRICT_THRESHOLD
+            category_kept = (
+                not enrichment.strict
+                or confidence >= enrichment.category_confidence_threshold
+            )
             if category_kept:
                 entry["category"] = category
+            elif enrichment.allow_unassigned_categories:
+                entry["category"] = None
             review_item["category"] = {
                 "value": category,
                 "confidence": round(confidence, 3),
                 "kept": category_kept,
-                "reason": "kept" if category_kept else "strict_low_confidence",
+                "reason": "kept" if category_kept else "low_confidence",
             }
 
         if enrichment.auto_aliases:
