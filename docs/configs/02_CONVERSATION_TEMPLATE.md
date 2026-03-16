@@ -1,6 +1,6 @@
 # conversation_template.json
 
-Last verified: 2026-03-06
+Last verified: 2026-03-12
 
 File: `configs/conversation_template.json`
 
@@ -8,7 +8,7 @@ File: `configs/conversation_template.json`
 
 Defines the prompt template used by non-mistral model paths.
 
-For `MODEL_TYPE == mistral`, runtime uses a dedicated prompt builder in `ConversationManager` and does not rely on this template for the final prompt string.
+For `MODEL_TYPE == mistral`, runtime uses a dedicated prompt builder in `ConversationPromptHistoryMixin` (via `ConversationManager`) and does not rely on this template for the final prompt string.
 
 ## Template Type
 
@@ -50,5 +50,5 @@ Current template expects:
 
 ## Related Runtime Code
 
-- Prompt loading: `ConversationManager._load_prompt_template`
-- Prompt inputs for template path: `ConversationManager._build_conversation_chain`
+- Prompt loading: `ConversationModelSetupMixin._load_prompt_template`
+- Prompt inputs for template path: `ConversationPromptHistoryMixin._build_conversation_chain`

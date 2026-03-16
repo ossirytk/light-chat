@@ -12,7 +12,8 @@
         "documents_directory": "./rag_data/"
     },
     "embedding": {
-        "device": "cpu"
+        "device": "cpu",
+        "model": "sentence-transformers/all-mpnet-base-v2"
     },
     "runtime": {
         "threads": 6
@@ -37,8 +38,8 @@
         "top_k": 50,
         "last_n_tokens_size": 256,
         "max_tokens": 4096,
-        "hard_max_tokens": 512,
-        "max_stream_chars": 800,
+        "hard_max_tokens": 1024,
+        "max_stream_chars": 2400,
         "max_silent_stream_chars": 120
     },
     "rag": {
@@ -96,13 +97,23 @@
         "small_talk_max_words": 8,
         "followup_rag_max_words": 12
     },
+    "conversation_quality": {
+        "persona_drift": {
+            "enabled": true,
+            "warning_threshold": 0.45,
+            "fail_threshold": 0.65,
+            "history_window": 20,
+            "heuristic_weight": 0.6,
+            "semantic_weight": 0.4
+        }
+    },
     "fallback": {
         "empty_stream": "I am unable to produce a visible response right now. Please try again.",
         "quality": "I will not repeat myself. Ask your question with more specificity."
     },
     "debug": {
-        "prompt": true,
-        "prompt_fingerprint": true,
+        "prompt": false,
+        "prompt_fingerprint": false,
         "context": false
     },
     "logging": {

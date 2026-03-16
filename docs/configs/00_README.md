@@ -1,6 +1,6 @@
 # Config Files Documentation
 
-Last verified: 2026-03-06
+Last verified: 2026-03-12
 
 This section documents configuration files in `configs/`.
 
@@ -19,4 +19,6 @@ This section documents configuration files in `configs/`.
 
 - `core/config.py`
 - `core/conversation_manager.py`
+- `core/conversation_model_setup_mixin.py`
+- `core/conversation_prompt_history_mixin.py`
 - `scripts/rag/*.py`

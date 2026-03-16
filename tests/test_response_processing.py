@@ -217,8 +217,8 @@ class TestStreamResponse(unittest.TestCase):
             ),
         )
 
-        self.assertEqual(result, "Hello there.\nUser: continue")
-        self.assertEqual("".join(collected), "Hello there.\nUser: continue")
+        self.assertEqual(result, "Hello there.")
+        self.assertEqual("".join(collected), "Hello there.")
 
     def test_stops_stream_at_max_stream_chars(self) -> None:
         """Streaming should stop when MAX_STREAM_CHARS threshold is hit."""
@@ -330,8 +330,8 @@ class TestContextChunkFiltering(unittest.TestCase):
 class TestAskQuestionHistoryProgression(unittest.TestCase):
     """Validate ask_question history advancement on quality-check failures."""
 
-    def test_quality_failure_still_updates_history_with_fallback(self) -> None:
-        """When response fails quality checks, user turn should still progress history."""
+    def test_quality_failure_still_updates_history_with_streamed_response(self) -> None:
+        """When response fails quality checks, history should store streamed response for consistency."""
         mgr = _make_manager(character_name="Shodan", ai_history=["Repeated line"])
         mgr.runtime_config.quality_fallback_response = (
             "I will not repeat myself. Ask your question with more specificity."
@@ -342,17 +342,37 @@ class TestAskQuestionHistoryProgression(unittest.TestCase):
         async def fake_stream_response(*_args: object, **_kwargs: object) -> str:
             return "Repeated line"
 
-        mgr._prepare_vector_context = lambda _msg: (" ", "")  # type: ignore[method-assign]  # noqa: SLF001
-        mgr._build_conversation_chain = lambda _m, _v, _e: (object(), object())  # type: ignore[method-assign]  # noqa: SLF001
+        mgr._prepare_vector_context = lambda _msg: (" ", "", None)  # type: ignore[method-assign]  # noqa: SLF001
+        mgr._build_conversation_chain = lambda _m, _v, _e, _h: (object(), object())  # type: ignore[method-assign]  # noqa: SLF001
         mgr._stream_response = fake_stream_response  # type: ignore[method-assign]  # noqa: SLF001
 
         asyncio.run(mgr.ask_question("Are you well?"))
 
         self.assertEqual(mgr.user_message_history[-1], "Are you well?")
-        self.assertEqual(
-            mgr.ai_message_history[-1],
-            "I will not repeat myself. Ask your question with more specificity.",
-        )
+        self.assertEqual(mgr.ai_message_history[-1], "Repeated line")
+
+    def test_ask_question_passes_allocated_history_to_chain_builder(self) -> None:
+        """Allocated dynamic history should be used when building the final prompt chain."""
+        mgr = _make_manager(character_name="Shodan")
+        mgr.first_message = ""
+        mgr._greeting_in_history = False  # noqa: SLF001
+        allocated_history = "User: prior\nShodan: earlier reply\n"
+        captured_history: dict[str, str | None] = {"value": None}
+
+        async def fake_stream_response(*_args: object, **_kwargs: object) -> str:
+            return "This is a sufficiently long and distinct answer for history consistency."
+
+        def fake_build_chain(_m: str, _v: str, _e: str, history_override: str | None) -> tuple[object, object]:
+            captured_history["value"] = history_override
+            return object(), object()
+
+        mgr._prepare_vector_context = lambda _msg: (" ", "", allocated_history)  # type: ignore[method-assign]  # noqa: SLF001
+        mgr._build_conversation_chain = fake_build_chain  # type: ignore[method-assign]  # noqa: SLF001
+        mgr._stream_response = fake_stream_response  # type: ignore[method-assign]  # noqa: SLF001
+
+        asyncio.run(mgr.ask_question("Proceed"))
+
+        self.assertEqual(captured_history["value"], allocated_history)
 
 
 class TestMistralPromptBuilder(unittest.TestCase):

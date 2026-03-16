@@ -1,6 +1,6 @@
 # RAG Scripts Guide
 
-Last verified: 2026-03-07
+Last verified: 2026-03-12
 
 This guide documents the current CLI behavior for scripts in `scripts/rag/`.
 
@@ -75,12 +75,15 @@ Common options:
 - `-t, --threads`
 - `-p, --persist-directory`
 - `-k, --key-storage`
+- `--embedding-model`
+- `--embedding-device`
 
 Notes:
 
 - Leading HTML header comments are stripped before chunking.
 - Metadata file auto-detection maps `<name>.txt` (and `<name>_message_examples.txt`) to `<name>.json`.
 - Metadata enrichment workers use `ProcessPoolExecutor` with `spawn` context to avoid Python 3.13 `fork()` deprecation warnings in multithreaded runs.
+- Collection writes stamp embedding fingerprint metadata and non-overwrite pushes block mixed-model writes.
 
 ---
 
@@ -110,6 +113,11 @@ uv run python scripts/rag/manage_collections.py delete-multiple --pattern "test_
 uv run python scripts/rag/manage_collections.py test shodan -q "SHODAN origin" -k 5
 ```
 
+Optional embedding overrides:
+
+- `--embedding-model`
+- `--embedding-device`
+
 ### Export
 
 ```bash
@@ -131,9 +139,19 @@ uv run python -m scripts.rag.manage_collections evaluate-fixtures --fixture-file
 Options:
 
 - `--show-failures`
+- `--embedding-model`
+- `--embedding-device`
 - `--output-json <path>`
 - `--output-csv <path>`
 - `--history-csv <path>` (append one summary row per run for trend tracking)
+
+### Backfill embedding fingerprint metadata
+
+```bash
+uv run python -m scripts.rag.manage_collections backfill-embedding-fingerprint --dry-run
+```
+
+Use this after upgrading to fingerprint enforcement to migrate legacy collections.
 
 ---
 
@@ -164,5 +182,9 @@ uv run python scripts/rag/manage_collections.py test new_char -q "intro prompt" 
 ## Related Files
 
 - `core/conversation_manager.py`
+- `core/conversation_retrieval_mixin.py`
+- `core/conversation_retrieval_orchestration_mixin.py`
+- `core/conversation_retrieval_backend_mixin.py`
+- `core/retrieval_keys.py`
 - `scripts/rag/manage_collections.py`
 - `tests/test_rag_scripts.py`

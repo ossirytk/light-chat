@@ -1,6 +1,6 @@
 # Context Management Implementation Notes
 
-Last verified: 2026-03-07
+Last verified: 2026-03-12
 
 ## Runtime Entry Points
 
@@ -17,17 +17,19 @@ Both instantiate `ConversationManager` and use the same backend logic.
 - Allocates token budget across history/examples/context.
 - Uses approximate token counting by default.
 
-### `ConversationManager` (`core/conversation_manager.py`)
+### `ConversationManager` Composition
 
 Responsibilities:
 
-- Load configs and prompt/card data.
-- Instantiate model with GPU layer logic + KV cache settings.
-- Retrieve and clean RAG context.
-- Build prompt per model type.
-- Stream with guardrails.
-- Post-process response and update history with quality gating.
-- Compact older conversation turns into summary entries with topic-shift annotations.
+- `core/conversation_manager.py`: runtime orchestrator and shared state setup.
+- `core/conversation_model_setup_mixin.py`: config/card/template parsing and model instantiation.
+- `core/conversation_retrieval_mixin.py`: retrieval facade.
+	- `core/conversation_retrieval_backend_mixin.py`: vector DB/search/rerank backend.
+	- `core/conversation_retrieval_postprocess_mixin.py`: retrieval filtering/dedupe/compression.
+	- `core/conversation_retrieval_orchestration_mixin.py`: retrieval flow, telemetry, query expansion.
+	- `core/conversation_retrieval_keyfile_mixin.py`: keyfile loading and alias/metadata matching.
+- `core/conversation_prompt_history_mixin.py`: history summarization and prompt assembly.
+- `core/conversation_response_mixin.py`: streaming guards, post-processing, quality gating, history/state API.
 
 ## Important Behaviors
 

@@ -1,6 +1,6 @@
 # push_rag_data.py
 
-Last verified: 2026-03-07
+Last verified: 2026-03-12
 
 Script path: `scripts/rag/push_rag_data.py`
 
@@ -27,6 +27,8 @@ Optional:
 - `--chunk-size, -cs`
 - `--chunk-overlap, -co`
 - `--threads, -t`
+- `--embedding-model`
+- `--embedding-device`
 - `--dry-run, -d`
 - `--overwrite, -w`
 
@@ -40,6 +42,7 @@ Optional:
    - auto-detect from file stem (`<name>.json`, with `_message_examples` normalized)
 5. Enrich chunk metadata by matching known key values in chunk text
 6. Build embeddings and write to Chroma collection
+7. Stamp collection-level embedding fingerprint metadata (`embedding:model`, `embedding:normalize`, `embedding:dimension` when inferable)
 
 ## Notes on Enrichment
 
@@ -52,6 +55,23 @@ Optional:
 
 - Use `--dry-run` to preview execution.
 - Use `--overwrite` when intentionally replacing an existing collection.
+- Without `--overwrite`, write attempts now validate existing collection fingerprint metadata and refuse mixed-model writes.
+
+## Embedding Fingerprint and Compatibility
+
+- Fingerprint metadata is written at collection level for newly created/overwritten collections.
+- This metadata is used by runtime and collection tooling to block mixed embedding model usage.
+- For legacy collections that predate fingerprint metadata, use:
+
+```bash
+uv run python -m scripts.rag.manage_collections backfill-embedding-fingerprint --dry-run
+```
+
+Then apply updates:
+
+```bash
+uv run python -m scripts.rag.manage_collections backfill-embedding-fingerprint
+```
 
 ## Example Workflows
 
@@ -59,6 +79,14 @@ Optional:
 
 ```bash
 uv run python scripts/rag/push_rag_data.py rag_data/shodan.txt -c shodan -w
+```
+
+### Push with explicit embedding override
+
+```bash
+uv run python scripts/rag/push_rag_data.py rag_data/shodan.txt -c shodan -w \
+   --embedding-model sentence-transformers/all-mpnet-base-v2 \
+   --embedding-device cpu
 ```
 
 ### Push message-example collection

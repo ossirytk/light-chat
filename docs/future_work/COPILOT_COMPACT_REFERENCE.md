@@ -1,6 +1,6 @@
 # Copilot Compact Reference — Implemented State
 
-Last verified: 2026-03-09
+Last verified: 2026-03-12
 
 Use this as the single compact reference for implemented work across conversation quality, RAG quality, and web app behavior.
 
@@ -8,6 +8,7 @@ Use this as the single compact reference for implemented work across conversatio
 
 - Prompt guidance enforces in-character responses and disallows model-generated `User:` turns.
 - `voice_instructions` from character cards is supported in prompt assembly.
+- Dynamic context budgeting now propagates allocated history/context/examples into final prompt assembly.
 - Streaming safeguards are active:
   - early stop on generated user-turn markers,
   - output cap via `MAX_STREAM_CHARS`,
@@ -18,8 +19,9 @@ Use this as the single compact reference for implemented work across conversatio
   - reject too-short responses,
   - reject responses containing user-turn markers,
   - reject exact duplicate of the previous AI response,
-  - persist `QUALITY_FALLBACK_RESPONSE` when checks fail.
+  - keep streamed output/history consistent on quality-gate fallback paths.
 - Configurable history depth (`MAX_HISTORY_TURNS`, currently `10`).
+- Conversation-turn segmentation in `ContextManager` is stabilized for reliable history budgeting.
 - Long-history summarization is implemented with deterministic summary entries and configurable thresholds.
 - Topic-shift annotations are included for lexically divergent adjacent summarized turns.
 - Dynamic context is enabled by default.
@@ -27,6 +29,9 @@ Use this as the single compact reference for implemented work across conversatio
 Primary files:
 
 - `core/conversation_manager.py`
+- `core/conversation_model_setup_mixin.py`
+- `core/conversation_prompt_history_mixin.py`
+- `core/conversation_response_mixin.py`
 - `core/context_manager.py`
 - `tests/test_response_processing.py`
 - `tests/test_history_summarization.py`
@@ -58,11 +63,12 @@ Primary files:
 - Metadata-aware staged fallbacks are implemented (`$and`, `$or`, then unfiltered).
 - Alias-aware matching is used in filter construction.
 - Separate retrieval counts are used for lore vs message examples (`RAG_K`, `RAG_K_MES`).
-- Message-example retrieval is intentionally unfiltered for style capture.
+- Message-example retrieval is intentionally unfiltered for style capture when used, and skipped in dynamic non-first-turn allocation paths to avoid redundant work.
 - Optional MMR retrieval is available (`USE_MMR`, `RAG_FETCH_K`, `LAMBDA_MULT`).
 - Optional score-threshold filtering is available when similarity mode is used (`RAG_SCORE_THRESHOLD`, `USE_MMR=false`).
 - Retrieval cleanup pipeline includes low-quality filtering, near-duplicate filtering, section dedupe, and hard context cap (`MAX_VECTOR_CONTEXT_CHARS`).
 - Dynamic context budgeting is enabled through `ContextManager`.
+- Dynamic-context exception fallback performs static retrieval rather than dropping to empty context.
 - Optional reranking stage is available (`rag.rerank.*`).
 - Optional multi-query expansion/reformulation is available (`rag.multi_query.*`).
 - Retrieval telemetry is available per turn (`rag.telemetry.enabled`).
@@ -73,6 +79,12 @@ Primary files:
 Primary files:
 
 - `core/conversation_manager.py`
+- `core/conversation_retrieval_mixin.py`
+- `core/conversation_retrieval_backend_mixin.py`
+- `core/conversation_retrieval_postprocess_mixin.py`
+- `core/conversation_retrieval_orchestration_mixin.py`
+- `core/conversation_retrieval_keyfile_mixin.py`
+- `core/retrieval_keys.py`
 - `core/context_manager.py`
 - `scripts/rag/manage_collections.py`
 - `tests/test_search_collection.py`

@@ -1,6 +1,6 @@
 # RAG Workflows and Troubleshooting
 
-Last verified: 2026-03-07
+Last verified: 2026-03-12
 
 ## Recommended End-to-End Workflow
 
@@ -39,6 +39,15 @@ uv run python -m scripts.rag.manage_collections evaluate-fixtures \
   --history-csv logs/retrieval_eval_history.csv
 ```
 
+If needed, pin the embedding model/device used by evaluation:
+
+```bash
+uv run python -m scripts.rag.manage_collections evaluate-fixtures \
+  --fixture-file tests/fixtures/retrieval_fixtures.json \
+  --embedding-model sentence-transformers/all-mpnet-base-v2 \
+  --embedding-device cpu
+```
+
 For paired similarity vs runtime benchmarking, rerank gate checks, and interpretation guidance, see:
 
 - `docs/rag_management/03_MANAGE_COLLECTIONS.md` → **Benchmarking Instructions (Recommended Workflow)**
@@ -70,6 +79,22 @@ Checks:
 - fixture `collection` names match actual collection names
 - `k` large enough for expected snippet ranking
 - embedding cache/model environment is valid
+
+### `incompatible embedding fingerprint` errors
+
+Cause: collection metadata indicates a different embedding model/normalization/dimension than the current run.
+
+Fix options:
+
+- Re-run using matching embedding flags (`--embedding-model`, `--embedding-device`).
+- If collections are legacy and missing/old metadata, run fingerprint migration:
+
+```bash
+uv run python -m scripts.rag.manage_collections backfill-embedding-fingerprint --dry-run
+uv run python -m scripts.rag.manage_collections backfill-embedding-fingerprint
+```
+
+- Use `--force` only when intentionally replacing conflicting fingerprint keys.
 
 ### Metadata not enriching chunks
 
