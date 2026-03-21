@@ -26,34 +26,32 @@ Character-focused local chatbot with RAG support (ChromaDB + LangChain), CLI and
 
 Run either with `uv`:
 
-```bash
+```powershell
 uv run python main.py
 uv run uvicorn web_app:app --host 127.0.0.1 --port 8000
 ```
 
-VS Code task shortcuts (no manual shell command typing):
+Primary desktop workflow:
 
-- Run `Tasks: Run Task` and choose `web:start` to launch the web server.
-- Run `Tasks: Run Task` and choose `web:stop` to stop it.
-- Run `Tasks: Run Task` and choose `web:restart` to do both in sequence.
-- Run `Tasks: Run Task` and choose `web:start+open` to launch and open the URL.
-- Run `Tasks: Run Task` and choose `web:open` to open `http://127.0.0.1:8000` manually.
+- Open the repository from the Windows dev drive in VS Code.
+- Use the integrated PowerShell terminal to run the `uv` commands above.
+- WSL/Ubuntu with `fish` remains a supported alternative workflow if you still use it.
 
-Task config lives in `.vscode/tasks.json`.
+There is currently no checked-in `.vscode/tasks.json` or `.vscode/launch.json`, so the documented `uv` commands above are the source of truth for starting the app.
 
-VS Code Run/Debug workflow:
+If you create local VS Code tasks or debug profiles, point them at the same `uv` commands rather than assuming a Unix-only shell.
 
-- Open Run and Debug (`Ctrl+Shift+D`).
-- Select `Web App (Uvicorn)` from `.vscode/launch.json`.
-- Press `F5` to start the server.
-- Press Stop in the Debug toolbar to terminate it.
+Stop the web server from another terminal:
 
-Recommended daily workflow:
+PowerShell:
 
-- Fast run loop: `Tasks: Run Task` → `web:start+open`, and stop with `web:stop`.
-- Breakpoint debugging: Run and Debug → `Web App (Uvicorn)` → `F5`, then Stop.
+```powershell
+Get-NetTCPConnection -LocalPort 8000 -State Listen |
+  Select-Object -ExpandProperty OwningProcess -Unique |
+  ForEach-Object { Stop-Process -Id $_ }
+```
 
-Stop the web server (from another terminal):
+WSL/Unix alternative:
 
 ```bash
 pkill -f 'uvicorn web_app:app'
@@ -61,12 +59,12 @@ pkill -f 'uvicorn web_app:app'
 
 Web diagnostics endpoints:
 
-```bash
-curl -s http://127.0.0.1:8000/health
-curl -s http://127.0.0.1:8000/healthz/full
-curl -s http://127.0.0.1:8000/chat/debug
-curl -s http://127.0.0.1:8000/chat/debug/history
-curl -s http://127.0.0.1:8000/chat/session/list
+```powershell
+curl.exe -s http://127.0.0.1:8000/health
+curl.exe -s http://127.0.0.1:8000/healthz/full
+curl.exe -s http://127.0.0.1:8000/chat/debug
+curl.exe -s http://127.0.0.1:8000/chat/debug/history
+curl.exe -s http://127.0.0.1:8000/chat/session/list
 ```
 
 Notes for web chat behavior:

@@ -46,7 +46,7 @@ async def main() -> None:
     try:
         while True:
             try:
-                query = input("User: ").strip()
+                query = (await asyncio.to_thread(input, "User: ")).strip()
                 if not query:
                     continue
                 thinking_stop = threading.Event()
