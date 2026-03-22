@@ -27,9 +27,13 @@
       "isBackground": true,
       "problemMatcher": [
         {
+          "owner": "custom",
           "pattern": [
             {
-              "regexp": ".+"
+              "regexp": "^(a^)()()$",
+              "file": 1,
+              "line": 2,
+              "message": 3
             }
           ],
           "background": {
