@@ -36,6 +36,7 @@ type MetadataList = list[MetadataItem]
 EMBEDDING_MODEL_METADATA_KEY = "embedding:model"
 EMBEDDING_DIMENSION_METADATA_KEY = "embedding:dimension"
 EMBEDDING_NORMALIZE_METADATA_KEY = "embedding:normalize"
+MISSING_COLLECTION_ERRORS = (ValueError, chromadb.errors.NotFoundError)
 
 
 @dataclass
@@ -87,7 +88,7 @@ def assert_collection_fingerprint_compatible(
 ) -> None:
     try:
         collection = client.get_collection(collection_name)
-    except ValueError:
+    except MISSING_COLLECTION_ERRORS:
         return
 
     metadata = collection.metadata or {}

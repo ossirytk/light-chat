@@ -37,9 +37,13 @@ Primary desktop workflow:
 - Use the integrated PowerShell terminal to run the `uv` commands above.
 - WSL/Ubuntu with `fish` remains a supported alternative workflow if you still use it.
 
-There is currently no checked-in `.vscode/tasks.json` or `.vscode/launch.json`, so the documented `uv` commands above are the source of truth for starting the app.
+The repository now includes Windows-focused VS Code tasks in `.vscode/tasks.json` for:
 
-If you create local VS Code tasks or debug profiles, point them at the same `uv` commands rather than assuming a Unix-only shell.
+- `Start web server (Windows)`
+- `Stop web server (Windows)`
+- `Restart web server (Windows)`
+
+These tasks use the same documented `uv` command shown above and run from PowerShell with Windows-friendly stop behavior on port `8000`.
 
 Stop the web server from another terminal:
 
@@ -181,6 +185,7 @@ Top-level wrappers exist for moved scripts:
 - `scripts/build_flash_attention.py`
 - `scripts/build_flash_attention.sh`
 - `scripts/build_flash_attention.ps1`
+- `scripts/build_cuda_only.ps1`
 
 ## Implementation Highlights (verified)
 
