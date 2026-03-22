@@ -179,6 +179,8 @@ Top-level wrappers exist for moved scripts:
 - `scripts/manage_collections.py`
 - `scripts/fetch_character_context.py`
 - `scripts/build_flash_attention.py`
+- `scripts/build_flash_attention.sh`
+- `scripts/build_flash_attention.ps1`
 
 ## Implementation Highlights (verified)
 
