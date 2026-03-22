@@ -37,8 +37,53 @@ function Get-CommandOutput {
     return ($output | Out-String).Trim()
 }
 
+function Resolve-CudaToolkitCandidate {
+    param([string]$Candidate)
+
+    if (-not $Candidate) {
+        return $null
+    }
+
+    $normalizedCandidate = $Candidate.Trim().Trim('"').TrimEnd('\')
+    if (-not $normalizedCandidate) {
+        return $null
+    }
+
+    if ((Split-Path -Leaf $normalizedCandidate) -ieq "nvcc.exe") {
+        $normalizedCandidate = Split-Path -Parent (Split-Path -Parent $normalizedCandidate)
+    }
+    elseif ((Split-Path -Leaf $normalizedCandidate) -ieq "bin") {
+        $normalizedCandidate = Split-Path -Parent $normalizedCandidate
+    }
+
+    if (Test-Path (Join-Path $normalizedCandidate "include")) {
+        return $normalizedCandidate
+    }
+
+    return $null
+}
+
 function Get-CudaVersion {
-    $nvccOutput = Get-CommandOutput -Name "nvcc" -Arguments @("--version")
+    param([string]$ToolkitRoot)
+
+    $nvccPath = $null
+    if ($ToolkitRoot) {
+        $candidateNvccPath = Join-Path $ToolkitRoot "bin\nvcc.exe"
+        if (Test-Path $candidateNvccPath) {
+            $nvccPath = $candidateNvccPath
+        }
+    }
+
+    if (-not $nvccPath) {
+        $nvccCommand = Get-Command -Name "nvcc" -ErrorAction SilentlyContinue
+        if (-not $nvccCommand) {
+            return $null
+        }
+
+        $nvccPath = $nvccCommand.Source
+    }
+
+    $nvccOutput = & $nvccPath --version 2>&1 | Out-String
     if (-not $nvccOutput) {
         return $null
     }
@@ -52,27 +97,18 @@ function Get-CudaVersion {
 }
 
 function Get-CudaToolkitRoot {
-    $nvccCommand = Get-Command -Name "nvcc" -ErrorAction SilentlyContinue
-    if ($nvccCommand) {
-        $toolkitBinPath = Split-Path -Parent $nvccCommand.Source
-        $toolkitRoot = Split-Path -Parent $toolkitBinPath
-        if (Test-Path (Join-Path $toolkitRoot "include")) {
-            return $toolkitRoot
+    foreach ($candidate in @($env:CUDACXX, $env:CUDA_PATH, $env:CUDAToolkit_ROOT)) {
+        $resolvedToolkitRoot = Resolve-CudaToolkitCandidate -Candidate $candidate
+        if ($resolvedToolkitRoot) {
+            return $resolvedToolkitRoot
         }
     }
 
-    foreach ($candidate in @($env:CUDA_PATH, $env:CUDAToolkit_ROOT)) {
-        if (-not $candidate) {
-            continue
-        }
-
-        $normalizedCandidate = $candidate.TrimEnd('\')
-        if ((Split-Path -Leaf $normalizedCandidate) -ieq "bin") {
-            $normalizedCandidate = Split-Path -Parent $normalizedCandidate
-        }
-
-        if (Test-Path (Join-Path $normalizedCandidate "include")) {
-            return $normalizedCandidate
+    $nvccCommand = Get-Command -Name "nvcc" -ErrorAction SilentlyContinue
+    if ($nvccCommand) {
+        $resolvedToolkitRoot = Resolve-CudaToolkitCandidate -Candidate $nvccCommand.Source
+        if ($resolvedToolkitRoot) {
+            return $resolvedToolkitRoot
         }
     }
 
@@ -82,7 +118,7 @@ function Get-CudaToolkitRoot {
 function Normalize-CudaEnvironment {
     $toolkitRoot = Get-CudaToolkitRoot
     if (-not $toolkitRoot) {
-        return
+        return $null
     }
 
     $nvccPath = Join-Path $toolkitRoot "bin\nvcc.exe"
@@ -104,9 +140,28 @@ function Normalize-CudaEnvironment {
         }
     }
 
+    $cudaBinPath = Join-Path $toolkitRoot "bin"
+    $pathEntries = @(
+        [Environment]::GetEnvironmentVariable("PATH", "Process") -split ';' |
+            Where-Object { $_ }
+    )
+    $filteredPathEntries = @(
+        $pathEntries | Where-Object {
+            $_.TrimEnd('\') -notmatch '\\NVIDIA GPU Computing Toolkit\\CUDA\\v[^\\]+\\bin$'
+        }
+    )
+    $normalizedPathEntries = @($cudaBinPath) + $filteredPathEntries
+    $normalizedPath = ($normalizedPathEntries | Select-Object -Unique) -join ';'
+    if ([Environment]::GetEnvironmentVariable("PATH", "Process") -ne $normalizedPath) {
+        [Environment]::SetEnvironmentVariable("PATH", $normalizedPath, "Process")
+        $didNormalize = $true
+    }
+
     if ($didNormalize) {
         Write-Host "✓ Normalized CUDA toolkit environment to: $toolkitRoot"
     }
+
+    return $toolkitRoot
 }
 
 function Get-NvidiaGpuInfo {
@@ -282,8 +337,56 @@ function Ensure-FlashAttentionSupported {
         Write-Host "Detected GPU: $($gpu.Name) (compute capability $($gpu.ComputeCapability))"
     }
     Write-Host "This GPU can still use the CUDA backend, but llama.cpp Flash Attention kernels do not build for it."
-    Write-Host "Rebuild without Flash Attention by using CMAKE_ARGS='-DGGML_CUDA=ON -DGGML_FLASH_ATTN=OFF'."
+    Write-Host "Rebuild without Flash Attention by using CMAKE_ARGS='-DGGML_CUDA=ON -DGGML_CUDA_FA=OFF'."
     exit 1
+}
+
+function Ensure-CudaToolkitSupportsDetectedGpus {
+    param([version]$CudaVersion)
+
+    if ($null -eq $CudaVersion -or $CudaVersion.Major -lt 13) {
+        return
+    }
+
+    $gpuInfo = @(Get-NvidiaGpuInfo)
+    if ($gpuInfo.Count -eq 0) {
+        Write-Host "⚠️  Could not determine NVIDIA GPU compute capability from nvidia-smi."
+        Write-Host "Continuing, but CUDA compiler compatibility could not be verified."
+        return
+    }
+
+    $unsupportedGpus = @(
+        $gpuInfo | Where-Object {
+            [version]$_.ComputeCapability -lt [version]"7.0"
+        }
+    )
+
+    if ($unsupportedGpus.Count -eq 0) {
+        return
+    }
+
+    Write-Host "❌ CUDA $CudaVersion cannot build this project for NVIDIA GPUs below compute capability 7.0 on Windows."
+    foreach ($gpu in $unsupportedGpus) {
+        Write-Host "Detected GPU: $($gpu.Name) (compute capability $($gpu.ComputeCapability))"
+    }
+    Write-Host "The current failure comes from nvcc rejecting the target architecture during compiler detection."
+    Write-Host "For Pascal-era GPUs such as compute capability 6.1, CUDA 13.x fails with: nvcc fatal : Unsupported gpu architecture 'compute_61'."
+    Write-Host "Install a CUDA 12.x toolkit (12.4+ recommended), reopen PowerShell, and rerun .\scripts\build_cuda_only.ps1."
+    exit 1
+}
+
+function Get-VisualStudioMajorVersion {
+    $visualStudioVersion = [Environment]::GetEnvironmentVariable("VisualStudioVersion", "Process")
+    if (-not $visualStudioVersion) {
+        return $null
+    }
+
+    $parsedVersion = $null
+    if (-not [version]::TryParse($visualStudioVersion, [ref]$parsedVersion)) {
+        return $null
+    }
+
+    return $parsedVersion.Major
 }
 
 $enableFlashAttention = -not $CudaOnly
@@ -294,11 +397,12 @@ else {
     "Building llama-cpp-python with CUDA only"
 }
 $cmakeArgs = if ($enableFlashAttention) {
-    "-DGGML_CUDA=ON -DGGML_FLASH_ATTN=ON"
+    "-DGGML_CUDA=ON -DGGML_CUDA_FA=ON"
 }
 else {
-    "-DGGML_CUDA=ON -DGGML_FLASH_ATTN=OFF"
+    "-DGGML_CUDA=ON -DGGML_CUDA_FA=OFF"
 }
+$toolkitRoot = $null
 
 Write-Section $buildDisplayName
 
@@ -338,7 +442,8 @@ if (-not (Test-CommandAvailable "nvcc")) {
 else {
     Write-Host "✓ CUDA toolkit detected"
 
-    $cudaVersion = Get-CudaVersion
+    $toolkitRoot = Normalize-CudaEnvironment
+    $cudaVersion = Get-CudaVersion -ToolkitRoot $toolkitRoot
     if ($null -eq $cudaVersion) {
         Write-Host "⚠️  Could not determine the CUDA toolkit version from nvcc."
     }
@@ -352,10 +457,11 @@ else {
             exit 1
         }
     }
-
-    Normalize-CudaEnvironment
     if ($enableFlashAttention) {
         Ensure-FlashAttentionSupported
+    }
+    else {
+        Ensure-CudaToolkitSupportsDetectedGpus -CudaVersion $cudaVersion
     }
 }
 
@@ -364,16 +470,37 @@ Ensure-MsvcBuildToolsAvailable
 Write-Host "✓ Required commands available"
 
 Invoke-Step "Installing Python build tools with uv..." {
-    uv pip install cmake scikit-build-core
+    uv pip install cmake ninja scikit-build-core
 }
 
 Write-Section $buildDisplayName
 Write-Host ""
-Write-Host "CMAKE_ARGS: $cmakeArgs"
+$effectiveCmakeArgs = @($cmakeArgs)
+if ($toolkitRoot) {
+    $effectiveCmakeArgs += "-DCUDAToolkit_ROOT=""$toolkitRoot"""
+    $effectiveCmakeArgs += "-DCMAKE_CUDA_COMPILER=""" + (Join-Path $toolkitRoot "bin\nvcc.exe") + """"
+}
+if ($IsWindows) {
+    $visualStudioMajorVersion = Get-VisualStudioMajorVersion
+    if ($visualStudioMajorVersion -ge 18) {
+        $effectiveCmakeArgs += "-DCMAKE_CUDA_FLAGS=--allow-unsupported-compiler"
+    }
+}
+
+$effectiveCmakeArgsString = $effectiveCmakeArgs -join " "
+
+Write-Host "CMAKE_ARGS: $effectiveCmakeArgsString"
+if ($IsWindows) {
+    Write-Host "CMAKE_GENERATOR: Ninja"
+}
 Write-Host ""
 
 $previousCmakeArgs = $env:CMAKE_ARGS
-$env:CMAKE_ARGS = $cmakeArgs
+$previousCmakeGenerator = $env:CMAKE_GENERATOR
+$env:CMAKE_ARGS = $effectiveCmakeArgsString
+if ($IsWindows) {
+    $env:CMAKE_GENERATOR = "Ninja"
+}
 
 try {
     Invoke-Step "Reinstalling llama-cpp-python..." {
@@ -383,11 +510,12 @@ try {
     Write-Section "Build Complete"
 
     Invoke-Step "Testing installation..." {
-        uv run python -c "from llama_cpp import Llama; print('✓ llama-cpp-python imported successfully')"
+        uv run python -c "from llama_cpp import Llama; print('llama-cpp-python imported successfully')"
     }
 }
 finally {
     $env:CMAKE_ARGS = $previousCmakeArgs
+    $env:CMAKE_GENERATOR = $previousCmakeGenerator
 }
 
 Write-Host ""

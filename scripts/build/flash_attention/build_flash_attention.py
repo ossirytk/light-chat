@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Script to rebuild llama-cpp-python with Flash Attention support using uv."""
+"""Script to rebuild llama-cpp-python with CUDA + Flash Attention support using uv."""
 
 import os
 import shlex
@@ -85,10 +85,10 @@ def main() -> int:  # noqa: PLR0912,PLR0915
     print("Building llama-cpp-python with Flash Attention...")  # noqa: T201
     print("=" * 60)  # noqa: T201
 
-    env_vars = "CMAKE_ARGS='-DGGML_CUDA=ON -DGGML_FLASH_ATTN=ON'"
+    env_vars = "CMAKE_ARGS='-DGGML_CUDA=ON -DGGML_CUDA_FA=ON'"
     build_cmd = f"{env_vars} uv pip install --upgrade --force-reinstall --no-cache-dir llama-cpp-python"
 
-    print("\nCMAKE_ARGS: -DGGML_CUDA=ON -DGGML_FLASH_ATTN=ON")  # noqa: T201
+    print("\nCMAKE_ARGS: -DGGML_CUDA=ON -DGGML_CUDA_FA=ON")  # noqa: T201
     print("(This will take several minutes - involves compilation)")  # noqa: T201
     print()  # noqa: T201
 

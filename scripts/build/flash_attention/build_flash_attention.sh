@@ -45,11 +45,11 @@ echo "=========================================="
 echo "Building llama-cpp-python..."
 echo "=========================================="
 echo ""
-echo "CMAKE_ARGS: -DGGML_CUDA=ON -DGGML_FLASH_ATTN=ON"
+echo "CMAKE_ARGS: -DGGML_CUDA=ON -DGGML_CUDA_FA=ON"
 echo ""
 
 # Set environment variables and rebuild
-export CMAKE_ARGS="-DGGML_CUDA=ON -DGGML_FLASH_ATTN=ON"
+export CMAKE_ARGS="-DGGML_CUDA=ON -DGGML_CUDA_FA=ON"
 
 # Build with uv
 uv pip install --upgrade --force-reinstall --no-cache-dir llama-cpp-python
