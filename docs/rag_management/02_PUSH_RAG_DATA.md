@@ -11,7 +11,7 @@ Pushes one text file into a selected Chroma collection with optional metadata en
 ## Command
 
 ```bash
-uv run python scripts/rag/push_rag_data.py rag_data/shodan.txt -c shodan -w
+uv run python -m scripts.rag.push_rag_data rag_data/shodan.txt -c shodan -w
 ```
 
 Required:
@@ -41,8 +41,9 @@ Optional:
    - explicit `--metadata-file`, or
    - auto-detect from file stem (`<name>.json`, with `_message_examples` normalized)
 5. Enrich chunk metadata by matching known key values in chunk text
-6. Build embeddings and write to Chroma collection
-7. Stamp collection-level embedding fingerprint metadata (`embedding:model`, `embedding:normalize`, `embedding:dimension` when inferable)
+6. If metadata exists, run the source-coverage quality gate
+7. Build embeddings and write to Chroma collection
+8. Stamp collection-level embedding fingerprint metadata (`embedding:model`, `embedding:normalize`, `embedding:dimension` when inferable)
 
 ## Notes on Enrichment
 
@@ -56,6 +57,15 @@ Optional:
 - Use `--dry-run` to preview execution.
 - Use `--overwrite` when intentionally replacing an existing collection.
 - Without `--overwrite`, write attempts now validate existing collection fingerprint metadata and refuse mixed-model writes.
+
+## Pre-Push Checklist
+
+Before using this script for production data:
+
+1. Generate or update `rag_data/<name>.json` with `analyze_rag_text`.
+2. Validate the metadata JSON with `analyze_rag_text validate`.
+3. Optionally lint `*_message_examples.txt` files with `manage_collections lint message-examples --fix`.
+4. Prefer a dry run or explicit coverage review when iterating on a new corpus.
 
 ## Embedding Fingerprint and Compatibility
 
@@ -78,13 +88,13 @@ uv run python -m scripts.rag.manage_collections backfill-embedding-fingerprint
 ### Push lore collection
 
 ```bash
-uv run python scripts/rag/push_rag_data.py rag_data/shodan.txt -c shodan -w
+uv run python -m scripts.rag.push_rag_data rag_data/shodan.txt -c shodan -w
 ```
 
 ### Push with explicit embedding override
 
 ```bash
-uv run python scripts/rag/push_rag_data.py rag_data/shodan.txt -c shodan -w \
+uv run python -m scripts.rag.push_rag_data rag_data/shodan.txt -c shodan -w \
    --embedding-model sentence-transformers/all-mpnet-base-v2 \
    --embedding-device cpu
 ```
@@ -92,5 +102,9 @@ uv run python scripts/rag/push_rag_data.py rag_data/shodan.txt -c shodan -w \
 ### Push message-example collection
 
 ```bash
-uv run python scripts/rag/push_rag_data.py rag_data/shodan_message_examples.txt -c shodan_mes -w
+uv run python -m scripts.rag.push_rag_data rag_data/shodan_message_examples.txt -c shodan_mes -w
 ```
+
+## Category Threshold Note
+
+`--category-confidence-threshold` and `--allow-unassigned-categories` are exposed on the push CLI for visibility, but category assignment is determined when metadata is generated. If you want different category behavior, re-run `analyze_rag_text` to regenerate the metadata file before pushing.

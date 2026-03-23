@@ -34,14 +34,7 @@ class TestContextManagerTurnSplitting(unittest.TestCase):
         self.assertTrue(turns[1].startswith("User: status report"))
 
     def test_allocate_history_keeps_recent_turn_boundaries(self) -> None:
-        history = (
-            "User: first\n"
-            "Shodan: one\n"
-            "User: second\n"
-            "Shodan: two\n"
-            "User: third\n"
-            "Shodan: three\n"
-        )
+        history = "User: first\nShodan: one\nUser: second\nShodan: two\nUser: third\nShodan: three\n"
 
         self.manager.min_history_turns = 1
         self.manager.max_history_turns = 2

@@ -7,29 +7,40 @@ Last verified: 2026-03-12
 ### 1) Analyze and generate metadata
 
 ```bash
-uv run python scripts/rag/analyze_rag_text.py analyze rag_data/new_char.txt -o rag_data/new_char.json --strict --review-report rag_data/new_char_review.json
+uv run python -m scripts.rag.analyze_rag_text analyze rag_data/new_char.txt -o rag_data/new_char.json --strict --review-report rag_data/new_char_review.json
 ```
 
 ### 2) Validate metadata
 
 ```bash
-uv run python scripts/rag/analyze_rag_text.py validate rag_data/new_char.json
+uv run python -m scripts.rag.analyze_rag_text validate rag_data/new_char.json
 ```
 
-### 3) Push lore and message examples
+### 3) Optional quality gates
 
 ```bash
-uv run python scripts/rag/push_rag_data.py rag_data/new_char.txt -c new_char -w
-uv run python scripts/rag/push_rag_data.py rag_data/new_char_message_examples.txt -c new_char_mes -w
+uv run python -m scripts.rag.manage_collections coverage score \
+  --metadata-file rag_data/new_char.json \
+  --source-file rag_data/new_char.txt \
+  --threshold 0.75
+
+uv run python -m scripts.rag.manage_collections lint message-examples --fix
 ```
 
-### 4) Quick retrieval spot-check
+### 4) Push lore and message examples
+
+```bash
+uv run python -m scripts.rag.push_rag_data rag_data/new_char.txt -c new_char -w
+uv run python -m scripts.rag.push_rag_data rag_data/new_char_message_examples.txt -c new_char_mes -w
+```
+
+### 5) Quick retrieval spot-check
 
 ```bash
 uv run python -m scripts.rag.manage_collections test new_char -q "origin" -k 5
 ```
 
-### 5) Fixture-based regression run
+### 6) Fixture-based regression run
 
 ```bash
 uv run python -m scripts.rag.manage_collections evaluate-fixtures \
@@ -110,6 +121,8 @@ For ingestion scripts, `--overwrite` deletes and recreates target collection. Us
 
 ## Operational Guidance
 
+- Treat `analyze -> validate -> optional gates -> push -> test` as the routine workflow.
+- Use module invocation in scripts under `scripts.rag` to avoid package-import surprises.
 - Keep fixture history (`--history-csv`) under `logs/` and commit only if your workflow expects versioned benchmark baselines.
 - Use strict metadata generation in production corpora to minimize noisy filter keys.
 - Reserve `old_prepare_rag.py` for bulk rebuilds; use `push_rag_data.py` for routine updates.

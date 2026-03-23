@@ -16,6 +16,7 @@ MIN_SEGMENT_LENGTH = 20
 MAX_DISPLAY_LENGTH = 100
 REPORT_DISPLAY_TRUNCATE = 60
 
+
 @dataclass
 class CoverageMetrics:
     """Coverage metrics for a source document."""
@@ -76,9 +77,7 @@ def _extract_matched_segments(  # noqa: PLR0912
 
     unmapped_segments = []
     current_segment = []
-    for _i, (char, is_covered) in enumerate(
-        zip(source_text, marked, strict=True)
-    ):
+    for _i, (char, is_covered) in enumerate(zip(source_text, marked, strict=True)):
         if not is_covered:
             current_segment.append(char)
         else:
@@ -86,9 +85,7 @@ def _extract_matched_segments(  # noqa: PLR0912
                 seg_text = "".join(current_segment).strip()
                 if len(seg_text) > MIN_SEGMENT_LENGTH:
                     truncated = (
-                        seg_text[:MAX_DISPLAY_LENGTH] + "..."
-                        if len(seg_text) > MAX_DISPLAY_LENGTH
-                        else seg_text
+                        seg_text[:MAX_DISPLAY_LENGTH] + "..." if len(seg_text) > MAX_DISPLAY_LENGTH else seg_text
                     )
                     unmapped_segments.append(truncated)
             current_segment = []
@@ -96,11 +93,7 @@ def _extract_matched_segments(  # noqa: PLR0912
     if current_segment and "".join(current_segment).strip():
         seg_text = "".join(current_segment).strip()
         if len(seg_text) > MIN_SEGMENT_LENGTH:
-            truncated = (
-                seg_text[:MAX_DISPLAY_LENGTH] + "..."
-                if len(seg_text) > MAX_DISPLAY_LENGTH
-                else seg_text
-            )
+            truncated = seg_text[:MAX_DISPLAY_LENGTH] + "..." if len(seg_text) > MAX_DISPLAY_LENGTH else seg_text
             unmapped_segments.append(truncated)
 
     covered_chars = sum(1 for c in marked if c)

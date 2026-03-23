@@ -92,6 +92,22 @@ def _build_session_payload(runtime: ChatRuntime) -> dict[str, object]:
         "character_name": manager.character_name,
         "rag_collection": str(manager.rag_collection),
         "ui_messages": runtime.ui_messages,
+        "quality": {
+            "persona_anchor": {
+                "character_name": manager.character_name,
+                "description": manager.description,
+                "scenario": manager.scenario,
+                "voice_instructions": manager.voice_instructions,
+            },
+            "persona_drift_config": {
+                "enabled": manager.runtime_config.persona_drift_enabled,
+                "warning_threshold": manager.runtime_config.persona_drift_warning_threshold,
+                "fail_threshold": manager.runtime_config.persona_drift_fail_threshold,
+                "history_window": manager.runtime_config.persona_drift_history_window,
+                "heuristic_weight": manager.runtime_config.persona_drift_heuristic_weight,
+                "semantic_weight": manager.runtime_config.persona_drift_semantic_weight,
+            },
+        },
         "conversation_state": manager.export_conversation_state(),
     }
 

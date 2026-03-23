@@ -17,7 +17,7 @@ Analyze a single text file and optionally write metadata and enrichment review f
 Example:
 
 ```bash
-uv run python scripts/rag/analyze_rag_text.py analyze rag_data/shodan.txt -o rag_data/shodan.json --strict --review-report rag_data/shodan_review.json
+uv run python -m scripts.rag.analyze_rag_text analyze rag_data/shodan.txt -o rag_data/shodan.json --strict --review-report rag_data/shodan_review.json
 ```
 
 Options:
@@ -38,7 +38,7 @@ Validate existing metadata file structure and detect common issues.
 Example:
 
 ```bash
-uv run python scripts/rag/analyze_rag_text.py validate rag_data/shodan.json
+uv run python -m scripts.rag.analyze_rag_text validate rag_data/shodan.json
 ```
 
 Validation checks:
@@ -56,7 +56,7 @@ Scan a directory for text/metadata coverage; optionally auto-generate missing me
 Example:
 
 ```bash
-uv run python scripts/rag/analyze_rag_text.py scan rag_data/ --auto-generate --strict
+uv run python -m scripts.rag.analyze_rag_text scan rag_data/ --auto-generate --strict
 ```
 
 Options:

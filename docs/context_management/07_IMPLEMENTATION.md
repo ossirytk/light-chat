@@ -36,6 +36,9 @@ Responsibilities:
 - Dynamic context is enabled by default.
 - First turn uses character card examples (`mes_example`) directly.
 - Later turns can inject retrieved `_mes` content.
+- Retrieval can expand into multiple deterministic query variants before results are merged.
+- Retrieved lore can be sentence-compressed after cleanup and before prompt injection.
+- Persona drift scoring is initialized in `ConversationManager` and recorded in `ConversationResponseMixin`.
 - Prompt fingerprint logging is available for reproducibility checks.
 
 ## Test Coverage
@@ -51,4 +54,4 @@ Responsibilities:
 
 - Add deterministic retrieval regression fixtures.
 - Add long-conversation stress tests.
-- Add persona-drift scoring and reporting for long-session QA.
+- Calibrate persona-drift thresholds and reporting against recorded sessions.

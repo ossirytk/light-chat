@@ -38,7 +38,7 @@ This page lists context-related keys currently used in runtime code.
     }
   },
   "generation": {
-    "max_stream_chars": 800,
+    "max_stream_chars": 2400,
     "max_silent_stream_chars": 120
   }
 }
@@ -56,6 +56,10 @@ This page lists context-related keys currently used in runtime code.
     "score_threshold": 1.5,
     "use_mmr": true,
     "lambda_mult": 0.75,
+    "multi_query": {
+      "enabled": true,
+      "max_variants": 3
+    },
     "rerank": {
       "enabled": true,
       "model": "cross-encoder/ms-marco-MiniLM-L-6-v2",
@@ -67,7 +71,11 @@ This page lists context-related keys currently used in runtime code.
     "retrieval": {
       "max_initial_retrieval": 8,
       "chunk_size_estimate": 150,
-      "max_vector_context_chars": 2200
+      "max_vector_context_chars": 2200,
+      "sentence_compression": {
+        "enabled": true,
+        "max_sentences": 8
+      }
     }
   }
 }
@@ -97,6 +105,23 @@ This page lists context-related keys currently used in runtime code.
 }
 ```
 
+## Conversation Quality
+
+```json
+{
+  "conversation_quality": {
+    "persona_drift": {
+      "enabled": true,
+      "warning_threshold": 0.45,
+      "fail_threshold": 0.65,
+      "history_window": 20,
+      "heuristic_weight": 0.6,
+      "semantic_weight": 0.4
+    }
+  }
+}
+```
+
 ## Response Fallback Text
 
 ```json
@@ -110,9 +135,14 @@ This page lists context-related keys currently used in runtime code.
 
 ## Notes
 
+- Examples on this page reflect the current checked-in `configs/config.v2.json`; fallback defaults for missing values live in `core/config.py`.
 - `MAX_HISTORY_TURNS` is validated at startup and written back into in-memory config.
 - History summarization compacts older turns when the threshold is exceeded and preserves the most recent turns in full.
 - Summary entries include topic-shift annotations when adjacent summarized turns have no lexical overlap.
 - `RAG_SCORE_THRESHOLD` is used only when `USE_MMR` is disabled.
 - `RAG_K_MES` applies to the `_mes` collection path.
+- `rag.multi_query.*` controls deterministic query expansion before result merging.
 - Reranking is controlled by `rag.rerank.enabled` and uses `rag.rerank.top_n` candidate expansion.
+- `context.retrieval.sentence_compression.*` controls sentence-level compression after retrieval cleanup.
+- `generation.hard_max_tokens` is a safety cap distinct from the normal `generation.max_tokens` target.
+- `conversation_quality.persona_drift.*` controls long-session response-fidelity scoring and warning telemetry.

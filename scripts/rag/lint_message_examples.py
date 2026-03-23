@@ -140,8 +140,7 @@ class MessageExamplesLinter:
                 break
 
         header_msg = (
-            "Missing HTML metadata header:"
-            " <!-- character: NAME | source: SOURCE | version: VER | edited: DATE -->"
+            "Missing HTML metadata header: <!-- character: NAME | source: SOURCE | version: VER | edited: DATE -->"
         )
         header_fix = "<!-- character: CHARACTER_NAME | source: SOURCE | version: 1 | edited: 2024-03-16 -->"
         if not found_header:
@@ -203,14 +202,14 @@ class MessageExamplesLinter:
 
             if is_label and prev_was_message_end and i > 2 and lines[i - 2].strip():  # noqa: PLR2004
                 violations.append(
-                        LintViolation(
-                            line_no=i - 1,
-                            rule_id="missing_blank_line",
-                            message=f"Missing blank line before {line.strip()[:40]}",
-                            severity=SeverityLevel.WARNING,
-                            suggested_fix="Add blank line above this message pair",
-                        )
+                    LintViolation(
+                        line_no=i - 1,
+                        rule_id="missing_blank_line",
+                        message=f"Missing blank line before {line.strip()[:40]}",
+                        severity=SeverityLevel.WARNING,
+                        suggested_fix="Add blank line above this message pair",
                     )
+                )
             prev_was_message_end = is_label or (i > 1 and not line.strip())
 
         return violations

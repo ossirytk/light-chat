@@ -124,6 +124,7 @@ class ConversationManager(
         self._last_summary_topic_terms: set[str] = set()
         drift_window = max(1, self.runtime_config.persona_drift_history_window)
         self.persona_drift_history: deque[float] = deque(maxlen=drift_window)
+        self.persona_drift_trace: deque[dict[str, object]] = deque(maxlen=drift_window)
         self.last_persona_drift: dict[str, object] | None = None
         self.persona_drift_scorer = PersonaDriftScorer(
             PersonaAnchor(

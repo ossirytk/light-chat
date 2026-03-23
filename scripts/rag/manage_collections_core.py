@@ -7,12 +7,14 @@ from scripts.rag import manage_collections_core_types as _types
 
 _MODULES = (_types, _collection, _metrics, _evaluation)
 _EXPORT_NAMES = tuple(
-    dict.fromkeys([
-        *_types.__all__,
-        *_collection.__all__,
-        *_metrics.__all__,
-        *_evaluation.__all__,
-    ])
+    dict.fromkeys(
+        [
+            *_types.__all__,
+            *_collection.__all__,
+            *_metrics.__all__,
+            *_evaluation.__all__,
+        ]
+    )
 )
 
 for _name in _EXPORT_NAMES:

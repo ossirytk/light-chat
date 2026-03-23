@@ -89,31 +89,54 @@ Python requirement is defined in `pyproject.toml` (`>=3.13`).
 
 ## Quick RAG Workflow
 
+Use module-style invocation for the active RAG scripts:
+
+```bash
+uv run python -m scripts.rag.<script_name> ...
+```
+
+This is the preferred form in the docs because it is more reliable for package imports than calling nested script paths directly.
+
 1. Analyze source text and generate metadata:
 
 ```bash
-uv run python scripts/rag/analyze_rag_text.py analyze rag_data/shodan.txt -o rag_data/shodan.json --strict
+uv run python -m scripts.rag.analyze_rag_text analyze rag_data/shodan.txt \
+  -o rag_data/shodan.json \
+  --strict \
+  --review-report rag_data/shodan_review.json
 ```
 
 2. Validate metadata:
 
 ```bash
-uv run python scripts/rag/analyze_rag_text.py validate rag_data/shodan.json
+uv run python -m scripts.rag.analyze_rag_text validate rag_data/shodan.json
 ```
 
-3. Push text into a collection:
+3. Optional quality gates before push:
 
 ```bash
-uv run python scripts/rag/push_rag_data.py rag_data/shodan.txt -c shodan -w
+uv run python -m scripts.rag.manage_collections coverage score \
+  --metadata-file rag_data/shodan.json \
+  --source-file rag_data/shodan.txt \
+  --threshold 0.75
+
+uv run python -m scripts.rag.manage_collections lint message-examples --fix
 ```
 
-4. Test retrieval quality:
+4. Push lore and message examples into collections:
 
 ```bash
-uv run python scripts/rag/manage_collections.py test shodan -q "SHODAN origin" -k 5
+uv run python -m scripts.rag.push_rag_data rag_data/shodan.txt -c shodan -w
+uv run python -m scripts.rag.push_rag_data rag_data/shodan_message_examples.txt -c shodan_mes -w
 ```
 
-5. Evaluate retrieval fixtures with summary metrics:
+5. Spot-check retrieval quality:
+
+```bash
+uv run python -m scripts.rag.manage_collections test shodan -q "SHODAN origin" -k 5
+```
+
+6. Evaluate retrieval fixtures with summary metrics:
 
 ```bash
 uv run python -m scripts.rag.manage_collections evaluate-fixtures --fixture-file tests/fixtures/retrieval_fixtures.json
@@ -162,6 +185,8 @@ Notes:
 
 - Leading HTML header comments are stripped before chunking.
 - Metadata auto-detection maps `<name>.txt` and `<name>_message_examples.txt` to `<name>.json`.
+- If metadata exists, push runs a source-coverage quality gate before writing.
+- Category threshold flags are informational at push time; change category assignment by regenerating metadata with `analyze_rag_text`.
 
 ### `scripts/rag/manage_collections.py`
 
@@ -173,6 +198,11 @@ Commands:
 - `test`
 - `export`
 - `info`
+- `evaluate-fixtures`
+- `benchmark-rerank`
+- `backfill-embedding-fingerprint`
+- `coverage score`
+- `lint message-examples`
 
 ### Compatibility wrappers
 

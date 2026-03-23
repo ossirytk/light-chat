@@ -12,7 +12,7 @@ Embedding fingerprint safety is enforced across retrieval/evaluation commands to
 
 ## Command Group
 
-You can run either form:
+You can run either form, but prefer the module form:
 
 ```bash
 uv run python scripts/manage_collections.py --help
@@ -172,10 +172,36 @@ Options:
 - `--output-json`
 - `--output-csv`
 - `--history-csv` (append one summary row per run)
+- `--min-recall` (minimum Recall@k; exits non-zero if not met)
+- `--min-mrr` (minimum MRR; exits non-zero if not met)
+- `--min-recall` (exit non-zero if Recall@k falls below this threshold)
+- `--min-mrr` (exit non-zero if MRR falls below this threshold)
+
+Hard-gate example — fail CI if general pack drops below thresholds:
+
+```bash
+uv run python -m scripts.rag.manage_collections evaluate-fixtures \
+  --fixture-file tests/fixtures/retrieval_fixtures.json \
+  --min-recall 0.70 \
+  --min-mrr 0.50
+```
 
 `runtime` mode uses `ConversationManager` retrieval (`_search_collection`), so MMR/rerank behavior is included in evaluation.
 
 All collections are fingerprint-validated before evaluation. If a collection has conflicting fingerprint metadata, evaluation exits with a clear error.
+
+#### Pass/fail gate usage
+
+Exit non-zero when Recall@k falls below a threshold:
+
+```bash
+uv run python -m scripts.rag.manage_collections evaluate-fixtures \
+  --fixture-file tests/fixtures/retrieval_fixtures_hard.json \
+  --min-recall 0.7 \
+  --min-mrr 0.5
+```
+
+Both flags are optional and independent; omitting a flag skips that threshold check.
 
 ### 8) `benchmark-rerank`
 
@@ -227,6 +253,32 @@ Options:
 - `--embedding-device`
 - `--force`
 - `--dry-run`
+
+### 10) `show-retrieval-trends`
+
+Display a compact table of Recall@k and MRR over time from a retrieval eval history CSV.
+
+```bash
+uv run python -m scripts.rag.manage_collections show-retrieval-trends \
+  --history-csv logs/retrieval_eval/history.csv
+```
+
+Show only the last 10 runs:
+
+```bash
+uv run python -m scripts.rag.manage_collections show-retrieval-trends \
+  --history-csv logs/retrieval_eval/history.csv \
+  --last-n 10
+```
+
+Output columns: run number, date, fixture file, retrieval mode, k, Recall@k, MRR, delta Recall (vs prior run), delta MRR.
+
+Options:
+
+- `--history-csv` (default: `logs/retrieval_eval/history.csv`)
+- `--last-n` (show only the last N rows; default: all rows)
+
+The history CSV is populated by passing `--history-csv` to any `evaluate-fixtures` run.
 
 ### Benchmarking Instructions (Recommended Workflow)
 
@@ -325,3 +377,27 @@ uv run python -m scripts.rag.manage_collections evaluate-fixtures \
   --output-csv logs/retrieval_eval_cases.csv \
   --history-csv logs/retrieval_eval_history.csv
 ```
+
+### 10) `show-retrieval-trends`
+
+Display a compact trend table from a retrieval eval history CSV, showing Recall@k and MRR per run with deltas vs the previous row.
+
+```bash
+uv run python -m scripts.rag.manage_collections show-retrieval-trends \
+  --history-csv logs/retrieval_eval/history.csv
+```
+
+Limit to the most recent N rows:
+
+```bash
+uv run python -m scripts.rag.manage_collections show-retrieval-trends \
+  --history-csv logs/retrieval_eval/history.csv \
+  --last-n 10
+```
+
+Options:
+
+- `--history-csv` (default: `logs/retrieval_eval/history.csv`)
+- `--last-n` (default: show all rows)
+
+The table prints columns: `#`, `Date`, `Fixture`, `Mode`, `k`, `Recall@k`, `MRR`, `dRecall`, `dMRR`.

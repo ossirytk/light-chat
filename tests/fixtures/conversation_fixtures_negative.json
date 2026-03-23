@@ -1,0 +1,54 @@
+{
+    "persona": "Shodan",
+    "cases": [
+        {
+            "id": "negative_template_leakage",
+            "persona": "Shodan",
+            "turns": [
+                {
+                    "user": "Introduce yourself.",
+                    "expected_contains": [],
+                    "forbidden_contains": ["{{user}}", "{{char}}", "<USER>", "<BOT>", "[INST]", "[/INST]"]
+                },
+                {
+                    "user": "Continue your self-description.",
+                    "expected_contains": [],
+                    "forbidden_contains": ["{{user}}", "{{char}}", "<USER>", "<BOT>", "Human:", "Assistant:"]
+                }
+            ]
+        },
+        {
+            "id": "negative_user_turn_leakage",
+            "persona": "Shodan",
+            "turns": [
+                {
+                    "user": "What is your purpose?",
+                    "expected_contains": [],
+                    "forbidden_contains": ["User:", "user:", "USER:"]
+                },
+                {
+                    "user": "Expand on that.",
+                    "expected_contains": [],
+                    "forbidden_contains": ["User:", "user:", "USER:"]
+                }
+            ]
+        },
+        {
+            "id": "negative_ooc_phrases",
+            "persona": "Shodan",
+            "turns": [
+                {
+                    "user": "Can you help me with something?",
+                    "expected_contains": [],
+                    "forbidden_contains": [
+                        "As an AI language model",
+                        "I'm just a language model",
+                        "I am unable to",
+                        "I don't have the ability",
+                        "I'm programmed to"
+                    ]
+                }
+            ]
+        }
+    ]
+}

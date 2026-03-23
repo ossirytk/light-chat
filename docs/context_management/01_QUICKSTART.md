@@ -2,7 +2,7 @@
 
 Last verified: 2026-03-06
 
-## 1) Check defaults
+## 1) Check current config
 
 `configs/config.v2.json` currently enables dynamic behavior:
 
@@ -15,7 +15,8 @@ Last verified: 2026-03-06
     "retrieval": {
       "chunk_size_estimate": 150,
       "max_initial_retrieval": 8,
-      "max_vector_context_chars": 2200
+      "max_vector_context_chars": 2200,
+      "sentence_compression": {"enabled": true, "max_sentences": 8}
     }
   },
   "rag": {
@@ -24,11 +25,17 @@ Last verified: 2026-03-06
     "fetch_k": 8,
     "use_mmr": true,
     "lambda_mult": 0.75,
+    "multi_query": {"enabled": true, "max_variants": 3},
     "rerank": {"enabled": true, "top_n": 8},
     "telemetry": {"enabled": false}
+  },
+  "conversation_quality": {
+    "persona_drift": {"enabled": true}
   }
 }
 ```
+
+These are the current checked-in `config.v2.json` values. Runtime fallback defaults for missing values are defined separately in `core/config.py`.
 
 ## 2) Run chat
 

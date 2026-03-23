@@ -406,11 +406,7 @@ def backfill_embedding_fingerprint(**kwargs: object) -> None:
 
     for collection_info in matching:
         collection = client.get_collection(collection_info.name)
-        metadata = {
-            key: value
-            for key, value in dict(collection.metadata or {}).items()
-            if key != "hnsw:space"
-        }
+        metadata = {key: value for key, value in dict(collection.metadata or {}).items() if key != "hnsw:space"}
 
         mismatches = [
             (key, metadata[key], expected_fingerprint[key])

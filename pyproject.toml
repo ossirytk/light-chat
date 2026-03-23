@@ -88,6 +88,10 @@ unfixable = [
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"
 
+[project.scripts]
+quality-gate = "scripts.quality_gate:quality_gate"
+capture-conversation-baselines = "scripts.conversation.capture_baselines:capture_conversation_baselines"
+
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
