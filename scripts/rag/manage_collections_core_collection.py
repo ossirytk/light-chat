@@ -14,6 +14,8 @@ from scripts.rag.manage_collections_core_types import (
     WhereFilter,
 )
 
+MISSING_COLLECTION_ERRORS = (ValueError, chromadb.errors.NotFoundError)
+
 
 def infer_embedding_dimension(embedder: HuggingFaceEmbeddings) -> int | None:
     try:
@@ -44,7 +46,7 @@ def assert_collection_fingerprint_compatible(
 ) -> None:
     try:
         collection = client.get_collection(collection_name)
-    except ValueError:
+    except MISSING_COLLECTION_ERRORS:
         return
 
     metadata = collection.metadata or {}

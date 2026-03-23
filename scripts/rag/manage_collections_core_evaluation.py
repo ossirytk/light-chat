@@ -244,7 +244,7 @@ def _build_fixture_report(
     )
     return {
         "generated_at": datetime.now(tz=UTC).isoformat(),
-        "fixture_file": str(fixture_file),
+        "fixture_file": fixture_file.as_posix(),
         "k": eval_context.default_k,
         "dashboard_ks": eval_context.dashboard_ks,
         "retrieval_mode": eval_context.retrieval_mode,
@@ -374,7 +374,7 @@ def _append_fixture_history_csv(
         writer.writerow(
             {
                 "generated_at": datetime.now(tz=UTC).isoformat(),
-                "fixture_file": str(report["fixture_file"]),
+                "fixture_file": str(report["fixture_file"]).replace("\\", "/"),
                 "k": int(report["k"]),
                 "retrieval_mode": str(report.get("retrieval_mode", "similarity")),
                 "evaluated": int(report["summary"]["evaluated"]),

@@ -14,6 +14,7 @@ This is the single source for remaining and future work across quality, retrieva
 
 ## Recently Completed (2026-03-16)
 
+**Conversation Quality:**
 - Added runtime persona drift scoring with hybrid metrics (heuristic + semantic-style trigram similarity).
 - Added conversation-state persistence for drift telemetry (`persona_drift_history`, `persona_drift_last`, rolling average export).
 - Exposed persona drift telemetry in web debug endpoints and retrieval turn traces.
@@ -21,6 +22,14 @@ This is the single source for remaining and future work across quality, retrieva
 - Added deterministic `mock` mode and optional `live` mode for fixture evaluation.
 - Added JSON/CSV/history output support and baseline comparison with soft-fail thresholds.
 - Added starter conversation fixtures and automated tests for scorer determinism and evaluator behavior.
+
+**RAG Data Quality (Metadata & Embeddings):**
+- Added source-document coverage scoring (`scripts.rag.analyze_rag_coverage`) to measure what fraction of source text is represented in metadata. Push gate blocks below 0.75 by default.
+- Added message examples linting (`scripts.rag.lint_message_examples`) to enforce consistent sectioning style (header presence, `[USER]:`/`[ASSISTANT]:` labels, blank line separation) across all `*_message_examples.txt` files.
+- Made category confidence thresholds configurable via CLI flags (`--category-confidence-threshold`, `--allow-unassigned-categories`) on `analyze` and `push` commands.
+- Added embedding model benchmarking harness (`scripts.rag.benchmark_embedding_models`) — builds ephemeral in-memory reproductions of existing collections with candidate models and compares Recall@k, MRR, MAP@k on retrieval fixture cases.
+- Added re-embedding migration workflow (`scripts.rag.migrate_collection_embedding`) with atomic alias-swap (zero-downtime switchover): builds temp collection → validates against fixture (optional) → deletes old → renames temp.
+- Added comprehensive test coverage (32 tests) for coverage scoring, linting, category thresholds, and all features verified ruff-clean.
 
 ## Remaining Work (Previously Scoped)
 
@@ -34,12 +43,7 @@ This is the single source for remaining and future work across quality, retrieva
 
 ### RAG Data Quality
 
-- Add source-document coverage scoring to report how much source text is represented in metadata.
-- Add a quality gate that blocks push when metadata quality is below threshold.
-- Add repository-wide consistency linting for sectioning style in all `*_message_examples.txt` files.
-- Make category confidence thresholds configurable via CLI flags.
-- Add embedding quality benchmarks that compare current small-model baseline against stronger candidates using fixture metrics (`Recall@k`, `MRR`, `MAP@k`) and ingestion/query latency.
-- Add a migration workflow for re-embedding existing collections with rollback-safe alias switching.
+*(All scoped items completed 2026-03-16 — see Recently Completed section above.)*
 
 ### Retrieval Quality
 
@@ -91,20 +95,33 @@ This is the single source for remaining and future work across quality, retrieva
 
 ## Suggested Execution Order
 
-1. Add automated pass/fail gates for existing fixture packs.
-2. Calibrate persona drift thresholds and score weighting from recorded sessions.
-3. Add hard/negative conversation fixture packs and baseline artifacts.
-4. Wire conversation fixture evaluation into unified quality-gate command and CI policy.
-5. Add metadata coverage scoring and push-blocking quality gate.
-6. Benchmark embedding model candidates and select a new default profile.
-7. Add re-embedding migration with rollback-safe alias switching.
+1. ✅ Add metadata coverage scoring and push-blocking quality gate. (2026-03-16)
+2. ✅ Benchmark embedding model candidates and select a new default profile. (2026-03-16)
+3. ✅ Add re-embedding migration with rollback-safe alias switching. (2026-03-16)
+4. Add automated pass/fail gates for existing retrieval fixture packs.
+5. Calibrate persona drift thresholds and score weighting from recorded sessions.
+6. Add hard/negative conversation fixture packs and baseline artifacts.
+7. Wire conversation fixture evaluation into unified quality-gate command and CI policy.
 8. Add retrieval trend rendering and debug export artifacts.
 9. Iterate on higher-level UX and explainability improvements.
 
-## Next Steps (Conversation Quality)
+## Next Steps
+
+### Retrieval Quality (Priority 1)
+
+1. **Pass/fail thresholds:** add hard-gate logic to retrieval fixture evaluation similar to the `--require-runtime-win` flag on `benchmark-rerank`. Define baseline thresholds for general and hard fixture packs.
+2. **Trend rendering:** add a lightweight CSV trend viewer for `logs/retrieval_eval/history.csv` to surface Recall@k and MRR drift over time.
+3. **Collection validation:** extend `benchmark-embedding-models` to report latency and collection size metrics alongside quality scores.
+
+### Conversation Quality (Priority 2)
 
 1. **Calibration pass (1-2 sessions):** run long conversations for Shodan and Leonardo, export `logs/web_sessions/*`, and tune `conversation_quality.persona_drift` thresholds/weights from observed drift distributions.
 2. **Fixture expansion:** add `tests/fixtures/conversation_fixtures_hard.json` and `tests/fixtures/conversation_fixtures_negative.json` with explicit expected/forbidden assertions.
 3. **Baseline capture:** generate baseline reports in mock mode and store canonical artifacts under `logs/conversation_quality/baselines/`.
 4. **Soft-fail policy wiring:** define and document hard-regression limits (`--max-score-drop`, `--max-drift-increase`) for local gate and CI.
-5. **Unified gate command:** add one command/task that runs conversation fixtures + retrieval fixtures + RAG-data checks in sequence.
+
+### Unified Quality Gate (Priority 3)
+
+1. **Gate command:** add one command/task that runs conversation fixtures + retrieval fixtures + RAG-data checks (coverage gate + linting) in sequence.
+2. **CI integration:** wire the unified gate into GitHub Actions with pinned fixture packs and deterministic seeds; fail on regressions.
+3. **Release checklist:** document measurable quality checks required before release.

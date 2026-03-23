@@ -3,7 +3,9 @@
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
+import chromadb
 import requests
 
 from scripts.analyze_rag_text import (
@@ -15,7 +17,12 @@ from scripts.analyze_rag_text import (
 )
 from scripts.fetch_character_context import clean_text, fetch_webpage_text, validate_url
 from scripts.manage_collections import extract_key_matches, normalize_keyfile
-from scripts.push_rag_data import enrich_documents_with_metadata, load_and_chunk_text_file, strip_leading_html_comment
+from scripts.push_rag_data import (
+    assert_collection_fingerprint_compatible,
+    enrich_documents_with_metadata,
+    load_and_chunk_text_file,
+    strip_leading_html_comment,
+)
 
 SHODAN_TEXT_PATH = Path("rag_data/shodan.txt")
 SHODAN_METADATA_PATH = Path("rag_data/shodan.json")
@@ -51,6 +58,20 @@ class TestRagScripts(unittest.TestCase):
             TEST_THREADS,
         )
         self.assertEqual(len(enriched_documents), document_sample_count)
+
+    def test_push_rag_data_allows_missing_chroma_collection(self) -> None:
+        """Validate fresh pushes skip fingerprint checks when Chroma reports a missing collection."""
+
+        class _MissingCollectionClient:
+            def get_collection(self, name: str) -> SimpleNamespace:
+                message = f"Collection [{name}] does not exist"
+                raise chromadb.errors.NotFoundError(message)
+
+        assert_collection_fingerprint_compatible(
+            _MissingCollectionClient(),  # type: ignore[arg-type]
+            "shodan",
+            {"embedding:model": "sentence-transformers/all-mpnet-base-v2"},
+        )
 
     def test_manage_collections(self) -> None:
         """Validate metadata key normalization and matching helpers."""

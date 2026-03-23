@@ -27,7 +27,8 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from loguru import logger
 
-from core.config import configure_logging, load_app_config, load_rag_script_config
+from core.config import RagScriptConfig, configure_logging, load_app_config, load_rag_script_config
+from scripts.rag.analyze_rag_coverage import extract_coverage_metrics, format_coverage_report, load_metadata_file
 
 type MetadataItem = dict[str, object]
 type MetadataList = list[MetadataItem]
@@ -35,6 +36,7 @@ type MetadataList = list[MetadataItem]
 EMBEDDING_MODEL_METADATA_KEY = "embedding:model"
 EMBEDDING_DIMENSION_METADATA_KEY = "embedding:dimension"
 EMBEDDING_NORMALIZE_METADATA_KEY = "embedding:normalize"
+MISSING_COLLECTION_ERRORS = (ValueError, chromadb.errors.NotFoundError)
 
 
 @dataclass
@@ -86,7 +88,7 @@ def assert_collection_fingerprint_compatible(
 ) -> None:
     try:
         collection = client.get_collection(collection_name)
-    except ValueError:
+    except MISSING_COLLECTION_ERRORS:
         return
 
     metadata = collection.metadata or {}
@@ -254,14 +256,200 @@ class CliOptions:
 
     file_path: Path
     collection_name: str
-    persist_directory: str | None
-    key_storage: str | None
+    persist_directory: str
+    key_storage: str
     metadata_file: Path | None
-    chunk_size: int | None
-    chunk_overlap: int | None
-    threads: int | None
+    chunk_size: int
+    chunk_overlap: int
+    threads: int
+    embedding_model: str
+    embedding_device: str
     dry_run: bool
     overwrite: bool
+    coverage_threshold: float
+    force_low_coverage: bool
+    category_confidence_threshold: float
+    allow_unassigned_categories: bool
+
+
+def build_cli_options(kwargs: dict[str, object], script_config: RagScriptConfig) -> CliOptions:
+    """Build validated CLI options with config defaults applied."""
+    file_path = kwargs.get("file_path")
+    collection_name = kwargs.get("collection_name")
+    metadata_file = kwargs.get("metadata_file")
+    threads = kwargs.get("threads")
+    chunk_size = kwargs.get("chunk_size")
+    chunk_overlap = kwargs.get("chunk_overlap")
+    embedding_model = kwargs.get("embedding_model")
+    embedding_device = kwargs.get("embedding_device")
+    coverage_threshold = kwargs.get("coverage_threshold")
+    category_confidence_threshold = kwargs.get("category_confidence_threshold")
+
+    if not isinstance(file_path, Path):
+        msg = "Invalid file path."
+        raise click.ClickException(msg)
+    if not isinstance(collection_name, str) or not collection_name:
+        msg = "Collection name is required."
+        raise click.ClickException(msg)
+    if metadata_file is not None and not isinstance(metadata_file, Path):
+        msg = "Invalid metadata file path."
+        raise click.ClickException(msg)
+
+    return CliOptions(
+        file_path=file_path,
+        collection_name=collection_name,
+        persist_directory=(
+            kwargs.get("persist_directory")
+            if isinstance(kwargs.get("persist_directory"), str) and kwargs.get("persist_directory")
+            else script_config.persist_directory
+        ),
+        key_storage=(
+            kwargs.get("key_storage")
+            if isinstance(kwargs.get("key_storage"), str) and kwargs.get("key_storage")
+            else script_config.key_storage
+        ),
+        metadata_file=metadata_file,
+        chunk_size=chunk_size if isinstance(chunk_size, int) else script_config.chunk_size,
+        chunk_overlap=chunk_overlap if isinstance(chunk_overlap, int) else script_config.chunk_overlap,
+        threads=threads if isinstance(threads, int) else script_config.threads,
+        embedding_model=embedding_model if isinstance(embedding_model, str) else script_config.embedding_model,
+        embedding_device=embedding_device if isinstance(embedding_device, str) else script_config.embedding_device,
+        dry_run=bool(kwargs.get("dry_run", False)),
+        overwrite=bool(kwargs.get("overwrite", False)),
+        coverage_threshold=(
+            float(coverage_threshold)
+            if isinstance(coverage_threshold, int | float)
+            else 0.75
+        ),
+        force_low_coverage=bool(kwargs.get("force_low_coverage", False)),
+        category_confidence_threshold=(
+            float(category_confidence_threshold)
+            if isinstance(category_confidence_threshold, int | float)
+            else 0.75
+        ),
+        allow_unassigned_categories=bool(kwargs.get("allow_unassigned_categories", False)),
+    )
+
+
+def resolve_metadata_file(file_path: Path, key_storage: str, metadata_file: Path | None) -> Path:
+    """Resolve the metadata file path, auto-detecting when not explicitly provided."""
+    if metadata_file is not None:
+        logger.info(f"Using specified metadata file: {metadata_file}")
+        return metadata_file
+
+    base_name = file_path.stem
+    if base_name.endswith("_message_examples"):
+        base_name = base_name.replace("_message_examples", "")
+
+    resolved_file = Path(key_storage) / f"{base_name}.json"
+    logger.info(f"Auto-detected metadata file: {resolved_file}")
+    return resolved_file
+
+
+def prepare_documents(options: CliOptions) -> tuple[list[Document], Path]:
+    """Load, chunk, and enrich documents using the configured metadata source."""
+    logger.info(f"Processing file: {options.file_path}")
+    logger.info(f"Target collection: {options.collection_name}")
+    logger.info(f"Chunk size: {options.chunk_size}, overlap: {options.chunk_overlap}")
+
+    logger.info("Loading and chunking document...")
+    documents = load_and_chunk_text_file(options.file_path, options.chunk_size, options.chunk_overlap)
+    logger.info(f"Created {len(documents)} chunks")
+
+    metadata_file = resolve_metadata_file(options.file_path, options.key_storage, options.metadata_file)
+    if not metadata_file.exists():
+        logger.warning("No metadata file found, proceeding without enrichment")
+        return documents, metadata_file
+
+    enriched_documents = enrich_documents_with_metadata(documents, metadata_file, options.threads)
+    metadata_count = sum(1 for doc in enriched_documents if doc.metadata)
+    logger.info(f"Enriched {metadata_count} documents with metadata")
+    return enriched_documents, metadata_file
+
+
+def log_category_config(options: CliOptions) -> None:
+    """Log category-related analyze-time flags for visibility."""
+    logger.debug(
+        "Category config (applies at analyze-time): threshold={}, allow_unassigned={}",
+        options.category_confidence_threshold,
+        options.allow_unassigned_categories,
+    )
+
+
+def raise_low_coverage_error(coverage_ratio: float, coverage_threshold: float) -> None:
+    """Raise a consistent error for coverage below the required threshold."""
+    msg = (
+        f"Source coverage {coverage_ratio * 100:.1f}% "
+        f"below threshold {coverage_threshold * 100:.0f}%. "
+        "Pass --force-low-coverage to override."
+    )
+    raise click.ClickException(msg)
+
+
+def validate_coverage_gate(options: CliOptions, metadata_file: Path) -> None:
+    """Validate source coverage against the configured threshold when metadata exists."""
+    if not metadata_file.exists():
+        return
+
+    try:
+        source_text = options.file_path.read_text(encoding="utf-8")
+        metadata = load_metadata_file(metadata_file)
+        metrics = extract_coverage_metrics(source_text, metadata)
+        report = format_coverage_report(metrics, options.coverage_threshold)
+        logger.info(f"\nCoverage Quality Gate:\n{report}")
+
+        if metrics.source_coverage_ratio < options.coverage_threshold:
+            if not options.force_low_coverage:
+                raise_low_coverage_error(metrics.source_coverage_ratio, options.coverage_threshold)
+            logger.warning("Coverage below threshold but --force-low-coverage flag is set, proceeding")
+    except click.ClickException:
+        raise
+    except Exception as error:
+        logger.warning(f"Could not compute coverage metrics: {error}")
+
+
+def build_processing_context(options: CliOptions, embedding_cache: str) -> tuple[ProcessingContext, dict[str, object]]:
+    """Create the embedder/client context and collection fingerprint metadata."""
+    logger.info("Initializing ChromaDB client and embedder...")
+    normalize_embeddings = True
+    embedder = HuggingFaceEmbeddings(
+        model_name=options.embedding_model,
+        model_kwargs={"device": options.embedding_device},
+        encode_kwargs={"normalize_embeddings": normalize_embeddings},
+        cache_folder=str(Path(embedding_cache)),
+    )
+    client = chromadb.PersistentClient(
+        path=options.persist_directory,
+        settings=Settings(anonymized_telemetry=False),
+    )
+    embedding_dimension = infer_embedding_dimension(embedder)
+    expected_fingerprint = build_embedding_fingerprint(
+        embedding_model=options.embedding_model,
+        normalize_embeddings=normalize_embeddings,
+        embedding_dimension=embedding_dimension,
+    )
+    return ProcessingContext(embedder=embedder, client=client), expected_fingerprint
+
+
+def build_push_config(options: CliOptions) -> PushConfig:
+    """Build push configuration from normalized CLI options."""
+    return PushConfig(
+        persist_directory=options.persist_directory,
+        chunk_size=options.chunk_size,
+        chunk_overlap=options.chunk_overlap,
+        key_storage=options.key_storage,
+        threads=options.threads,
+        dry_run=options.dry_run,
+        overwrite=options.overwrite,
+    )
+
+
+def log_push_success(options: CliOptions, document_count: int) -> None:
+    """Log the successful push summary."""
+    logger.info("✓ Successfully pushed data to ChromaDB")
+    logger.info(f"Collection: {options.collection_name}")
+    logger.info(f"Documents: {document_count}")
+    logger.info(f"Storage: {options.persist_directory}")
 
 
 @click.command()
@@ -297,6 +485,28 @@ class CliOptions:
 @click.option("--embedding-device", default=None, help="Override embedding device for this run")
 @click.option("--dry-run", "-d", is_flag=True, help="Show what would be done without making changes")
 @click.option("--overwrite", "-w", is_flag=True, help="Overwrite existing collection if it exists")
+@click.option(
+    "--coverage-threshold",
+    type=float,
+    default=0.75,
+    help="Minimum source coverage ratio (0.0-1.0) required for push; default 0.75",
+)
+@click.option(
+    "--force-low-coverage",
+    is_flag=True,
+    help="Bypass coverage threshold check if below minimum",
+)
+@click.option(
+    "--category-confidence-threshold",
+    type=float,
+    default=0.75,
+    help="Minimum confidence required to assign entity category (0.0-1.0); default 0.75",
+)
+@click.option(
+    "--allow-unassigned-categories",
+    is_flag=True,
+    help="If set, entities below confidence threshold get category=null instead of fallback",
+)
 def main(**kwargs: object) -> None:
     """Push a text file to ChromaDB with metadata enrichment.
 
@@ -310,85 +520,15 @@ def main(**kwargs: object) -> None:
     app_config = load_app_config()
     script_config = load_rag_script_config(app_config)
     configure_logging(app_config)
-
-    file_path = kwargs.get("file_path")
-    collection_name = kwargs.get("collection_name")
-    persist_directory = kwargs.get("persist_directory") or script_config.persist_directory
-    key_storage = kwargs.get("key_storage") or script_config.key_storage
-    metadata_file = kwargs.get("metadata_file")
-    threads = kwargs.get("threads") or script_config.threads
-    chunk_size = kwargs.get("chunk_size") or script_config.chunk_size
-    chunk_overlap = kwargs.get("chunk_overlap") or script_config.chunk_overlap
-    dry_run = kwargs.get("dry_run", False)
-    overwrite = kwargs.get("overwrite", False)
-
-    logger.info(f"Processing file: {file_path}")
-    logger.info(f"Target collection: {collection_name}")
-    logger.info(f"Chunk size: {chunk_size}, overlap: {chunk_overlap}")
-
-    logger.info("Loading and chunking document...")
-    documents = load_and_chunk_text_file(file_path, chunk_size, chunk_overlap)
-    logger.info(f"Created {len(documents)} chunks")
-
-    if metadata_file:
-        logger.info(f"Using specified metadata file: {metadata_file}")
-    else:
-        base_name = file_path.stem
-        if base_name.endswith("_message_examples"):
-            base_name = base_name.replace("_message_examples", "")
-        metadata_file = Path(key_storage) / f"{base_name}.json"
-        logger.info(f"Auto-detected metadata file: {metadata_file}")
-
-    if metadata_file.exists():
-        documents = enrich_documents_with_metadata(documents, metadata_file, threads)
-        metadata_count = sum(1 for doc in documents if doc.metadata)
-        logger.info(f"Enriched {metadata_count} documents with metadata")
-    else:
-        logger.warning("No metadata file found, proceeding without enrichment")
-
-    logger.info("Initializing ChromaDB client and embedder...")
-    embedding_device = kwargs.get("embedding_device") or script_config.embedding_device
-    embedding_model = kwargs.get("embedding_model") or script_config.embedding_model
-    embedding_cache = script_config.embedding_cache
-    model_kwargs = {"device": embedding_device}
-    normalize_embeddings = True
-    encode_kwargs = {"normalize_embeddings": normalize_embeddings}
-    cache_folder = str(Path(embedding_cache))
-
-    embedder = HuggingFaceEmbeddings(
-        model_name=embedding_model,
-        model_kwargs=model_kwargs,
-        encode_kwargs=encode_kwargs,
-        cache_folder=cache_folder,
-    )
-
-    client = chromadb.PersistentClient(path=str(persist_directory), settings=Settings(anonymized_telemetry=False))
-    embedding_dimension = infer_embedding_dimension(embedder)
-    expected_fingerprint = build_embedding_fingerprint(
-        embedding_model=embedding_model,
-        normalize_embeddings=normalize_embeddings,
-        embedding_dimension=embedding_dimension,
-    )
-
-    config = PushConfig(
-        persist_directory=str(persist_directory),
-        chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap,
-        key_storage=str(key_storage),
-        threads=threads,
-        dry_run=dry_run,
-        overwrite=overwrite,
-    )
-
-    context = ProcessingContext(embedder=embedder, client=client)
-
-    push_to_collection(collection_name, documents, config, context, expected_fingerprint)
-
-    if not dry_run:
-        logger.info("✓ Successfully pushed data to ChromaDB")
-        logger.info(f"Collection: {collection_name}")
-        logger.info(f"Documents: {len(documents)}")
-        logger.info(f"Storage: {persist_directory}")
+    options = build_cli_options(kwargs, script_config)
+    log_category_config(options)
+    documents, metadata_file = prepare_documents(options)
+    validate_coverage_gate(options, metadata_file)
+    context, expected_fingerprint = build_processing_context(options, script_config.embedding_cache)
+    config = build_push_config(options)
+    push_to_collection(options.collection_name, documents, config, context, expected_fingerprint)
+    if not options.dry_run:
+        log_push_success(options, len(documents))
 
 
 if __name__ == "__main__":

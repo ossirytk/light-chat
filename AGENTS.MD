@@ -1,6 +1,7 @@
 # AGENTS.md — Project Rules for AI Assistants (Python)
 
-This repository is developed on **WSL:Ubuntu** using **VS Code** and **NvChad Neovim**.  
+This repository is currently developed primarily from a **Windows dev drive** using **PowerShell** and **VS Code**.  
+**WSL:Ubuntu**, **fish**, and **NvChad Neovim** remain supported alternative workflows.  
 All tooling runs via terminal commands. Dependencies are managed with **uv**, and code quality is ensured by **ruff** (formatter + linter) and **pyrefly** (editor integration).
 
 Contributors maintain CLI-first workflows with minimal, deterministic diffs that comply with repository standards.
@@ -12,14 +13,15 @@ VS Code's agentic AI features can apply multi-file coordinated changes, so the r
 
 ## 0. Development Environment
 
-- **OS:** WSL 2 with Ubuntu
-- **Editors:** VS Code (primary), NvChad Neovim (alternative)
-- **VS Code Integrated Shell:** `fish`
+- **Primary OS/workspace:** Windows dev drive
+- **Supported alternative OS/workspace:** WSL 2 with Ubuntu
+- **Editors:** VS Code (primary), NvChad Neovim (supported alternative)
+- **Shells:** PowerShell (current default), `fish` in WSL (supported alternative)
 - **Package Manager:** `uv` (fast, dependency-locked)
 - **Formatter + Linter:** `ruff` (installed as tool via uv)
 - **Editor Integration:** `pyrefly` (installed as tool via uv, provides code insights and can suggest modifications)
 
-All terminal commands should be reproducible on this stack.
+All terminal commands should be reproducible from the supported shell/editor combinations.
 
 ---
 
@@ -32,7 +34,7 @@ All terminal commands should be reproducible on this stack.
 - Pyrefly is allowed to suggest code modifications; incorporate them if they make sense.
 
 ### Cross-Editor Compatibility
-- Contributors use VS Code and Neovim.  
+- Contributors primarily use VS Code and still support Neovim workflows.  
 - All changes must be reproducible via terminal commands.
 
 ---
@@ -57,12 +59,17 @@ All terminal commands should be reproducible on this stack.
 
 ### Running Python Code
 
-```fish
-# Using uv run (handles venv automatically)
+```powershell
+# Using uv run (handles the environment automatically)
 uv run python script.py
 uv run python -m module_name
 
-# Or activate venv and use python directly (fish)
+# PowerShell virtualenv activation
+.venv\Scripts\Activate.ps1
+python script.py
+deactivate
+
+# WSL/fish virtualenv activation (supported alternative)
 . .venv/bin/activate.fish
 python script.py
 deactivate
@@ -70,7 +77,7 @@ deactivate
 
 ### Linting and Formatting
 
-```fish
+```powershell
 # Format code (in-place)
 uv run ruff format .
 
@@ -86,7 +93,7 @@ uv run ruff check path/to/file.py
 
 ### Installing Dependencies
 
-```fish
+```powershell
 # Add new dependency
 uv add package_name
 
@@ -102,7 +109,7 @@ uv pip install -e .
 
 ### Managing Python Versions
 
-```fish
+```powershell
 # Check Python version used by uv
 uv python list
 
@@ -117,7 +124,7 @@ uv python pin 3.13
 ### VS Code Settings
 - Use Ruff extension for real-time linting
 - Pyrefly provides code insights and can identify improvements; use as needed
-- Terminal integration: Use integrated `fish` terminal to run `uv` commands
+- Terminal integration: Use the integrated PowerShell terminal by default; WSL + `fish` remains a supported alternative
 
 ### NvChad/Neovim
 - Configure LSP to use linting results from Ruff

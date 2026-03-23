@@ -26,34 +26,36 @@ Character-focused local chatbot with RAG support (ChromaDB + LangChain), CLI and
 
 Run either with `uv`:
 
-```bash
+```powershell
 uv run python main.py
 uv run uvicorn web_app:app --host 127.0.0.1 --port 8000
 ```
 
-VS Code task shortcuts (no manual shell command typing):
+Primary desktop workflow:
 
-- Run `Tasks: Run Task` and choose `web:start` to launch the web server.
-- Run `Tasks: Run Task` and choose `web:stop` to stop it.
-- Run `Tasks: Run Task` and choose `web:restart` to do both in sequence.
-- Run `Tasks: Run Task` and choose `web:start+open` to launch and open the URL.
-- Run `Tasks: Run Task` and choose `web:open` to open `http://127.0.0.1:8000` manually.
+- Open the repository from the Windows dev drive in VS Code.
+- Use the integrated PowerShell terminal to run the `uv` commands above.
+- WSL/Ubuntu with `fish` remains a supported alternative workflow if you still use it.
 
-Task config lives in `.vscode/tasks.json`.
+The repository now includes Windows-focused VS Code tasks in `.vscode/tasks.json` for:
 
-VS Code Run/Debug workflow:
+- `Start web server (Windows)`
+- `Stop web server (Windows)`
+- `Restart web server (Windows)`
 
-- Open Run and Debug (`Ctrl+Shift+D`).
-- Select `Web App (Uvicorn)` from `.vscode/launch.json`.
-- Press `F5` to start the server.
-- Press Stop in the Debug toolbar to terminate it.
+These tasks use the same documented `uv` command shown above and run from PowerShell with Windows-friendly stop behavior on port `8000`.
 
-Recommended daily workflow:
+Stop the web server from another terminal:
 
-- Fast run loop: `Tasks: Run Task` → `web:start+open`, and stop with `web:stop`.
-- Breakpoint debugging: Run and Debug → `Web App (Uvicorn)` → `F5`, then Stop.
+PowerShell:
 
-Stop the web server (from another terminal):
+```powershell
+Get-NetTCPConnection -LocalPort 8000 -State Listen |
+  Select-Object -ExpandProperty OwningProcess -Unique |
+  ForEach-Object { Stop-Process -Id $_ }
+```
+
+WSL/Unix alternative:
 
 ```bash
 pkill -f 'uvicorn web_app:app'
@@ -61,12 +63,12 @@ pkill -f 'uvicorn web_app:app'
 
 Web diagnostics endpoints:
 
-```bash
-curl -s http://127.0.0.1:8000/health
-curl -s http://127.0.0.1:8000/healthz/full
-curl -s http://127.0.0.1:8000/chat/debug
-curl -s http://127.0.0.1:8000/chat/debug/history
-curl -s http://127.0.0.1:8000/chat/session/list
+```powershell
+curl.exe -s http://127.0.0.1:8000/health
+curl.exe -s http://127.0.0.1:8000/healthz/full
+curl.exe -s http://127.0.0.1:8000/chat/debug
+curl.exe -s http://127.0.0.1:8000/chat/debug/history
+curl.exe -s http://127.0.0.1:8000/chat/session/list
 ```
 
 Notes for web chat behavior:
@@ -181,6 +183,9 @@ Top-level wrappers exist for moved scripts:
 - `scripts/manage_collections.py`
 - `scripts/fetch_character_context.py`
 - `scripts/build_flash_attention.py`
+- `scripts/build_flash_attention.sh`
+- `scripts/build_flash_attention.ps1`
+- `scripts/build_cuda_only.ps1`
 
 ## Implementation Highlights (verified)
 
