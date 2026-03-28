@@ -101,8 +101,8 @@ def _run_retrieval_step(
         run = _execute_fixture_evaluation(options)
     except click.ClickException as exc:
         return "fail", str(exc.format_message())
-    except Exception as exc:
-        return "skip", f"Retrieval evaluation unavailable: {exc}"
+    except (OSError, ImportError, ModuleNotFoundError, RuntimeError) as exc:
+        return "skip", f"Retrieval evaluation unavailable (environment not configured): {exc}"
 
     recall = float(run.metrics["recall_at_k"])
     mrr = float(run.metrics["mrr"])

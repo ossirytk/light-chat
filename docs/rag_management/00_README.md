@@ -29,7 +29,7 @@ Top-level wrappers in `scripts/*.py` still exist for compatibility, but the reco
 4. `04_OLD_PREPARE_RAG.md`
 5. `05_WORKFLOWS_TROUBLESHOOTING.md`
 
-See also `docs/QUALITY_GATE.md` for the unified quality gate reference.
+See also `docs/quality_gate.md` for the unified quality gate reference.
 
 ## Benchmarking Quick Link
 
@@ -38,7 +38,7 @@ See also `docs/QUALITY_GATE.md` for the unified quality gate reference.
 
 ## Quality Gate
 
-The unified quality gate (`docs/QUALITY_GATE.md`) runs RAG lint, retrieval fixtures, and
+The unified quality gate (`docs/quality_gate.md`) runs RAG lint, retrieval fixtures, and
 conversation fixture evaluation in one command. See that document for the full guide.
 
 Quick start:

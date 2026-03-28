@@ -172,8 +172,6 @@ Options:
 - `--output-json`
 - `--output-csv`
 - `--history-csv` (append one summary row per run)
-- `--min-recall` (minimum Recall@k; exits non-zero if not met)
-- `--min-mrr` (minimum MRR; exits non-zero if not met)
 - `--min-recall` (exit non-zero if Recall@k falls below this threshold)
 - `--min-mrr` (exit non-zero if MRR falls below this threshold)
 

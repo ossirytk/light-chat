@@ -272,7 +272,7 @@ Linting is included as the first step of the unified quality gate:
 uv run python -m scripts.quality_gate --skip-retrieval
 ```
 
-The gate runs message-example linting, conversation fixture evaluation, and (optionally) retrieval fixture evaluation in sequence, printing a PASS/WARN/FAIL table and exiting non-zero if any step fails. See `docs/QUALITY_GATE.md` for full usage.
+The gate runs message-example linting, conversation fixture evaluation, and (optionally) retrieval fixture evaluation in sequence, printing a PASS/WARN/FAIL table and exiting non-zero if any step fails. See `docs/quality_gate.md` for full usage.
 
 ## Troubleshooting
 

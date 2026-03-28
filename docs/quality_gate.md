@@ -102,7 +102,7 @@ Exit codes:
 Before using baseline comparison, capture canonical baselines in mock mode:
 
 ```bash
-uv run python -m scripts.conversation.capture_baselines capture-conversation-baselines
+uv run capture-conversation-baselines
 ```
 
 This runs all three fixture files with seed 42 and writes JSON baselines to `logs/conversation_quality/baselines/`. Re-run with `--force` to overwrite after intentional score changes.

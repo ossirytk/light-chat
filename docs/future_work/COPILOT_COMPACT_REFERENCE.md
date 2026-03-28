@@ -33,7 +33,7 @@ Use this as the single compact reference for implemented work across conversatio
   - `tests/fixtures/conversation_fixtures.json` — baseline Shodan cases
   - `tests/fixtures/conversation_fixtures_hard.json` — drift, style-break, and user-turn leakage cases for Shodan and Leonardo
   - `tests/fixtures/conversation_fixtures_negative.json` — template variable leakage, user-turn leakage, OOC forbidden-phrase assertions
-- Canonical mock-mode baseline artifacts are captured via `uv run python -m scripts.conversation.capture_baselines capture-conversation-baselines` and stored under `logs/conversation_quality/baselines/`.
+- Canonical mock-mode baseline artifacts are captured via `uv run capture-conversation-baselines` and stored under `logs/conversation_quality/baselines/`.
 - Dynamic context is enabled by default.
 
 Primary files:
@@ -224,7 +224,7 @@ uv run ruff check .
 uv run ruff format .
 uv run python -m scripts.conversation.evaluate_quality evaluate-conversation-fixtures
 uv run python -m scripts.conversation.evaluate_quality calibrate-persona-drift
-uv run python -m scripts.conversation.capture_baselines capture-conversation-baselines
+uv run capture-conversation-baselines
 uv run python -m scripts.rag.manage_collections benchmark-rerank --require-runtime-win
 uv run python -m scripts.rag.manage_collections show-retrieval-trends --history-csv logs/retrieval_eval/history.csv
 uv run python -m scripts.quality_gate --skip-retrieval
