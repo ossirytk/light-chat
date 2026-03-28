@@ -95,4 +95,5 @@ capture-conversation-baselines = "scripts.conversation.capture_baselines:capture
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
+    "ruff>=0.9.0",
 ]
