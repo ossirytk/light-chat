@@ -19,9 +19,7 @@ class TestParseCoverage:
     def test_extracts_file_summary(self) -> None:
         data = {
             "totals": {"percent_covered": 50.0},
-            "files": {
-                "src/foo.py": {"summary": {"percent_covered": 80.0, "missing_lines": 2}}
-            },
+            "files": {"src/foo.py": {"summary": {"percent_covered": 80.0, "missing_lines": 2}}},
         }
         result = _parse_coverage(data)
         assert "src/foo.py" in result["files"]

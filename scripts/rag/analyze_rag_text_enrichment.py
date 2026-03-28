@@ -67,9 +67,7 @@ def _extract_context_windows(text: str, entity: str, radius: int = 80) -> list[s
 
 def _classify_date(entity_stripped: str) -> tuple[str, float] | None:
     """Return ('date', confidence) if the entity looks like a date, else None."""
-    if re.fullmatch(r"\d{4}", entity_stripped) or re.search(
-        r"\b\d{1,2}\s+[A-Z][a-z]+\s+\d{4}\b", entity_stripped
-    ):
+    if re.fullmatch(r"\d{4}", entity_stripped) or re.search(r"\b\d{1,2}\s+[A-Z][a-z]+\s+\d{4}\b", entity_stripped):
         return "date", 0.98
     return None
 
@@ -119,7 +117,6 @@ def _classify_event(entity_lower: str, context_text: str) -> tuple[str, float] |
     if has_event_in_entity or any(hint in context_text for hint in EVENT_HINTS):
         return "event", 0.86 if has_event_in_entity else 0.74
     return None
-
 
 
 def _classify_character(entity_stripped: str, context_text: str) -> tuple[str, float] | None:
