@@ -81,6 +81,27 @@ def build_embedding_fingerprint(
     return fingerprint
 
 
+def _assert_no_fingerprint_mismatches(
+    metadata: dict[str, object],
+    expected_fingerprint: dict[str, object],
+    collection_name: str,
+) -> None:
+    mismatches = [
+        (key, metadata[key], expected_fingerprint[key])
+        for key in expected_fingerprint
+        if key in metadata and metadata[key] != expected_fingerprint[key]
+    ]
+    if mismatches:
+        mismatch_summary = ", ".join(
+            f"{key}: existing={actual!r} expected={expected!r}" for key, actual, expected in mismatches
+        )
+        msg = (
+            f"Collection '{collection_name}' has incompatible embedding fingerprint; refusing mixed-model write. "
+            f"{mismatch_summary}"
+        )
+        raise click.ClickException(msg)
+
+
 def assert_collection_fingerprint_compatible(
     client: chromadb.PersistentClient,
     collection_name: str,
@@ -93,21 +114,7 @@ def assert_collection_fingerprint_compatible(
 
     metadata = collection.metadata or {}
     missing_keys = [key for key in expected_fingerprint if key not in metadata]
-    mismatches = [
-        (key, metadata[key], expected_fingerprint[key])
-        for key in expected_fingerprint
-        if key in metadata and metadata[key] != expected_fingerprint[key]
-    ]
-
-    if mismatches:
-        mismatch_summary = ", ".join(
-            f"{key}: existing={actual!r} expected={expected!r}" for key, actual, expected in mismatches
-        )
-        msg = (
-            f"Collection '{collection_name}' has incompatible embedding fingerprint; refusing mixed-model write. "
-            f"{mismatch_summary}"
-        )
-        raise click.ClickException(msg)
+    _assert_no_fingerprint_mismatches(metadata, expected_fingerprint, collection_name)
 
     if missing_keys:
         logger.warning(

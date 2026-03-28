@@ -35,6 +35,25 @@ def lint_group() -> None:
     default="error",
     help="Minimum severity level to cause exit code 1",
 )
+def _process_lint_files(
+    file_paths: list[object],
+    linter: MessageExamplesLinter,
+) -> tuple[list[object], int]:
+    """Lint each file, returning (all_violations, fixed_count)."""
+    all_violations: list[object] = []
+    fixed_count = 0
+    for file_path in file_paths:
+        if not file_path.is_file():  # type: ignore[attr-defined]
+            continue
+        report = linter.lint_file(file_path)  # type: ignore[arg-type]
+        click.echo(format_lint_report(report))
+        if report.violations:
+            all_violations.extend(report.violations)
+        if report.auto_fixed:
+            fixed_count += 1
+    return all_violations, fixed_count
+
+
 def lint_message_examples(
     pattern: str,
     fix: bool,
@@ -53,20 +72,7 @@ def lint_message_examples(
         click.echo(f"No files matching pattern: {pattern}")
         sys.exit(1)
 
-    all_violations = []
-    fixed_count = 0
-
-    for file_path in file_paths:
-        if not file_path.is_file():
-            continue
-
-        report = linter.lint_file(file_path)
-        click.echo(format_lint_report(report))
-
-        if report.violations:
-            all_violations.extend(report.violations)
-        if report.auto_fixed:
-            fixed_count += 1
+    all_violations, fixed_count = _process_lint_files(file_paths, linter)
 
     if fix:
         click.echo(f"\n✓ Auto-fixed {fixed_count}/{len(file_paths)} files")

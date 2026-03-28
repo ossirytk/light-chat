@@ -65,57 +65,105 @@ def _extract_context_windows(text: str, entity: str, radius: int = 80) -> list[s
     return windows
 
 
+def _classify_date(entity_stripped: str) -> tuple[str, float] | None:
+    """Return ('date', confidence) if the entity looks like a date, else None."""
+    if re.fullmatch(r"\d{4}", entity_stripped) or re.search(
+        r"\b\d{1,2}\s+[A-Z][a-z]+\s+\d{4}\b", entity_stripped
+    ):
+        return "date", 0.98
+    return None
+
+
+def _classify_technology_primary(entity_lower: str) -> tuple[str, float] | None:
+    """Return ('technology', 0.9) if tech hints appear in the entity name, else None."""
+    if any(hint in entity_lower for hint in TECH_HINTS):
+        return "technology", 0.9
+    return None
+
+
+def _classify_technology_secondary(entity_stripped: str, context_text: str) -> tuple[str, float] | None:
+    """Return ('technology', confidence) from context hints or acronym pattern, else None."""
+    if any(hint in context_text for hint in TECH_HINTS):
+        return "technology", 0.72
+    if re.fullmatch(r"[A-Z]{3,}", entity_stripped):
+        return "technology", 0.83
+    return None
+
+
+def _classify_faction(
+    entity_lower: str,
+    context_text: str,
+    has_location_hint_in_entity: bool,
+) -> tuple[str, float] | None:
+    """Return ('faction', confidence) if faction hints are found, else None."""
+    has_faction_in_entity = any(hint in entity_lower for hint in FACTION_HINTS)
+    has_faction_in_context = any(hint in context_text for hint in FACTION_HINTS)
+    if has_faction_in_entity or (has_faction_in_context and not has_location_hint_in_entity):
+        return "faction", 0.9 if has_faction_in_entity else 0.78
+    return None
+
+
+def _classify_location(
+    context_text: str,
+    has_location_hint_in_entity: bool,
+) -> tuple[str, float] | None:
+    """Return ('location', confidence) if location hints are found, else None."""
+    if has_location_hint_in_entity or any(hint in context_text for hint in LOCATION_HINTS):
+        return "location", 0.9 if has_location_hint_in_entity else 0.78
+    return None
+
+
+def _classify_event(entity_lower: str, context_text: str) -> tuple[str, float] | None:
+    """Return ('event', confidence) if event hints are found, else None."""
+    has_event_in_entity = any(hint in entity_lower for hint in EVENT_HINTS)
+    if has_event_in_entity or any(hint in context_text for hint in EVENT_HINTS):
+        return "event", 0.86 if has_event_in_entity else 0.74
+    return None
+
+
+
+def _classify_character(entity_stripped: str, context_text: str) -> tuple[str, float] | None:
+    """Return ('character', confidence) for person-like entities, else None."""
+    tokens = entity_stripped.split()
+    if len(tokens) >= MIN_MULTIWORD_TOKENS and re.search(
+        r"\b(dr\.?|vice president|researcher|captain)\b",
+        context_text,
+    ):
+        return "character", 0.84
+    if len(tokens) >= MIN_MULTIWORD_TOKENS and re.match(
+        r"^[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+$",
+        entity_stripped,
+    ):
+        return "character", 0.73
+    return None
+
+
 def infer_category_with_confidence(entity: str, text: str) -> tuple[str, float]:
     """Infer metadata category with a heuristic confidence score."""
     entity_stripped = entity.strip()
     entity_lower = entity_stripped.lower()
-    inferred_category = "concept"
-    confidence = 0.5
 
-    if re.fullmatch(r"\d{4}", entity_stripped) or re.search(r"\b\d{1,2}\s+[A-Z][a-z]+\s+\d{4}\b", entity_stripped):
-        inferred_category = "date"
-        confidence = 0.98
-    else:
-        contexts = _extract_context_windows(text, entity_stripped)
-        context_text = " ".join(contexts)
+    if (result := _classify_date(entity_stripped)) is not None:
+        return result
 
-        has_location_hint_in_entity = any(hint in entity_lower for hint in LOCATION_HINTS)
-        has_tech_hint_in_entity = any(hint in entity_lower for hint in TECH_HINTS)
-        has_faction_hint_in_entity = any(hint in entity_lower for hint in FACTION_HINTS)
-        has_faction_hint_in_context = any(hint in context_text for hint in FACTION_HINTS)
+    contexts = _extract_context_windows(text, entity_stripped)
+    context_text = " ".join(contexts)
+    has_location_hint_in_entity = any(hint in entity_lower for hint in LOCATION_HINTS)
 
-        if has_tech_hint_in_entity:
-            inferred_category = "technology"
-            confidence = 0.9
-        elif has_faction_hint_in_entity or (has_faction_hint_in_context and not has_location_hint_in_entity):
-            inferred_category = "faction"
-            confidence = 0.9 if has_faction_hint_in_entity else 0.78
-        elif has_location_hint_in_entity or any(hint in context_text for hint in LOCATION_HINTS):
-            inferred_category = "location"
-            confidence = 0.9 if has_location_hint_in_entity else 0.78
-        elif any(hint in entity_lower for hint in EVENT_HINTS) or any(hint in context_text for hint in EVENT_HINTS):
-            inferred_category = "event"
-            confidence = 0.86 if any(hint in entity_lower for hint in EVENT_HINTS) else 0.74
-        elif any(hint in entity_lower for hint in TECH_HINTS) or any(hint in context_text for hint in TECH_HINTS):
-            inferred_category = "technology"
-            confidence = 0.85 if any(hint in entity_lower for hint in TECH_HINTS) else 0.72
-        elif re.fullmatch(r"[A-Z]{3,}", entity_stripped):
-            inferred_category = "technology"
-            confidence = 0.83
-        elif len(entity_stripped.split()) >= MIN_MULTIWORD_TOKENS and re.search(
-            r"\b(dr\.?|vice president|researcher|captain)\b",
-            context_text,
-        ):
-            inferred_category = "character"
-            confidence = 0.84
-        elif len(entity_stripped.split()) >= MIN_MULTIWORD_TOKENS and re.match(
-            r"^[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+$",
-            entity_stripped,
-        ):
-            inferred_category = "character"
-            confidence = 0.73
+    # Try classifiers in priority order; first match wins.
+    classifiers = (
+        _classify_technology_primary(entity_lower),
+        _classify_faction(entity_lower, context_text, has_location_hint_in_entity),
+        _classify_location(context_text, has_location_hint_in_entity),
+        _classify_event(entity_lower, context_text),
+        _classify_technology_secondary(entity_stripped, context_text),
+        _classify_character(entity_stripped, context_text),
+    )
+    for result in classifiers:
+        if result is not None:
+            return result
 
-    return inferred_category, confidence
+    return "concept", 0.5
 
 
 def infer_category_for_entity(entity: str, text: str) -> str:
@@ -247,6 +295,46 @@ def generate_aliases_for_entity(
     return aliases
 
 
+def _enrich_entry_with_category(
+    entry: dict[str, Any],
+    review_item: dict[str, Any],
+    stripped_entity: str,
+    text: str,
+    enrichment: EnrichmentOptions,
+) -> None:
+    category, confidence = infer_category_with_confidence(stripped_entity, text)
+    category_kept = not enrichment.strict or confidence >= enrichment.category_confidence_threshold
+    if category_kept:
+        entry["category"] = category
+    elif enrichment.allow_unassigned_categories:
+        entry["category"] = None
+    review_item["category"] = {
+        "value": category,
+        "confidence": round(confidence, 3),
+        "kept": category_kept,
+        "reason": "kept" if category_kept else "low_confidence",
+    }
+
+
+def _enrich_entry_with_aliases(
+    entry: dict[str, Any],
+    review_item: dict[str, Any],
+    stripped_entity: str,
+    text: str,
+    enrichment: EnrichmentOptions,
+) -> None:
+    alias_candidates = _generate_alias_candidates_with_confidence(stripped_entity, text)
+    aliases, alias_review = _select_aliases_with_review(
+        alias_candidates,
+        stripped_entity,
+        strict=enrichment.strict,
+        max_aliases=enrichment.max_aliases,
+    )
+    if aliases:
+        entry["aliases"] = aliases
+    review_item["aliases"] = alias_review
+
+
 def generate_metadata_from_entities(
     entities: list[str],
     text: str,
@@ -273,30 +361,10 @@ def generate_metadata_from_entities(
         }
 
         if enrichment.auto_categories:
-            category, confidence = infer_category_with_confidence(stripped_entity, text)
-            category_kept = not enrichment.strict or confidence >= enrichment.category_confidence_threshold
-            if category_kept:
-                entry["category"] = category
-            elif enrichment.allow_unassigned_categories:
-                entry["category"] = None
-            review_item["category"] = {
-                "value": category,
-                "confidence": round(confidence, 3),
-                "kept": category_kept,
-                "reason": "kept" if category_kept else "low_confidence",
-            }
+            _enrich_entry_with_category(entry, review_item, stripped_entity, text, enrichment)
 
         if enrichment.auto_aliases:
-            alias_candidates = _generate_alias_candidates_with_confidence(stripped_entity, text)
-            aliases, alias_review = _select_aliases_with_review(
-                alias_candidates,
-                stripped_entity,
-                strict=enrichment.strict,
-                max_aliases=enrichment.max_aliases,
-            )
-            if aliases:
-                entry["aliases"] = aliases
-            review_item["aliases"] = alias_review
+            _enrich_entry_with_aliases(entry, review_item, stripped_entity, text, enrichment)
 
         generated_entries.append(entry)
         review_entries.append(review_item)

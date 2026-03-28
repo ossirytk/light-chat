@@ -146,6 +146,17 @@ def delete(collection_name: str, persist_directory: str | None, yes: bool) -> No
         click.secho(f"Error deleting collection: {e}", fg="red", err=True)
 
 
+def _confirm_bulk_deletion(matching_count: int, yes: bool) -> bool:
+    """Return True if the user confirms deletion, False if cancelled."""
+    if yes:
+        return True
+    confirmation = input(f"Delete all {matching_count} collections? (yes/no): ")
+    if confirmation.lower() not in ["yes", "y"]:
+        click.echo("Deletion cancelled")
+        return False
+    return True
+
+
 @click.command()
 @click.option(
     "--persist-directory",
@@ -179,11 +190,8 @@ def delete_multiple(persist_directory: str | None, pattern: str | None, yes: boo
     for collection in matching:
         click.echo(f"  \N{BULLET} {collection.name} ({collection.count()} documents)")
 
-    if not yes:
-        confirmation = input(f"Delete all {len(matching)} collections? (yes/no): ")
-        if confirmation.lower() not in ["yes", "y"]:
-            click.echo("Deletion cancelled")
-            return
+    if not _confirm_bulk_deletion(len(matching), yes):
+        return
 
     for collection in matching:
         try:

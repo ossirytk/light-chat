@@ -23,6 +23,35 @@ from scripts.rag.manage_collections_core import (
 )
 
 
+def _write_evaluation_outputs(
+    run: object,
+    output_json: object,
+    output_csv: object,
+    history_csv: object,
+) -> None:
+    if output_json is not None:
+        _write_fixture_report_json(output_json, run.report)  # type: ignore[attr-defined]
+        click.echo(f"Wrote JSON report: {output_json}")
+    if output_csv is not None:
+        _write_fixture_report_csv(output_csv, run.case_results, run.default_k)  # type: ignore[attr-defined]
+        click.echo(f"Wrote CSV report: {output_csv}")
+    if history_csv is not None:
+        _append_fixture_history_csv(history_csv, run.report)  # type: ignore[attr-defined]
+        click.echo(f"Appended history row: {history_csv}")
+
+
+def _check_metric_gates(options: FixtureEvalOptions, run: object) -> None:
+    failures: list[str] = []
+    recall = float(run.metrics["recall_at_k"])  # type: ignore[attr-defined]
+    mrr = float(run.metrics["mrr"])  # type: ignore[attr-defined]
+    if options.min_recall is not None and recall < options.min_recall:
+        failures.append(f"Recall@{run.default_k}={recall:.3f} < required {options.min_recall:.3f}")  # type: ignore[attr-defined]
+    if options.min_mrr is not None and mrr < options.min_mrr:
+        failures.append(f"MRR={mrr:.3f} < required {options.min_mrr:.3f}")
+    if failures:
+        raise click.ClickException("Retrieval fixture gate failed: " + "; ".join(failures))
+
+
 @click.command("evaluate-fixtures")
 @click.option(
     "--fixture-file",
@@ -82,32 +111,10 @@ def evaluate_fixtures(**kwargs: object) -> None:
         min_recall=float(kwargs["min_recall"]) if kwargs.get("min_recall") is not None else None,
         min_mrr=float(kwargs["min_mrr"]) if kwargs.get("min_mrr") is not None else None,
     )
-    output_json = kwargs["output_json"]
-    output_csv = kwargs["output_csv"]
-    history_csv = kwargs["history_csv"]
-
     run = _execute_fixture_evaluation(options)
     _print_fixture_summary(run.metrics, run.default_k, run.skipped)
-    if output_json is not None:
-        _write_fixture_report_json(output_json, run.report)
-        click.echo(f"Wrote JSON report: {output_json}")
-    if output_csv is not None:
-        _write_fixture_report_csv(output_csv, run.case_results, run.default_k)
-        click.echo(f"Wrote CSV report: {output_csv}")
-    if history_csv is not None:
-        _append_fixture_history_csv(history_csv, run.report)
-        click.echo(f"Appended history row: {history_csv}")
-
-    failures: list[str] = []
-    recall = float(run.metrics["recall_at_k"])
-    mrr = float(run.metrics["mrr"])
-    if options.min_recall is not None and recall < options.min_recall:
-        failures.append(f"Recall@{run.default_k}={recall:.3f} < required {options.min_recall:.3f}")
-    if options.min_mrr is not None and mrr < options.min_mrr:
-        failures.append(f"MRR={mrr:.3f} < required {options.min_mrr:.3f}")
-    if failures:
-        msg = "Retrieval fixture gate failed: " + "; ".join(failures)
-        raise click.ClickException(msg)
+    _write_evaluation_outputs(run, kwargs["output_json"], kwargs["output_csv"], kwargs["history_csv"])
+    _check_metric_gates(options, run)
 
 
 @click.command("benchmark-rerank")

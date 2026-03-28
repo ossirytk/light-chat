@@ -7,6 +7,33 @@ from typing import Any
 
 from loguru import logger
 
+_TEXT_KEYS = ("text", "text_fields", "text_field", "content", "value")
+
+
+def _validate_items(data: list[Any]) -> list[str]:
+    """Return a list of per-item validation issue messages."""
+    issues: list[str] = []
+    for idx, item in enumerate(data):
+        if not isinstance(item, dict):
+            issues.append(f"Item {idx}: Not a dictionary")
+            continue
+
+        if "uuid" not in item:
+            issues.append(f"Item {idx}: Missing 'uuid' field")
+
+        if not any(key in item for key in _TEXT_KEYS):
+            other_text_keys = [k for k, v in item.items() if k != "uuid" and isinstance(v, str)]
+            if not other_text_keys:
+                issues.append(f"Item {idx}: Missing text field (expected one of {_TEXT_KEYS})")
+
+    return issues
+
+
+def _check_duplicate_uuids(data: list[Any]) -> list[Any]:
+    """Return list of UUID values that appear more than once."""
+    uuid_values = [item.get("uuid") for item in data if isinstance(item, dict) and "uuid" in item]
+    return [u for u, count in Counter(uuid_values).items() if count > 1]
+
 
 def validate_metadata_file(metadata_path: Path) -> dict[str, Any]:
     """Validate a metadata JSON file structure."""
@@ -21,32 +48,14 @@ def validate_metadata_file(metadata_path: Path) -> dict[str, Any]:
     except json.JSONDecodeError as error:
         return {"valid": False, "error": f"Invalid JSON: {error}", "issues": []}
 
-    issues = []
-
     if isinstance(data, dict) and "Content" in data:
         data = data["Content"]
 
     if not isinstance(data, list):
         return {"valid": False, "error": "Data must be a list or dict with 'Content' key", "issues": []}
 
-    text_keys = ("text", "text_fields", "text_field", "content", "value")
-
-    for idx, item in enumerate(data):
-        if not isinstance(item, dict):
-            issues.append(f"Item {idx}: Not a dictionary")
-            continue
-
-        if "uuid" not in item:
-            issues.append(f"Item {idx}: Missing 'uuid' field")
-
-        has_text_field = any(key in item for key in text_keys)
-        if not has_text_field:
-            other_text_keys = [k for k, v in item.items() if k != "uuid" and isinstance(v, str)]
-            if not other_text_keys:
-                issues.append(f"Item {idx}: Missing text field (expected one of {text_keys})")
-
-    uuid_values = [item.get("uuid") for item in data if isinstance(item, dict) and "uuid" in item]
-    duplicate_uuids = [entry_uuid for entry_uuid, count in Counter(uuid_values).items() if count > 1]
+    issues = _validate_items(data)
+    duplicate_uuids = _check_duplicate_uuids(data)
 
     if duplicate_uuids:
         issues.append(f"Duplicate UUIDs found: {duplicate_uuids[:5]}")

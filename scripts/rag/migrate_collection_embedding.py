@@ -116,6 +116,31 @@ class MigrationConfig:
 # ── Document Extraction ───────────────────────────────────────────────────────
 
 
+def _clean_document_rows(
+    raw_docs: list[str | None],
+    raw_meta: list[dict[str, Any] | None],
+    raw_ids: list[str],
+) -> tuple[list[str], list[dict[str, Any]], list[str]]:
+    """Filter out blank rows and strip fingerprint keys from metadata."""
+    texts: list[str] = []
+    metadatas: list[dict[str, Any]] = []
+    ids: list[str] = []
+    for text, meta, doc_id in zip(raw_docs, raw_meta, raw_ids, strict=False):
+        if not isinstance(text, str) or not text.strip():
+            continue
+        clean_meta: dict[str, Any] = {}
+        if isinstance(meta, dict):
+            for key, val in meta.items():
+                # Strip old embedding fingerprint keys — new ones are set via the fingerprint
+                if key in _FINGERPRINT_KEYS:
+                    continue
+                clean_meta[key] = val
+        texts.append(text)
+        metadatas.append(clean_meta)
+        ids.append(doc_id)
+    return texts, metadatas, ids
+
+
 def _fetch_collection_documents(
     client: chromadb.PersistentClient,
     collection_name: str,
@@ -135,24 +160,7 @@ def _fetch_collection_documents(
     raw_meta: list[dict[str, Any] | None] = result.get("metadatas") or []
     raw_ids: list[str] = result.get("ids") or []
 
-    texts: list[str] = []
-    metadatas: list[dict[str, Any]] = []
-    ids: list[str] = []
-
-    for text, meta, doc_id in zip(raw_docs, raw_meta, raw_ids, strict=False):
-        if not isinstance(text, str) or not text.strip():
-            continue
-        clean_meta: dict[str, Any] = {}
-        if isinstance(meta, dict):
-            for key, val in meta.items():
-                # Strip old embedding fingerprint keys — new ones are set via the fingerprint
-                if key in _FINGERPRINT_KEYS:
-                    continue
-                clean_meta[key] = val
-        texts.append(text)
-        metadatas.append(clean_meta)
-        ids.append(doc_id)
-
+    texts, metadatas, ids = _clean_document_rows(raw_docs, raw_meta, raw_ids)
     logger.debug(f"Fetched {len(texts)} documents from '{collection_name}'")
     return _CollectionDocs(texts=texts, metadatas=metadatas, ids=ids)
 

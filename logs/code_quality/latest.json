@@ -1,0 +1,391 @@
+{
+  "captured_at": "2026-03-28T07:25:39.757254+00:00",
+  "coverage": {
+    "total_pct": 53.26,
+    "threshold": 40,
+    "files": {
+      "core\\__init__.py": {
+        "pct": 100.0,
+        "missing_lines": 0
+      },
+      "core\\config.py": {
+        "pct": 62.42,
+        "missing_lines": 56
+      },
+      "core\\context_manager.py": {
+        "pct": 61.21,
+        "missing_lines": 45
+      },
+      "core\\conversation_manager.py": {
+        "pct": 29.59,
+        "missing_lines": 69
+      },
+      "core\\conversation_model_setup_mixin.py": {
+        "pct": 12.99,
+        "missing_lines": 134
+      },
+      "core\\conversation_prompt_history_mixin.py": {
+        "pct": 48.12,
+        "missing_lines": 83
+      },
+      "core\\conversation_response_mixin.py": {
+        "pct": 59.39,
+        "missing_lines": 80
+      },
+      "core\\conversation_retrieval_backend_mixin.py": {
+        "pct": 43.12,
+        "missing_lines": 62
+      },
+      "core\\conversation_retrieval_keyfile_mixin.py": {
+        "pct": 40.0,
+        "missing_lines": 9
+      },
+      "core\\conversation_retrieval_mixin.py": {
+        "pct": 100.0,
+        "missing_lines": 0
+      },
+      "core\\conversation_retrieval_orchestration_mixin.py": {
+        "pct": 74.21,
+        "missing_lines": 41
+      },
+      "core\\conversation_retrieval_postprocess_mixin.py": {
+        "pct": 87.5,
+        "missing_lines": 18
+      },
+      "core\\gpu_utils.py": {
+        "pct": 79.41,
+        "missing_lines": 21
+      },
+      "core\\persona_drift.py": {
+        "pct": 98.88,
+        "missing_lines": 1
+      },
+      "core\\retrieval_keys.py": {
+        "pct": 100.0,
+        "missing_lines": 0
+      },
+      "core\\retrieval_shared_types.py": {
+        "pct": 100.0,
+        "missing_lines": 0
+      },
+      "main.py": {
+        "pct": 0.0,
+        "missing_lines": 68
+      },
+      "scripts\\__init__.py": {
+        "pct": 100.0,
+        "missing_lines": 0
+      },
+      "scripts\\analyze_rag_text.py": {
+        "pct": 100.0,
+        "missing_lines": 0
+      },
+      "scripts\\build_flash_attention.py": {
+        "pct": 100.0,
+        "missing_lines": 0
+      },
+      "scripts\\context\\__init__.py": {
+        "pct": 100.0,
+        "missing_lines": 0
+      },
+      "scripts\\context\\fetch_character_context.py": {
+        "pct": 60.83,
+        "missing_lines": 47
+      },
+      "scripts\\conversation\\__init__.py": {
+        "pct": 100.0,
+        "missing_lines": 0
+      },
+      "scripts\\conversation\\capture_baselines.py": {
+        "pct": 0.0,
+        "missing_lines": 43
+      },
+      "scripts\\conversation\\evaluate_quality.py": {
+        "pct": 66.11,
+        "missing_lines": 141
+      },
+      "scripts\\fetch_character_context.py": {
+        "pct": 100.0,
+        "missing_lines": 0
+      },
+      "scripts\\manage_collections.py": {
+        "pct": 100.0,
+        "missing_lines": 0
+      },
+      "scripts\\old_prepare_rag.py": {
+        "pct": 100.0,
+        "missing_lines": 0
+      },
+      "scripts\\push_rag_data.py": {
+        "pct": 100.0,
+        "missing_lines": 0
+      },
+      "scripts\\quality\\__init__.py": {
+        "pct": 100.0,
+        "missing_lines": 0
+      },
+      "scripts\\quality\\capture_code_metrics.py": {
+        "pct": 43.22,
+        "missing_lines": 67
+      },
+      "scripts\\quality_gate.py": {
+        "pct": 34.59,
+        "missing_lines": 104
+      },
+      "scripts\\rag\\__init__.py": {
+        "pct": 100.0,
+        "missing_lines": 0
+      },
+      "scripts\\rag\\analyze_rag_coverage.py": {
+        "pct": 89.84,
+        "missing_lines": 13
+      },
+      "scripts\\rag\\analyze_rag_text.py": {
+        "pct": 39.29,
+        "missing_lines": 68
+      },
+      "scripts\\rag\\analyze_rag_text_analysis.py": {
+        "pct": 100.0,
+        "missing_lines": 0
+      },
+      "scripts\\rag\\analyze_rag_text_enrichment.py": {
+        "pct": 91.53,
+        "missing_lines": 16
+      },
+      "scripts\\rag\\analyze_rag_text_types.py": {
+        "pct": 100.0,
+        "missing_lines": 0
+      },
+      "scripts\\rag\\analyze_rag_text_validation.py": {
+        "pct": 100.0,
+        "missing_lines": 0
+      },
+      "scripts\\rag\\benchmark_embedding_models.py": {
+        "pct": 32.12,
+        "missing_lines": 131
+      },
+      "scripts\\rag\\lint_message_examples.py": {
+        "pct": 93.7,
+        "missing_lines": 8
+      },
+      "scripts\\rag\\manage_collections.py": {
+        "pct": 94.74,
+        "missing_lines": 1
+      },
+      "scripts\\rag\\manage_collections_commands_collections.py": {
+        "pct": 36.47,
+        "missing_lines": 169
+      },
+      "scripts\\rag\\manage_collections_commands_coverage.py": {
+        "pct": 42.11,
+        "missing_lines": 22
+      },
+      "scripts\\rag\\manage_collections_commands_eval.py": {
+        "pct": 32.19,
+        "missing_lines": 99
+      },
+      "scripts\\rag\\manage_collections_commands_lint.py": {
+        "pct": 35.0,
+        "missing_lines": 26
+      },
+      "scripts\\rag\\manage_collections_commands_migration.py": {
+        "pct": 40.82,
+        "missing_lines": 29
+      },
+      "scripts\\rag\\manage_collections_config_categories.py": {
+        "pct": 100.0,
+        "missing_lines": 0
+      },
+      "scripts\\rag\\manage_collections_core.py": {
+        "pct": 100.0,
+        "missing_lines": 0
+      },
+      "scripts\\rag\\manage_collections_core_collection.py": {
+        "pct": 51.72,
+        "missing_lines": 42
+      },
+      "scripts\\rag\\manage_collections_core_evaluation.py": {
+        "pct": 24.77,
+        "missing_lines": 161
+      },
+      "scripts\\rag\\manage_collections_core_metrics.py": {
+        "pct": 70.63,
+        "missing_lines": 37
+      },
+      "scripts\\rag\\manage_collections_core_types.py": {
+        "pct": 100.0,
+        "missing_lines": 0
+      },
+      "scripts\\rag\\migrate_collection_embedding.py": {
+        "pct": 31.05,
+        "missing_lines": 151
+      },
+      "scripts\\rag\\old_prepare_rag.py": {
+        "pct": 33.58,
+        "missing_lines": 89
+      },
+      "scripts\\rag\\push_rag_data.py": {
+        "pct": 44.81,
+        "missing_lines": 149
+      },
+      "web_app.py": {
+        "pct": 31.47,
+        "missing_lines": 196
+      }
+    }
+  },
+  "complexity": {
+    "avg": 3.18,
+    "max": 24,
+    "threshold_block": "B",
+    "violations": [
+      {
+        "file": "core\\conversation_response_mixin.py",
+        "name": "_stream_response",
+        "type": "method",
+        "complexity": 24,
+        "rank": "D"
+      },
+      {
+        "file": "scripts\\conversation\\evaluate_quality.py",
+        "name": "_load_fixture",
+        "type": "function",
+        "complexity": 21,
+        "rank": "D"
+      },
+      {
+        "file": "scripts\\conversation\\evaluate_quality.py",
+        "name": "_weight_sweep",
+        "type": "function",
+        "complexity": 20,
+        "rank": "C"
+      },
+      {
+        "file": "scripts\\rag\\analyze_rag_coverage.py",
+        "name": "_extract_matched_segments",
+        "type": "function",
+        "complexity": 19,
+        "rank": "C"
+      },
+      {
+        "file": "scripts\\rag\\manage_collections_commands_collections.py",
+        "name": "backfill_embedding_fingerprint",
+        "type": "function",
+        "complexity": 19,
+        "rank": "C"
+      },
+      {
+        "file": "scripts\\rag\\manage_collections_core_evaluation.py",
+        "name": "_evaluate_fixture_case",
+        "type": "function",
+        "complexity": 18,
+        "rank": "C"
+      },
+      {
+        "file": "scripts\\conversation\\evaluate_quality.py",
+        "name": "_load_session_turns",
+        "type": "function",
+        "complexity": 17,
+        "rank": "C"
+      },
+      {
+        "file": "scripts\\rag\\push_rag_data.py",
+        "name": "build_cli_options",
+        "type": "function",
+        "complexity": 17,
+        "rank": "C"
+      },
+      {
+        "file": "core\\conversation_response_mixin.py",
+        "name": "import_conversation_state",
+        "type": "method",
+        "complexity": 16,
+        "rank": "C"
+      },
+      {
+        "file": "scripts\\rag\\manage_collections_core_evaluation.py",
+        "name": "_run_fixture_evaluation",
+        "type": "function",
+        "complexity": 14,
+        "rank": "C"
+      },
+      {
+        "file": "core\\conversation_retrieval_orchestration_mixin.py",
+        "name": "_search_collection_with_trace",
+        "type": "method",
+        "complexity": 13,
+        "rank": "C"
+      },
+      {
+        "file": "scripts\\quality_gate.py",
+        "name": "quality_gate",
+        "type": "function",
+        "complexity": 13,
+        "rank": "C"
+      },
+      {
+        "file": "scripts\\rag\\analyze_rag_text_enrichment.py",
+        "name": "_generate_alias_candidates_with_confidence",
+        "type": "function",
+        "complexity": 13,
+        "rank": "C"
+      },
+      {
+        "file": "core\\conversation_prompt_history_mixin.py",
+        "name": "_build_mistral_prompt",
+        "type": "method",
+        "complexity": 12,
+        "rank": "C"
+      },
+      {
+        "file": "core\\conversation_retrieval_orchestration_mixin.py",
+        "name": "_get_vector_context",
+        "type": "method",
+        "complexity": 12,
+        "rank": "C"
+      },
+      {
+        "file": "scripts\\quality_gate.py",
+        "name": "_run_retrieval_step",
+        "type": "function",
+        "complexity": 12,
+        "rank": "C"
+      },
+      {
+        "file": "scripts\\conversation\\evaluate_quality.py",
+        "name": "evaluate_conversation_fixtures",
+        "type": "function",
+        "complexity": 12,
+        "rank": "C"
+      },
+      {
+        "file": "scripts\\rag\\analyze_rag_text_enrichment.py",
+        "name": "_select_aliases_with_review",
+        "type": "function",
+        "complexity": 12,
+        "rank": "C"
+      },
+      {
+        "file": "scripts\\rag\\benchmark_embedding_models.py",
+        "name": "_evaluate_single_case",
+        "type": "function",
+        "complexity": 12,
+        "rank": "C"
+      },
+      {
+        "file": "scripts\\rag\\old_prepare_rag.py",
+        "name": "main",
+        "type": "function",
+        "complexity": 12,
+        "rank": "C"
+      },
+      {
+        "file": "scripts\\build\\flash_attention\\build_flash_attention.py",
+        "name": "main",
+        "type": "function",
+        "complexity": 11,
+        "rank": "C"
+      }
+    ]
+  }
+}

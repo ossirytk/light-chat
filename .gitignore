@@ -6,8 +6,10 @@
 dist/
 site/
 models/
-logs/
+logs/*
+!logs/code_quality/
 embedding_models/
 character_storage/
 __pycache__/
-
+.coverage
+.coverage.*
