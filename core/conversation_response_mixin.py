@@ -40,7 +40,7 @@ class ConversationResponseMixin:
         history.append(float(result.drift_score))
         summary = self._persona_drift_summary()
         turn_number = min(len(self.user_message_history), len(self.ai_message_history))
-        self.last_persona_drift = {
+        drift_record = {
             "turn": turn_number,
             "drift_score": float(result.drift_score),
             "persona_fidelity": float(result.persona_fidelity),
@@ -50,6 +50,10 @@ class ConversationResponseMixin:
             "has_user_turn_pattern": bool(result.has_user_turn_pattern),
             "rolling_avg": float(summary["avg"]),
         }
+        self.last_persona_drift = drift_record
+        trace = getattr(self, "persona_drift_trace", None)
+        if trace is not None:
+            trace.append(dict(drift_record))
 
         warning_threshold = float(getattr(self.runtime_config, "persona_drift_warning_threshold", 1.0))
         if result.drift_score >= warning_threshold:
@@ -200,6 +204,8 @@ class ConversationResponseMixin:
         self._last_summary_topic_terms = set()
         if hasattr(self, "persona_drift_history"):
             self.persona_drift_history.clear()
+        if hasattr(self, "persona_drift_trace"):
+            self.persona_drift_trace.clear()
         self.last_persona_drift = None
 
     def export_conversation_state(self) -> dict[str, object]:
@@ -211,6 +217,7 @@ class ConversationResponseMixin:
             "history_summaries": list(self.history_summaries),
             "last_summary_topic_terms": sorted(self._last_summary_topic_terms),
             "persona_drift_history": list(getattr(self, "persona_drift_history", [])),
+            "persona_drift_trace": list(getattr(self, "persona_drift_trace", [])),
             "persona_drift_last": self.last_persona_drift,
             "persona_drift_avg": drift_summary["avg"],
         }
@@ -222,6 +229,7 @@ class ConversationResponseMixin:
         history_summaries = state.get("history_summaries", [])
         summary_terms = state.get("last_summary_topic_terms", [])
         drift_history = state.get("persona_drift_history", [])
+        drift_trace = state.get("persona_drift_trace", [])
         drift_last = state.get("persona_drift_last")
 
         normalized_user_history = [item for item in user_history if isinstance(item, str)]
@@ -240,6 +248,9 @@ class ConversationResponseMixin:
         if hasattr(self, "persona_drift_history"):
             normalized_drift = [float(value) for value in drift_history if isinstance(value, int | float)]
             self.persona_drift_history = deque(normalized_drift, maxlen=self.persona_drift_history.maxlen)
+        if hasattr(self, "persona_drift_trace"):
+            normalized_trace = [item for item in drift_trace if isinstance(item, dict)]
+            self.persona_drift_trace = deque(normalized_trace, maxlen=self.persona_drift_trace.maxlen)
         self.last_persona_drift = drift_last if isinstance(drift_last, dict) else None
 
     _STRAY_TOKENS: tuple[str, ...] = ("[/INST]", "<|im_end|>", "</s>", "<|eot_id|>", "<s>", "<|end|>")

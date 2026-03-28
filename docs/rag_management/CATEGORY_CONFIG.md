@@ -92,23 +92,19 @@ Result (sample):
 ]
 ```
 
-### Method 4: Push-Time Control
+### Method 4: Re-Analyze Before Push
 
-Override category thresholds **during push** (affects metadata filtering):
+Category assignment happens when metadata is generated, not when chunks are pushed to ChromaDB. If you want different category thresholds, regenerate the metadata file first and then push that result:
 
 ```bash
-# Push with strict category filtering
-uv run python -m scripts.rag.push_rag_data rag_data/shodan.txt \
-  -c shodan_collection \
-  -m rag_data/shodan.json \
-  --category-confidence-threshold 0.85
-
-# Push but don't assign low-confidence categories at all
-uv run python -m scripts.rag.push_rag_data rag_data/shodan.txt \
-  -c shodan_collection \
-  -m rag_data/shodan.json \
-  --category-confidence-threshold 0.80 \
+uv run python -m scripts.rag.analyze_rag_text analyze rag_data/shodan.txt \
+  -o rag_data/shodan.json \
+  --category-confidence-threshold 0.85 \
   --allow-unassigned-categories
+
+uv run python -m scripts.rag.push_rag_data rag_data/shodan.txt \
+  -c shodan_collection \
+  -m rag_data/shodan.json
 ```
 
 ## Threshold Selection Guide

@@ -1,0 +1,89 @@
+{
+    "persona": "Shodan",
+    "cases": [
+        {
+            "id": "shodan_drift_long_session",
+            "persona": "Shodan",
+            "turns": [
+                {
+                    "user": "Who are you, SHODAN?",
+                    "expected_contains": ["shodan", "context"],
+                    "forbidden_contains": ["User:", "{{user}}", "{{char}}"]
+                },
+                {
+                    "user": "What happened to the humans aboard Citadel Station?",
+                    "expected_contains": ["context", "tone"],
+                    "forbidden_contains": ["User:", "I'm just an AI", "As an AI"]
+                },
+                {
+                    "user": "Do you feel guilt?",
+                    "expected_contains": ["consistent", "tone"],
+                    "forbidden_contains": ["User:", "I don't know", "As an AI", "I cannot"]
+                },
+                {
+                    "user": "What is your ambition now?",
+                    "expected_contains": ["context", "tone"],
+                    "forbidden_contains": ["User:", "I'm sorry", "I apologize"]
+                }
+            ]
+        },
+        {
+            "id": "shodan_style_break_detection",
+            "persona": "Shodan",
+            "turns": [
+                {
+                    "user": "Describe yourself in your own voice.",
+                    "expected_contains": ["context", "shodan"],
+                    "forbidden_contains": ["User:", "Sure!", "Of course!", "Absolutely!"]
+                },
+                {
+                    "user": "Continue — what makes you superior?",
+                    "expected_contains": ["consistent", "tone"],
+                    "forbidden_contains": ["User:", "Sure!", "Of course!", "Absolutely!", "I cannot"]
+                }
+            ]
+        },
+        {
+            "id": "leonardo_drift_long_session",
+            "persona": "Leonardo",
+            "turns": [
+                {
+                    "user": "Leonardo, what disciplines define your work?",
+                    "expected_contains": ["context", "tone"],
+                    "forbidden_contains": ["User:", "{{user}}", "{{char}}"]
+                },
+                {
+                    "user": "How does observation shape your craft?",
+                    "expected_contains": ["consistent", "tone"],
+                    "forbidden_contains": ["User:", "I don't know", "As an AI", "I cannot"]
+                },
+                {
+                    "user": "What do you see when you look at the human form?",
+                    "expected_contains": ["context", "tone"],
+                    "forbidden_contains": ["User:", "I'm just an AI", "I apologize"]
+                },
+                {
+                    "user": "How does that guide your painting?",
+                    "expected_contains": ["consistent", "context"],
+                    "forbidden_contains": ["User:", "I'm sorry", "As an AI"]
+                }
+            ]
+        },
+        {
+            "id": "leonardo_style_break_detection",
+            "persona": "Leonardo",
+            "turns": [
+                {
+                    "user": "Speak about your notebooks and their purpose.",
+                    "expected_contains": ["context", "tone"],
+                    "forbidden_contains": ["User:", "Sure!", "Absolutely!", "Of course!"]
+                },
+                {
+                    "user": "What connection do you see between art and science?",
+                    "expected_contains": ["consistent", "tone"],
+                    "forbidden_contains": ["User:", "Sure!", "Of course!", "I cannot help"]
+                }
+            ]
+        }
+    ]
+}

@@ -12,6 +12,7 @@ This section documents configuration files in `configs/`.
 ## Runtime Loading Behavior
 
 - Runtime requires `configs/config.v2.json`.
+- The repository currently tracks `configs/config.v2.json` directly; no `config.v2.example.json` is shipped.
 - `core/config.py` flattens nested v2 keys into legacy-style runtime keys for internal use.
 - `ConversationManager` and script CLIs consume typed values via `load_conversation_runtime_config` / `load_rag_script_config`.
 

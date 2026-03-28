@@ -266,16 +266,13 @@ uv run python -m scripts.rag.manage_collections lint message-examples \
 
 ## Integration with Unified Quality Gate
 
-Linting is part of the upcoming unified quality-gate command:
+Linting is included as the first step of the unified quality gate:
 
 ```bash
-uv run python -m scripts.rag.manage_collections quality-gate \
-  --lint-message-examples \
-  --fail-on-message-lint \
-  --lint-pattern 'rag_data/*_examples.txt'
+uv run python -m scripts.quality_gate --skip-retrieval
 ```
 
-This runs linting, coverage scoring, and retrieval benchmarks together.
+The gate runs message-example linting, conversation fixture evaluation, and (optionally) retrieval fixture evaluation in sequence, printing a PASS/WARN/FAIL table and exiting non-zero if any step fails. See `docs/quality_gate.md` for full usage.
 
 ## Troubleshooting
 

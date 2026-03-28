@@ -316,16 +316,10 @@ def build_cli_options(kwargs: dict[str, object], script_config: RagScriptConfig)
         embedding_device=embedding_device if isinstance(embedding_device, str) else script_config.embedding_device,
         dry_run=bool(kwargs.get("dry_run", False)),
         overwrite=bool(kwargs.get("overwrite", False)),
-        coverage_threshold=(
-            float(coverage_threshold)
-            if isinstance(coverage_threshold, int | float)
-            else 0.75
-        ),
+        coverage_threshold=(float(coverage_threshold) if isinstance(coverage_threshold, int | float) else 0.75),
         force_low_coverage=bool(kwargs.get("force_low_coverage", False)),
         category_confidence_threshold=(
-            float(category_confidence_threshold)
-            if isinstance(category_confidence_threshold, int | float)
-            else 0.75
+            float(category_confidence_threshold) if isinstance(category_confidence_threshold, int | float) else 0.75
         ),
         allow_unassigned_categories=bool(kwargs.get("allow_unassigned_categories", False)),
     )

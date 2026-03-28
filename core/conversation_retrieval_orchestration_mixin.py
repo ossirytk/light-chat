@@ -265,14 +265,17 @@ class ConversationRetrievalOrchestrationMixin:
                 k=k_mes,
             )
         else:
-            mes_chunks, mes_trace = [], {
-                "mode": "disabled",
-                "filter_path": "none",
-                "candidates": 0,
-                "returned": 0,
-                "queries": 0,
-                "rerank_applied": False,
-            }
+            mes_chunks, mes_trace = (
+                [],
+                {
+                    "mode": "disabled",
+                    "filter_path": "none",
+                    "candidates": 0,
+                    "returned": 0,
+                    "queries": 0,
+                    "rerank_applied": False,
+                },
+            )
         context_chunks = self._filter_context_chunks(context_chunks)
         mes_chunks = self._filter_context_chunks(mes_chunks)
         context_chunks, mes_chunks, cross_removed = self._dedupe_cross_collection_chunks(context_chunks, mes_chunks)

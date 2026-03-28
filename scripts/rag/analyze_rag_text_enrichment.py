@@ -274,10 +274,7 @@ def generate_metadata_from_entities(
 
         if enrichment.auto_categories:
             category, confidence = infer_category_with_confidence(stripped_entity, text)
-            category_kept = (
-                not enrichment.strict
-                or confidence >= enrichment.category_confidence_threshold
-            )
+            category_kept = not enrichment.strict or confidence >= enrichment.category_confidence_threshold
             if category_kept:
                 entry["category"] = category
             elif enrichment.allow_unassigned_categories:

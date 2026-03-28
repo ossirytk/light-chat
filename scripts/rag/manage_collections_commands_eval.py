@@ -16,6 +16,7 @@ from scripts.rag.manage_collections_core import (
     FixtureEvalOptions,
     _append_fixture_history_csv,
     _execute_fixture_evaluation,
+    _load_retrieval_history,
     _print_fixture_summary,
     _write_fixture_report_csv,
     _write_fixture_report_json,
@@ -56,6 +57,18 @@ from scripts.rag.manage_collections_core import (
     default=None,
     help="Append run summary metrics to a CSV history file",
 )
+@click.option(
+    "--min-recall",
+    type=float,
+    default=None,
+    help="Minimum required Recall@k; exit non-zero if not met",
+)
+@click.option(
+    "--min-mrr",
+    type=float,
+    default=None,
+    help="Minimum required MRR; exit non-zero if not met",
+)
 def evaluate_fixtures(**kwargs: object) -> None:
     """Evaluate retrieval fixtures and print Recall@k and MRR summary."""
     options = FixtureEvalOptions(
@@ -66,6 +79,8 @@ def evaluate_fixtures(**kwargs: object) -> None:
         embedding_model=kwargs["embedding_model"],
         embedding_device=kwargs["embedding_device"],
         show_failures=bool(kwargs["show_failures"]),
+        min_recall=float(kwargs["min_recall"]) if kwargs.get("min_recall") is not None else None,
+        min_mrr=float(kwargs["min_mrr"]) if kwargs.get("min_mrr") is not None else None,
     )
     output_json = kwargs["output_json"]
     output_csv = kwargs["output_csv"]
@@ -82,6 +97,17 @@ def evaluate_fixtures(**kwargs: object) -> None:
     if history_csv is not None:
         _append_fixture_history_csv(history_csv, run.report)
         click.echo(f"Appended history row: {history_csv}")
+
+    failures: list[str] = []
+    recall = float(run.metrics["recall_at_k"])
+    mrr = float(run.metrics["mrr"])
+    if options.min_recall is not None and recall < options.min_recall:
+        failures.append(f"Recall@{run.default_k}={recall:.3f} < required {options.min_recall:.3f}")
+    if options.min_mrr is not None and mrr < options.min_mrr:
+        failures.append(f"MRR={mrr:.3f} < required {options.min_mrr:.3f}")
+    if failures:
+        msg = "Retrieval fixture gate failed: " + "; ".join(failures)
+        raise click.ClickException(msg)
 
 
 @click.command("benchmark-rerank")
@@ -259,8 +285,69 @@ def benchmark_embedding_models(**kwargs: object) -> None:
         click.echo(f"Wrote CSV report: {output_csv}")
 
 
+@click.command("show-retrieval-trends")
+@click.option(
+    "--history-csv",
+    type=click.Path(path_type=Path),
+    default=Path("logs/retrieval_eval/history.csv"),
+    show_default=True,
+    help="Path to the retrieval eval history CSV",
+)
+@click.option(
+    "--last-n",
+    type=int,
+    default=None,
+    help="Show only the last N rows (default: all rows)",
+)
+def show_retrieval_trends(**kwargs: object) -> None:
+    """Display a compact trend table of Recall@k and MRR from retrieval eval history."""
+    history_csv = Path(kwargs["history_csv"])
+    last_n: int | None = kwargs["last_n"]  # type: ignore[assignment]
+
+    rows = _load_retrieval_history(history_csv, last_n=last_n)
+    if not rows:
+        click.echo("No history rows found.")
+        return
+
+    col_widths = {"num": 4, "date": 26, "fixture": 35, "mode": 12, "k": 4, "recall": 9, "mrr": 8, "dr": 8, "dm": 7}
+    header = (
+        f"{'#':<{col_widths['num']}}  {'Date':<{col_widths['date']}}  "
+        f"{'Fixture':<{col_widths['fixture']}}  {'Mode':<{col_widths['mode']}}  "
+        f"{'k':<{col_widths['k']}}  {'Recall@k':>{col_widths['recall']}}  "
+        f"{'MRR':>{col_widths['mrr']}}  {'dRecall':>{col_widths['dr']}}  {'dMRR':>{col_widths['dm']}}"
+    )
+    click.echo(header)
+    click.echo("-" * len(header))
+
+    prev_recall: float | None = None
+    prev_mrr: float | None = None
+    for idx, row in enumerate(rows, start=1):
+        date = str(row.get("generated_at", ""))[:26]
+        fixture = Path(str(row.get("fixture_file", ""))).name
+        mode = str(row.get("retrieval_mode", ""))[:12]
+        k_val = str(row.get("k", ""))
+        try:
+            recall = float(row.get("recall_at_k", 0))
+            mrr = float(row.get("mrr", 0))
+        except (ValueError, TypeError):
+            recall, mrr = 0.0, 0.0
+
+        delta_recall = f"{recall - prev_recall:+.3f}" if prev_recall is not None else "      -"
+        delta_mrr = f"{mrr - prev_mrr:+.3f}" if prev_mrr is not None else "     -"
+        click.echo(
+            f"{idx:<{col_widths['num']}}  {date:<{col_widths['date']}}  "
+            f"{fixture:<{col_widths['fixture']}}  {mode:<{col_widths['mode']}}  "
+            f"{k_val:<{col_widths['k']}}  {recall:>{col_widths['recall']}.3f}  "
+            f"{mrr:>{col_widths['mrr']}.3f}  {delta_recall:>{col_widths['dr']}}  "
+            f"{delta_mrr:>{col_widths['dm']}}"
+        )
+        prev_recall = recall
+        prev_mrr = mrr
+
+
 def register_eval_commands(cli: click.Group) -> None:
     """Attach evaluation-related commands to a CLI group."""
     cli.add_command(evaluate_fixtures)
     cli.add_command(benchmark_rerank)
     cli.add_command(benchmark_embedding_models)
+    cli.add_command(show_retrieval_trends)

@@ -66,6 +66,8 @@ class FixtureEvalOptions:
     embedding_model: str | None
     embedding_device: str | None
     show_failures: bool
+    min_recall: float | None = None
+    min_mrr: float | None = None
 
 
 @dataclass

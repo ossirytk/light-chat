@@ -517,6 +517,19 @@ def _execute_fixture_evaluation(options: FixtureEvalOptions) -> FixtureEvalRun:
     )
 
 
+def _load_retrieval_history(history_csv: Path, last_n: int | None = None) -> list[dict[str, str]]:
+    """Load rows from a retrieval eval history CSV, optionally limited to last_n rows."""
+    if not history_csv.exists():
+        msg = f"History CSV not found: {history_csv}"
+        raise click.ClickException(msg)
+    with history_csv.open(encoding="utf-8", newline="") as csv_file:
+        reader = csv.DictReader(csv_file)
+        rows = list(reader)
+    if last_n is not None and last_n > 0:
+        rows = rows[-last_n:]
+    return rows
+
+
 __all__ = [
     "_append_fixture_history_csv",
     "_build_fixture_report",
@@ -524,6 +537,7 @@ __all__ = [
     "_evaluate_fixture_case",
     "_execute_fixture_evaluation",
     "_load_fixture_payload",
+    "_load_retrieval_history",
     "_print_fixture_summary",
     "_run_fixture_evaluation",
     "_write_fixture_report_csv",

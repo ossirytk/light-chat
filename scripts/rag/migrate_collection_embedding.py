@@ -44,11 +44,13 @@ from scripts.rag.manage_collections_core_types import (
 _MIGRATION_SUFFIX = "mig"
 _EMBED_BATCH_SIZE = 256
 _DEFAULT_VALIDATION_THRESHOLD = 0.75
-_FINGERPRINT_KEYS = frozenset({
-    EMBEDDING_MODEL_METADATA_KEY,
-    EMBEDDING_NORMALIZE_METADATA_KEY,
-    EMBEDDING_DIMENSION_METADATA_KEY,
-})
+_FINGERPRINT_KEYS = frozenset(
+    {
+        EMBEDDING_MODEL_METADATA_KEY,
+        EMBEDDING_NORMALIZE_METADATA_KEY,
+        EMBEDDING_DIMENSION_METADATA_KEY,
+    }
+)
 
 
 # ── Data Types ────────────────────────────────────────────────────────────────
@@ -283,9 +285,7 @@ def migrate_collection(  # noqa: PLR0911
     source_model = "unknown"
     temp_name = _temp_collection_name(collection_name)
 
-    client = chromadb.PersistentClient(
-        path=config.persist_directory, settings=Settings(anonymized_telemetry=False)
-    )
+    client = chromadb.PersistentClient(path=config.persist_directory, settings=Settings(anonymized_telemetry=False))
     source_model = _read_source_model(client, collection_name)
 
     click.echo(f"\n[migrate] {collection_name}")
