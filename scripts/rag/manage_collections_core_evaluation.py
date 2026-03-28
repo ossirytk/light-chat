@@ -439,6 +439,43 @@ def _print_fixture_summary(metrics: dict[str, float], k: int, skipped: int) -> N
     click.echo(f"  MAP@{k}:      {metrics['map_at_k']:.3f}")
 
 
+def _setup_embedder_and_db_cache(
+    options: FixtureEvalOptions,
+    script_config: object,
+    persist_directory: str,
+) -> tuple[object, chromadb.PersistentClient, set[str], dict[str, Chroma]]:
+    """Build embedder, validate fingerprints, and return db_cache."""
+    embedding_device = options.embedding_device or script_config.embedding_device  # type: ignore[attr-defined]
+    embedding_model = options.embedding_model or script_config.embedding_model  # type: ignore[attr-defined]
+    embedding_cache = script_config.embedding_cache  # type: ignore[attr-defined]
+    normalize_embeddings = True
+    embedder = HuggingFaceEmbeddings(
+        model_name=embedding_model,
+        model_kwargs={"device": embedding_device},
+        encode_kwargs={"normalize_embeddings": normalize_embeddings},
+        cache_folder=str(Path(embedding_cache)),
+    )
+    client = chromadb.PersistentClient(path=persist_directory, settings=Settings(anonymized_telemetry=False))
+    available_collections = {collection.name for collection in client.list_collections()}
+    expected_fingerprint = build_embedding_fingerprint(
+        embedding_model=embedding_model,
+        normalize_embeddings=normalize_embeddings,
+        embedding_dimension=infer_embedding_dimension(embedder),
+    )
+    for collection_name in available_collections:
+        assert_collection_fingerprint_compatible(client, collection_name, expected_fingerprint)
+    db_cache = {
+        collection_name: Chroma(
+            client=client,
+            collection_name=collection_name,
+            persist_directory=persist_directory,
+            embedding_function=embedder,
+        )
+        for collection_name in available_collections
+    }
+    return embedder, client, available_collections, db_cache
+
+
 def _execute_fixture_evaluation(options: FixtureEvalOptions) -> FixtureEvalRun:
     fixture_file = options.fixture_file
     if not fixture_file.exists():
@@ -457,37 +494,12 @@ def _execute_fixture_evaluation(options: FixtureEvalOptions) -> FixtureEvalRun:
     script_config = load_rag_script_config(app_config)
     persist_directory = options.persist_directory or script_config.persist_directory
 
-    embedding_device = options.embedding_device or script_config.embedding_device
+    _embedder, _client, available_collections, db_cache = _setup_embedder_and_db_cache(
+        options, script_config, persist_directory
+    )
+
     embedding_model = options.embedding_model or script_config.embedding_model
-    embedding_cache = script_config.embedding_cache
-    normalize_embeddings = True
-    embedder = HuggingFaceEmbeddings(
-        model_name=embedding_model,
-        model_kwargs={"device": embedding_device},
-        encode_kwargs={"normalize_embeddings": normalize_embeddings},
-        cache_folder=str(Path(embedding_cache)),
-    )
-
-    client = chromadb.PersistentClient(path=persist_directory, settings=Settings(anonymized_telemetry=False))
-    available_collections = {collection.name for collection in client.list_collections()}
-    expected_fingerprint = build_embedding_fingerprint(
-        embedding_model=embedding_model,
-        normalize_embeddings=normalize_embeddings,
-        embedding_dimension=infer_embedding_dimension(embedder),
-    )
-    for collection_name in available_collections:
-        assert_collection_fingerprint_compatible(client, collection_name, expected_fingerprint)
-
-    db_cache = {
-        collection_name: Chroma(
-            client=client,
-            collection_name=collection_name,
-            persist_directory=persist_directory,
-            embedding_function=embedder,
-        )
-        for collection_name in available_collections
-    }
-
+    embedding_device = options.embedding_device or script_config.embedding_device
     runtime_manager = (
         _build_runtime_eval_manager(embedding_model=embedding_model, embedding_device=embedding_device)
         if options.retrieval_mode == "runtime"

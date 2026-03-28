@@ -2,7 +2,7 @@ name: Quality Gate
 
 on:
   push:
-    branches: ["**"]
+    branches: ["main"]
   pull_request:
     branches: ["**"]
 
@@ -30,8 +30,8 @@ jobs:
       - name: Format check (ruff)
         run: uv run ruff format --check .
 
-      - name: Unit tests
-        run: uv run pytest -q
+      - name: Capture code quality metrics (gate + snapshot)
+        run: uv run python -m scripts.quality.capture_code_metrics
 
       - name: Capture baselines (idempotent)
         run: uv run python -m scripts.conversation.capture_baselines

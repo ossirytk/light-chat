@@ -85,15 +85,34 @@ unfixable = [
     "F401",
 ]
 
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "PLR2004", "ANN"]
+
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"
 
 [project.scripts]
 quality-gate = "scripts.quality_gate:quality_gate"
 capture-conversation-baselines = "scripts.conversation.capture_baselines:capture_conversation_baselines"
+capture-code-metrics = "scripts.quality.capture_code_metrics:capture_code_metrics"
 
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
+    "pytest-cov>=6.0.0",
+    "radon>=6.0.1",
     "ruff>=0.9.0",
+    "xenon>=0.9.3",
 ]
+
+[tool.coverage.run]
+source = ["core", "scripts"]
+omit = [
+    "tests/*",
+    "scripts/build/*",
+    "*/__pycache__/*",
+]
+
+[tool.coverage.report]
+skip_empty = true
+show_missing = true

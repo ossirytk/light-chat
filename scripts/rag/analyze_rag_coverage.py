@@ -177,8 +177,39 @@ def load_metadata_file(metadata_path: Path) -> list[dict[str, Any]]:
     return data
 
 
+def _format_category_section(metrics: CoverageMetrics) -> list[str]:
+    if not metrics.category_distribution:
+        return []
+    lines = ["Category breakdown:"]
+    lines.extend(f"  {cat:15} {count:3} items" for cat, count in sorted(metrics.category_distribution.items()))
+    lines.append("")
+    return lines
+
+
+def _format_unmapped_section(metrics: CoverageMetrics) -> list[str]:
+    if not metrics.unmapped_segments:
+        return []
+    lines = [f"Top {len(metrics.unmapped_segments)} unmapped text segments:"]
+    for seg in metrics.unmapped_segments[:5]:
+        truncated = seg[:REPORT_DISPLAY_TRUNCATE] + "..." if len(seg) > REPORT_DISPLAY_TRUNCATE else seg
+        lines.append(f"  - {truncated}")
+    lines.append("")
+    return lines
+
+
+def _format_not_found_section(metrics: CoverageMetrics) -> list[str]:
+    not_found = [item for item in metrics.entity_coverage.values() if not item["found"]]
+    if not not_found:
+        return []
+    lines = [f"Entities not found in source ({len(not_found)}/{len(metrics.entity_coverage)}):"]
+    lines.extend(f"  - {item['text'][:50]}" for item in not_found[:10])
+    lines.append("")
+    return lines
+
+
 def format_coverage_report(metrics: CoverageMetrics, threshold: float = 0.75) -> str:
     """Format coverage metrics as a human-readable report."""
+    status = "✓ PASS" if metrics.source_coverage_ratio >= threshold else "✗ FAIL"
     lines = [
         "=" * 70,
         "RAG SOURCE COVERAGE ANALYSIS",
@@ -187,30 +218,11 @@ def format_coverage_report(metrics: CoverageMetrics, threshold: float = 0.75) ->
         f"Source chars total: {metrics.total_source_chars}",
         f"Source chars covered: {metrics.covered_chars}",
         f"Coverage ratio: {metrics.source_coverage_ratio * 100:.1f}%",
-        (
-            f"Status: {'✓ PASS' if metrics.source_coverage_ratio >= threshold else '✗ FAIL'}"
-            f" (threshold: {threshold * 100:.0f}%)"
-        ),
+        f"Status: {status} (threshold: {threshold * 100:.0f}%)",
         "",
     ]
-
-    if metrics.category_distribution:
-        lines.append("Category breakdown:")
-        for cat, count in sorted(metrics.category_distribution.items()):
-            lines.append(f"  {cat:15} {count:3} items")
-        lines.append("")
-
-    if metrics.unmapped_segments:
-        lines.append(f"Top {len(metrics.unmapped_segments)} unmapped text segments:")
-        for seg in metrics.unmapped_segments[:5]:
-            truncated = seg[:REPORT_DISPLAY_TRUNCATE] + "..." if len(seg) > REPORT_DISPLAY_TRUNCATE else seg
-            lines.append(f"  - {truncated}")
-        lines.append("")
-
-    not_found = [item for item in metrics.entity_coverage.values() if not item["found"]]
-    if not_found:
-        lines.append(f"Entities not found in source ({len(not_found)}/{len(metrics.entity_coverage)}):")
-        lines.extend(f"  - {item['text'][:50]}" for item in not_found[:10])
-        lines.append("")
+    lines.extend(_format_category_section(metrics))
+    lines.extend(_format_unmapped_section(metrics))
+    lines.extend(_format_not_found_section(metrics))
     lines.append("=" * 70)
     return "\n".join(lines)
