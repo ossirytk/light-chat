@@ -189,9 +189,24 @@ def capture_code_metrics() -> None:
     raw_cov, cov_returncode = _run_coverage()
     coverage = _parse_coverage(raw_cov)
     click.echo(f"Total coverage: {coverage['total_pct']}%  (threshold: {coverage['threshold']}%)")
-    # pytest exits 2 when tests fail; exit 1 means only the coverage threshold was missed
-    if cov_returncode not in (0, 2):
-        click.echo(f"FAIL: coverage threshold not met ({coverage['total_pct']}% < {_COVERAGE_THRESHOLD}%)", err=True)
+    coverage_failed = coverage["total_pct"] < coverage["threshold"]
+    if cov_returncode != 0:
+        if coverage_failed:
+            click.echo(
+                f"FAIL: coverage threshold not met ({coverage['total_pct']}% < {coverage['threshold']}%)",
+                err=True,
+            )
+        else:
+            click.echo(
+                f"FAIL: pytest exited with code {cov_returncode}; tests or runner failed (see output above).",
+                err=True,
+            )
+        gate_failed = True
+    elif coverage_failed:
+        click.echo(
+            f"FAIL: coverage threshold not met ({coverage['total_pct']}% < {coverage['threshold']}%)",
+            err=True,
+        )
         gate_failed = True
 
     click.echo("\n-- Complexity (xenon gate) --")

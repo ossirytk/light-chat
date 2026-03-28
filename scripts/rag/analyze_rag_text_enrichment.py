@@ -149,14 +149,19 @@ def infer_category_with_confidence(entity: str, text: str) -> tuple[str, float]:
 
     # Try classifiers in priority order; first match wins.
     classifiers = (
-        _classify_technology_primary(entity_lower),
-        _classify_faction(entity_lower, context_text, has_location_hint_in_entity),
-        _classify_location(context_text, has_location_hint_in_entity),
-        _classify_event(entity_lower, context_text),
-        _classify_technology_secondary(entity_stripped, context_text),
-        _classify_character(entity_stripped, context_text),
+        lambda: _classify_technology_primary(entity_lower),
+        lambda: _classify_faction(
+            entity_lower,
+            context_text,
+            has_location_hint_in_entity,
+        ),
+        lambda: _classify_location(context_text, has_location_hint_in_entity),
+        lambda: _classify_event(entity_lower, context_text),
+        lambda: _classify_technology_secondary(entity_stripped, context_text),
+        lambda: _classify_character(entity_stripped, context_text),
     )
-    for result in classifiers:
+    for classifier in classifiers:
+        result = classifier()
         if result is not None:
             return result
 
