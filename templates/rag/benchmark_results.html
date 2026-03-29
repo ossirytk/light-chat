@@ -1,0 +1,32 @@
+<div class="rag-section-header">Embedding Benchmark</div>
+
+{% if results %}
+<p style="font-size:0.78rem;color:#98a6b6;margin-bottom:0.65rem">
+    Generated: {{ results.generated_at[:16] if results.generated_at else "?" }} &nbsp;·&nbsp;
+    Fixture: {{ results.fixture_file }} &nbsp;·&nbsp; k={{ results.k }}
+</p>
+<table class="rag-table">
+    <thead>
+        <tr><th>Model</th><th>Recall@k</th><th>MRR</th><th>Precision@k</th><th>MAP@k</th><th>Evaluated</th><th>Skipped</th></tr>
+    </thead>
+    <tbody>
+    {% for mr in results.model_results %}
+        {% set m = mr.metrics %}
+        <tr>
+            <td><strong>{{ mr.label }}</strong></td>
+            <td>{{ "%.3f" | format(m.recall_at_k | float) }}</td>
+            <td>{{ "%.3f" | format(m.mrr | float) }}</td>
+            <td>{{ "%.3f" | format(m.precision_at_k | float) }}</td>
+            <td>{{ "%.3f" | format(m.map_at_k | float) }}</td>
+            <td>{{ mr.evaluated }}</td>
+            <td>{{ mr.skipped }}</td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="rag-msg rag-msg-info">
+    No benchmark results found. Run the benchmark from the CLI:<br />
+    <code>uv run python -m scripts.rag.manage_collections benchmark-embedding-models</code>
+</div>
+{% endif %}

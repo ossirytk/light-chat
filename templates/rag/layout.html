@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>light-chat · RAG</title>
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    <style>
+        :root {
+            color-scheme: dark;
+            font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        }
+
+        body {
+            margin: 0;
+            background: #111418;
+            color: #e6edf3;
+        }
+
+        .rag-layout {
+            display: grid;
+            grid-template-columns: 180px 1fr;
+            height: 100vh;
+        }
+
+        /* ── Nav ── */
+        .rag-nav {
+            border-right: 1px solid #2d3743;
+            padding: 0.85rem 0.75rem;
+            overflow-y: auto;
+            background: #0d1117;
+            display: flex;
+            flex-direction: column;
+            gap: 0.15rem;
+        }
+
+        .nav-brand {
+            font-size: 0.82rem;
+            color: #98a6b6;
+            margin-bottom: 0.85rem;
+            padding-bottom: 0.55rem;
+            border-bottom: 1px solid #2d3743;
+            display: flex;
+            flex-direction: column;
+            gap: 0.15rem;
+        }
+
+        .nav-brand a {
+            color: #98a6b6;
+            text-decoration: none;
+            font-size: 0.78rem;
+        }
+
+        .nav-brand a:hover {
+            color: #e6edf3;
+        }
+
+        .nav-brand strong {
+            font-size: 0.9rem;
+            color: #e6edf3;
+        }
+
+        .nav-link {
+            display: block;
+            padding: 0.45rem 0.6rem;
+            border-radius: 6px;
+            color: #c9d1d9;
+            text-decoration: none;
+            font-size: 0.85rem;
+            cursor: pointer;
+            border: none;
+            background: none;
+            text-align: left;
+            width: 100%;
+        }
+
+        .nav-link:hover,
+        .nav-link.active {
+            background: #1e242b;
+            color: #e6edf3;
+        }
+
+        .nav-link.active {
+            border-left: 2px solid #1f6feb;
+            padding-left: calc(0.6rem - 2px);
+        }
+
+        /* ── Content ── */
+        .rag-content {
+            overflow-y: auto;
+            padding: 1.25rem 1.5rem;
+        }
+
+        .rag-section-header {
+            font-size: 1rem;
+            font-weight: 600;
+            margin: 0 0 0.85rem;
+            color: #e6edf3;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+        }
+
+        .rag-subsection {
+            margin-top: 1.25rem;
+            padding-top: 0.85rem;
+            border-top: 1px solid #2d3743;
+        }
+
+        .rag-subsection-header {
+            font-size: 0.88rem;
+            font-weight: 600;
+            color: #c9d1d9;
+            margin: 0 0 0.55rem;
+        }
+
+        /* ── Tables ── */
+        .rag-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8rem;
+            margin-top: 0.5rem;
+        }
+
+        .rag-table th {
+            background: #1a1f26;
+            color: #e6edf3;
+            text-align: left;
+            padding: 0.35rem 0.55rem;
+            border: 1px solid #2d3743;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .rag-table td {
+            padding: 0.35rem 0.55rem;
+            border: 1px solid #2d3743;
+            color: #c9d1d9;
+            vertical-align: top;
+        }
+
+        .rag-table tr:nth-child(even) td {
+            background: #0f1317;
+        }
+
+        .rag-table td.truncate {
+            max-width: 280px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* ── Buttons ── */
+        .rag-btn {
+            padding: 0.35rem 0.65rem;
+            border: 1px solid #2d3743;
+            border-radius: 6px;
+            background: #1e242b;
+            color: #e6edf3;
+            font-size: 0.79rem;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .rag-btn:hover {
+            background: #262d36;
+        }
+
+        .rag-btn-primary {
+            background: #1f6feb;
+            border-color: #1f6feb;
+        }
+
+        .rag-btn-primary:hover {
+            background: #2277f5;
+        }
+
+        .rag-btn-danger {
+            background: #3b1a1a;
+            border-color: #7a3030;
+            color: #f8b4b4;
+        }
+
+        .rag-btn-danger:hover {
+            background: #4a2020;
+        }
+
+        .rag-btn-group {
+            display: flex;
+            gap: 0.4rem;
+            flex-wrap: wrap;
+            margin-bottom: 0.75rem;
+        }
+
+        /* ── Badges ── */
+        .badge {
+            display: inline-block;
+            padding: 0.12rem 0.4rem;
+            border-radius: 10px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .badge-ok {
+            background: #1a3b1a;
+            color: #7ec88a;
+        }
+
+        .badge-error {
+            background: #3b1a1a;
+            color: #f8b4b4;
+        }
+
+        .badge-warn {
+            background: #3b2f0a;
+            color: #ffd166;
+        }
+
+        .badge-info {
+            background: #1a2b3b;
+            color: #79c0ff;
+        }
+
+        .badge-muted {
+            background: #1e242b;
+            color: #98a6b6;
+        }
+
+        /* ── Forms ── */
+        .rag-form-row {
+            display: flex;
+            gap: 0.45rem;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-bottom: 0.6rem;
+        }
+
+        .rag-input,
+        .rag-select {
+            border: 1px solid #2d3743;
+            background: #111418;
+            color: #e6edf3;
+            border-radius: 6px;
+            padding: 0.35rem 0.5rem;
+            font-size: 0.8rem;
+            min-width: 0;
+        }
+
+        .rag-input:focus,
+        .rag-select:focus {
+            outline: 1px solid #1f6feb;
+        }
+
+        .rag-input-wide {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .rag-label {
+            font-size: 0.78rem;
+            color: #98a6b6;
+            white-space: nowrap;
+        }
+
+        /* ── Status messages ── */
+        .rag-msg {
+            padding: 0.5rem 0.75rem;
+            border-radius: 6px;
+            font-size: 0.82rem;
+            margin-bottom: 0.65rem;
+        }
+
+        .rag-msg-error {
+            background: #2a1a1a;
+            border: 1px solid #7a3030;
+            color: #f8b4b4;
+        }
+
+        .rag-msg-ok {
+            background: #1a2a1a;
+            border: 1px solid #3a703a;
+            color: #7ec88a;
+        }
+
+        .rag-msg-info {
+            background: #1a2030;
+            border: 1px solid #2d5070;
+            color: #79c0ff;
+        }
+
+        /* ── Coverage bar ── */
+        .coverage-bar-outer {
+            width: 100%;
+            max-width: 320px;
+            height: 12px;
+            background: #2d3743;
+            border-radius: 6px;
+            overflow: hidden;
+            margin: 0.3rem 0;
+        }
+
+        .coverage-bar-inner {
+            height: 100%;
+            border-radius: 6px;
+            transition: width 0.3s;
+        }
+
+        .coverage-high {
+            background: #238636;
+        }
+
+        .coverage-mid {
+            background: #d29922;
+        }
+
+        .coverage-low {
+            background: #da3633;
+        }
+
+        /* ── Code / pre ── */
+        pre.rag-pre {
+            background: #0d1117;
+            border: 1px solid #2d3743;
+            border-radius: 6px;
+            padding: 0.75rem;
+            font-size: 0.76rem;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            color: #98a6b6;
+            max-height: 460px;
+            overflow-y: auto;
+            margin: 0.5rem 0 0;
+        }
+
+        /* ── Job status widget ── */
+        .job-widget {
+            padding: 0.65rem 0.85rem;
+            border: 1px solid #2d3743;
+            border-radius: 8px;
+            background: #0f1317;
+            font-size: 0.82rem;
+        }
+
+        /* ── Spinner via HTMX indicator ── */
+        .htmx-indicator {
+            display: none;
+            color: #98a6b6;
+            font-size: 0.78rem;
+        }
+
+        .htmx-request .htmx-indicator {
+            display: inline;
+        }
+
+        /* ── Misc ── */
+        .rag-empty {
+            color: #98a6b6;
+            font-size: 0.82rem;
+        }
+
+        .rag-actions-col {
+            white-space: nowrap;
+        }
+
+        .back-link {
+            font-size: 0.8rem;
+            color: #98a6b6;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .back-link:hover {
+            color: #e6edf3;
+        }
+
+        code {
+            font-family: "Cascadia Code", "Fira Code", "Consolas", monospace;
+            font-size: 0.85em;
+            background: #1e242b;
+            padding: 0.1rem 0.3rem;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="rag-layout">
+        <nav class="rag-nav">
+            <div class="nav-brand">
+                <a href="/">← Chat</a>
+                <strong>RAG</strong>
+            </div>
+            <button class="nav-link active" data-section="collections"
+                hx-get="/rag/collections" hx-target="#rag-main" hx-swap="innerHTML"
+                hx-indicator="#rag-spinner">Collections</button>
+            <button class="nav-link" data-section="files"
+                hx-get="/rag/files" hx-target="#rag-main" hx-swap="innerHTML"
+                hx-indicator="#rag-spinner">Files</button>
+            <button class="nav-link" data-section="evaluate"
+                hx-get="/rag/evaluate" hx-target="#rag-main" hx-swap="innerHTML"
+                hx-indicator="#rag-spinner">Evaluate</button>
+            <button class="nav-link" data-section="benchmark"
+                hx-get="/rag/benchmark" hx-target="#rag-main" hx-swap="innerHTML"
+                hx-indicator="#rag-spinner">Benchmark</button>
+            <span id="rag-spinner" class="htmx-indicator" style="margin-top:0.5rem;">Loading…</span>
+
+            <details style="margin-top:auto;padding-top:0.75rem;border-top:1px solid #2d3743;">
+                <summary style="font-size:0.78rem;color:#98a6b6;cursor:pointer;list-style:none;padding:0.2rem 0;">💡 What is this?</summary>
+                <div style="font-size:0.74rem;color:#98a6b6;line-height:1.5;margin-top:0.5rem;display:flex;flex-direction:column;gap:0.6rem;">
+                    <div>
+                        <strong style="color:#c9d1d9">Collections</strong><br>
+                        A collection is a searchable knowledge base — a database of text chunks the AI searches through during chat. Each character typically has one named after them.
+                    </div>
+                    <div>
+                        <strong style="color:#c9d1d9">Detail &amp; Query</strong><br>
+                        Open a collection to search it directly (just like the AI would during a conversation), or rebuild it from updated source files.
+                    </div>
+                    <div>
+                        <strong style="color:#c9d1d9">Files</strong><br>
+                        The raw text documents (lore files, dialogue examples) that the knowledge base is built from. You can view them, check formatting, and see coverage.
+                    </div>
+                    <div>
+                        <strong style="color:#c9d1d9">Lint</strong><br>
+                        Checks dialogue example files for formatting problems that could confuse the AI. Auto-fix applies safe corrections automatically.
+                    </div>
+                    <div>
+                        <strong style="color:#c9d1d9">Coverage</strong><br>
+                        Shows what percentage of a character's lore file is actually captured in the knowledge base. Low coverage means some information may never be retrieved.
+                    </div>
+                    <div>
+                        <strong style="color:#c9d1d9">Evaluate</strong><br>
+                        Runs a test suite of questions against the knowledge base and scores how well it finds the right information. Higher Recall and MRR scores are better.
+                    </div>
+                    <div>
+                        <strong style="color:#c9d1d9">Benchmark</strong><br>
+                        Compares different AI text-embedding models to find which one retrieves the most relevant results for your characters. Run from the command line — results appear here.
+                    </div>
+                    <div>
+                        <strong style="color:#c9d1d9">Rebuild</strong><br>
+                        After editing a source file, use Rebuild on the collection detail page to update the knowledge base with the new content.
+                    </div>
+                </div>
+            </details>
+        </nav>
+
+        <main id="rag-main" class="rag-content"
+            hx-get="/rag/collections"
+            hx-trigger="load"
+            hx-swap="innerHTML">
+            <span class="rag-empty">Loading…</span>
+        </main>
+    </div>
+
+    <script>
+        document.addEventListener("click", (e) => {
+            const link = e.target.closest(".nav-link");
+            if (link) {
+                document.querySelectorAll(".nav-link").forEach((l) => l.classList.remove("active"));
+                link.classList.add("active");
+            }
+        });
+    </script>
+</body>
+
+</html>

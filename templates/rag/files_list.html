@@ -1,0 +1,61 @@
+<div class="rag-section-header">RAG Files</div>
+
+<div class="rag-btn-group">
+    <button class="rag-btn"
+        hx-post="/rag/lint" hx-target="#lint-results" hx-swap="innerHTML"
+        hx-indicator="#lint-spinner">Run Lint</button>
+    <button class="rag-btn"
+        hx-post="/rag/lint/fix" hx-target="#lint-results" hx-swap="innerHTML"
+        hx-indicator="#lint-spinner"
+        hx-confirm="Apply auto-fix to all message_examples files?">Lint + Fix</button>
+    <span id="lint-spinner" class="htmx-indicator">Running…</span>
+</div>
+
+<div id="lint-results"></div>
+
+{% if files %}
+<table class="rag-table" style="margin-top:0.85rem">
+    <thead>
+        <tr><th>File</th><th>Type</th><th>Size</th><th>Metadata</th><th>Actions</th></tr>
+    </thead>
+    <tbody>
+    {% for f in files %}
+        <tr>
+            <td><strong>{{ f.name }}</strong></td>
+            <td>
+                {% if f.type == "lore" %}
+                <span class="badge badge-info">lore</span>
+                {% else %}
+                <span class="badge badge-muted">mes</span>
+                {% endif %}
+            </td>
+            <td>{{ (f.size / 1024) | round(1) }} KB</td>
+            <td>
+                {% if f.has_metadata %}
+                <span class="badge badge-ok">✓</span>
+                {% else %}
+                <span class="badge badge-muted">—</span>
+                {% endif %}
+            </td>
+            <td class="rag-actions-col">
+                <button class="rag-btn"
+                    hx-get="/rag/files/{{ f.name }}"
+                    hx-target="#rag-main" hx-swap="innerHTML">View</button>
+                {% if f.type == "lore" and f.has_metadata %}
+                <button class="rag-btn"
+                    hx-post="/rag/coverage"
+                    hx-vals='{"stem": "{{ f.stem }}"}'
+                    hx-target="#coverage-results" hx-swap="innerHTML"
+                    hx-indicator="#coverage-spinner">Coverage</button>
+                {% endif %}
+            </td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="rag-empty">No <code>.txt</code> files found in <code>rag_data/</code>.</p>
+{% endif %}
+
+<span id="coverage-spinner" class="htmx-indicator" style="display:block;margin-top:0.5rem">Running coverage…</span>
+<div id="coverage-results" style="margin-top:0.5rem"></div>

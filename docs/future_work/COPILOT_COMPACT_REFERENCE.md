@@ -1,6 +1,6 @@
 # Copilot Compact Reference — Implemented State
 
-Last verified: 2026-03-26
+Last verified: 2026-03-29
 
 Use this as the single compact reference for implemented work across conversation quality, RAG quality, and web app behavior.
 
@@ -140,15 +140,21 @@ Primary files:
 - In-UI session picker with naming support.
 - Per-turn retrieval trace history in the debug panel.
 - Session exports persist conversation-quality metadata and drift traces for later calibration.
+- **Per-turn diagnostics panel**: collapsible sidebar panel showing Turn, Latency (s), Chars, Main chunks, MES chunks, Cross-removed, and Drift score (colour-coded at warning/fail thresholds) for the last 40 turns. Auto-refreshes after each stream. Route: `GET /chat/diagnostics`.
+- **Saveable preset profiles**: collapsible sidebar panel for saving/applying/deleting named snapshots of 7 retrieval settings (`use_mmr`, `rag_rerank_enabled`, `rag_sentence_compression_enabled`, `rag_multi_query_enabled`, `rag_k`, `rag_k_mes`, `debug_context`). Profiles persisted in `configs/profiles.json`; applied in-place to the live `ConversationRuntimeConfig` without restart. Routes: `GET/POST /settings/profiles/*`.
+- **One-click export bundle**: `GET /chat/export/bundle` downloads a ZIP containing `manifest.json`, `conversation.json` (full session), `retrieval_traces.json` (per-turn history), and `drift_history.json`. Button in composer quick-actions.
 
 Primary files:
 
 - `web_app.py`
 - `main.py`
+- `core/preset_profiles.py`
 - `templates/index.html`
 - `templates/chat_message_pair.html`
 - `templates/chat_messages.html`
 - `templates/chat_single_message.html`
+- `templates/diagnostics_panel.html`
+- `templates/presets_panel.html`
 
 ## Current Defaults Snapshot
 

@@ -1,0 +1,40 @@
+{% set pct = (result.source_coverage_ratio * 100) | round(1) %}
+{% if pct >= 75 %}{% set bar_class = "coverage-high" %}{% elif pct >= 50 %}{% set bar_class = "coverage-mid" %}{% else %}{% set bar_class = "coverage-low" %}{% endif %}
+
+<div class="rag-section-header">Coverage: {{ result.stem }}</div>
+
+<table class="rag-table" style="max-width:360px">
+    <tbody>
+        <tr><td><strong>Entities</strong></td><td>{{ result.entities_count }}</td></tr>
+        <tr><td><strong>Coverage</strong></td>
+            <td>
+                {{ pct }}%
+                <div class="coverage-bar-outer">
+                    <div class="coverage-bar-inner {{ bar_class }}" style="width:{{ pct }}%"></div>
+                </div>
+            </td>
+        </tr>
+        <tr><td><strong>Chars covered</strong></td><td>{{ result.covered_chars }} / {{ result.total_source_chars }}</td></tr>
+    </tbody>
+</table>
+
+{% if result.category_distribution %}
+<div class="rag-subsection">
+    <div class="rag-subsection-header">Category Distribution</div>
+    <table class="rag-table" style="max-width:280px">
+        <thead><tr><th>Category</th><th>Count</th></tr></thead>
+        <tbody>
+        {% for cat, cnt in result.category_distribution.items() %}
+            <tr><td>{{ cat }}</td><td>{{ cnt }}</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+{% if result.unmapped_segments %}
+<div class="rag-subsection">
+    <div class="rag-subsection-header">Unmapped Segments (first {{ result.unmapped_segments | length }})</div>
+    <pre class="rag-pre">{{ result.unmapped_segments | join("\n---\n") }}</pre>
+</div>
+{% endif %}

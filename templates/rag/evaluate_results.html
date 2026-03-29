@@ -1,0 +1,51 @@
+{% if result %}
+{% set m = result.metrics %}
+<div class="rag-subsection-header">Results: {{ result.fixture_file }} (k={{ result.default_k }})</div>
+
+<table class="rag-table" style="max-width:560px;margin-bottom:0.75rem">
+    <thead><tr><th>Evaluated</th><th>Skipped</th><th>Hits@k</th><th>Recall@k</th><th>MRR</th><th>Precision@k</th><th>MAP@k</th></tr></thead>
+    <tbody>
+        <tr>
+            <td>{{ m.cases | int }}</td>
+            <td>{{ result.skipped }}</td>
+            <td>{{ m.hits | int }}</td>
+            <td>{{ "%.3f" | format(m.recall_at_k) }}</td>
+            <td>{{ "%.3f" | format(m.mrr) }}</td>
+            <td>{{ "%.3f" | format(m.precision_at_k) }}</td>
+            <td>{{ "%.3f" | format(m.map_at_k) }}</td>
+        </tr>
+    </tbody>
+</table>
+
+{% if result.case_results %}
+<table class="rag-table">
+    <thead>
+        <tr><th>Case ID</th><th>Collection</th><th>Query</th><th>Status</th><th>Rank</th><th>Match</th><th>Forbidden</th></tr>
+    </thead>
+    <tbody>
+    {% for c in result.case_results %}
+        {% set hit = c.rank is not none and not c.forbidden_hit %}
+        <tr>
+            <td style="font-size:0.74rem">{{ c.case_id }}</td>
+            <td>{{ c.collection }}</td>
+            <td class="truncate" style="max-width:200px" title="{{ c.query }}">{{ c.query }}</td>
+            <td>
+                {% if c.status == "invalid" or c.status == "missing_collection" %}
+                <span class="badge badge-warn">{{ c.status }}</span>
+                {% elif c.forbidden_hit %}
+                <span class="badge badge-error">forbidden</span>
+                {% elif hit %}
+                <span class="badge badge-ok">HIT@{{ c.rank }}</span>
+                {% else %}
+                <span class="badge badge-error">MISS</span>
+                {% endif %}
+            </td>
+            <td>{{ c.rank if c.rank is not none else "—" }}</td>
+            <td>{{ c.matched_expected }}/{{ c.expected_total }}</td>
+            <td>{{ "⚠" if c.forbidden_hit else "—" }}</td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+{% endif %}

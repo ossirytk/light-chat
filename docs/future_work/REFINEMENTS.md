@@ -1,6 +1,6 @@
 # Refinements Backlog
 
-Last updated: 2026-03-26
+Last updated: 2026-04-03
 
 This is the single source for remaining and future work across quality and retrieval.
 
@@ -64,6 +64,87 @@ Implemented state lives in `docs/future_work/COPILOT_COMPACT_REFERENCE.md`.
 - Benchmark sentence compression and rerank combinations on a fixed fixture matrix.
 - Add an embedding model tiering profile (`small`, `balanced`, `quality`) with measured quality/cost tradeoffs.
 
+### 6. Memory & Session Continuity
+
+Inspired by analysis of Claude's leaked markdown-based memory system. The current RAG pipeline is
+entirely character-centric (lore and style). There is no persistent cross-session user memory —
+facts about the user, relationship state, or conversation history carry zero weight between sessions.
+
+A two-tier hybrid is the right approach:
+
+- **Tier 1 — Markdown persona memory (do first):** Small per-user file
+  (`memory/<char_name>/<user_id>.md`, ~200–400 tokens) containing relationship facts, user
+  preferences, and conversation state. Written by the LLM at session end via a lightweight
+  summarisation prompt. Loaded at session start and injected into the context budget before RAG
+  content. Human-readable, editable, and debuggable without any vector tooling.
+- **Tier 2 — RAG over conversation archives (later):** When a user accumulates many sessions,
+  semantic search over past conversations using a `<user_id>_memory` ChromaDB collection. Reuses
+  the existing retrieval pipeline. Only worthwhile at scale.
+
+Prerequisites before Tier 1 can be built:
+  1. User/session identity scoping (who is this user across sessions?).
+  2. Session-end write hook (trigger point for LLM memory extraction).
+  3. Reserved context budget slot (~300 tokens, injected before RAG).
+  4. Memory write prompt (instructs the LLM to extract 5–10 facts from the session).
+
+Idle-time memory consolidation: merge/summarise older notes when count exceeds threshold
+(equivalent to AutoDream consolidation in the Claude spec). New commands:
+`/memory list`, `/memory add <note>`, `/memory forget <id>`, `/memory clear`.
+
+Web UI: memory panel showing injected facts per turn (see `UI_REFINEMENTS.md §A.5`).
+
+### 7. Chat Experience & Conversation Control
+
+- **Conversation branching:** `/fork` to snapshot current state to a named branch, `/forks` to
+  list all saved branches, `/fork restore <id>` to rewind and continue from that point. Branches
+  stored in session JSON under a `branches` key; pairs with web UI controls (see `UI_REFINEMENTS.md §A.3`).
+- **Character hot-reload:** `/character <card_name>` to swap the active character card mid-session
+  without a full restart. Preserve conversation history; reset persona drift state and reload the
+  RAG collection. Insert a visible "Character switched → <name>" marker in the conversation.
+  List available cards with `/character list`.
+- **Stop hooks:** user-defined stop conditions in config (`generation.stop_hooks`) — regex patterns
+  or keyword lists with `stop | redirect | warn` actions. Useful for OOC marker detection,
+  character-break detection, or content policy enforcement. Log stop events to telemetry and web
+  diagnostics.
+- **User-defined command macros (skills):** define custom `/skill` commands in
+  `configs/skills.json`, mapping names to message templates injected at send time. Support template
+  variables: `{{char}}`, `{{user}}`, `{{last_response}}`. Commands: `/skill list`,
+  `/skill add <name> <template>`, `/skill remove <name>`. Web UI: skills dropdown in the chat
+  input area (see `UI_REFINEMENTS.md §A.6`).
+
+All features should be opt-in via config and must not alter existing behaviour when disabled.
+
+### 8. Token & Context Observability
+
+- **Pressure-aware context compaction:** replace threshold-only history summarisation with
+  continuous token fill-rate tracking. Trigger compaction when the context window exceeds ~80%
+  capacity. Compress oldest history segments first; keep recent turns verbatim. Emit visible
+  compaction markers in the web chat UI. Expose compaction stats in the diagnostics panel.
+  Builds on the existing `context_manager.py` token budget logic — low-risk addition.
+- **Per-turn token usage stats:** track prompt tokens, completion tokens, context window %, and
+  RAG chunk count per turn. Add session-level cumulative totals to export metadata and the ZIP
+  bundle. CLI verbose mode: print token counts after each response. Web UI: extend the diagnostics
+  panel (see `UI_REFINEMENTS.md §A.1–A.2`).
+
+### 9. CLI Quality of Life
+
+- **Output themes & syntax highlighting:** configurable terminal colour themes (dark, light,
+  minimal, retro). Style character name, user input, system messages, and warnings with distinct
+  ANSI colours. Store preference as `ui.cli_theme` in config. Show theme options in `/help`.
+- **Customisable keybindings:** load from `configs/keybindings.json`; allow remapping of clear,
+  reload, save, export, continue, and help actions. Sensible defaults matching current behaviour.
+  Show current bindings in `/help` output.
+
+### 10. Multi-Character Conversation Mode (Exploratory)
+
+Two simultaneous active characters (e.g., narrator + character, or character A ↔ character B).
+Each character maintains its own RAG collection and persona drift tracker. A turn-router
+(rule-based or LLM-directed) decides which character responds each turn. Config:
+`multi_character: { enabled: true, characters: ["CharA", "CharB"] }`.
+
+**Large effort, Medium value.** Treat as a long-horizon milestone — do not start until §6–8 are
+stable. The only "Large" effort item in this backlog.
+
 *(Web UX and observability improvements are tracked in `docs/future_work/UI_REFINEMENTS.md`.)*
 
 ## Suggested Execution Order
@@ -77,6 +158,11 @@ Implemented state lives in `docs/future_work/COPILOT_COMPACT_REFERENCE.md`.
 7. ✅ Wire conversation fixture evaluation into unified quality-gate command and CI policy. (2026-03-26)
 8. ✅ Add retrieval trend rendering and debug export artifacts. (2026-03-26)
 9. Iterate on higher-level UX and explainability improvements — see `docs/future_work/UI_REFINEMENTS.md`.
+10. Add pressure-aware context compaction and per-turn token usage stats (§8).
+11. Implement Tier 1 markdown persona memory (§6) — requires user identity scoping first.
+12. Add conversation branching, character hot-reload, stop hooks, and skills macros (§7).
+13. CLI quality-of-life pass: themes and keybindings (§9).
+14. Multi-character conversation mode (§10) — long-horizon, after §6–8 are stable.
 
 ## Next Steps
 

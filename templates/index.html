@@ -27,6 +27,7 @@
         .sidebar {
             border-right: 1px solid #2d3743;
             padding: 1rem;
+            overflow-y: auto;
         }
 
         .sidebar h1 {
@@ -249,6 +250,195 @@
             margin-top: 0.35rem;
             color: #f8b4b4;
         }
+
+        .diag-panel,
+        .presets-panel {
+            margin-top: 1rem;
+            border: 1px solid #2d3743;
+            border-radius: 8px;
+            padding: 0.6rem;
+            background: #0f1317;
+            overflow: hidden;
+        }
+
+        .diag-panel summary,
+        .presets-panel summary {
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            margin-bottom: 0.3rem;
+            list-style: none;
+            padding: 0.1rem 0;
+        }
+
+        .diag-panel summary::after,
+        .presets-panel summary::after {
+            content: " ▸";
+            font-size: 0.75rem;
+            color: #98a6b6;
+        }
+
+        .diag-panel[open] summary::after,
+        .presets-panel[open] summary::after {
+            content: " ▾";
+        }
+
+        .diag-table {
+            width: 100%;
+            table-layout: fixed;
+            border-collapse: collapse;
+            font-size: 0.75rem;
+            color: #98a6b6;
+            margin-top: 0.3rem;
+        }
+
+        .diag-table th,
+        .diag-table td {
+            border: 1px solid #2d3743;
+            padding: 0.2rem 0.35rem;
+            text-align: right;
+            overflow-wrap: break-word;
+            word-break: break-all;
+        }
+
+        .diag-table th {
+            color: #e6edf3;
+            background: #1a1f26;
+            text-align: center;
+        }
+
+        .diag-table th:first-child,
+        .diag-table td:first-child {
+            text-align: left;
+        }
+
+        .diag-empty {
+            font-size: 0.8rem;
+            color: #98a6b6;
+        }
+
+        .profile-current-table {
+            margin-top: 0.5rem;
+        }
+
+        .profile-row {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 0.35rem;
+            margin-bottom: 0.4rem;
+        }
+
+        .profile-select,
+        .profile-input {
+            border: 1px solid #2d3743;
+            background: #111418;
+            color: #e6edf3;
+            border-radius: 6px;
+            padding: 0.35rem 0.4rem;
+            font-size: 0.8rem;
+            min-width: 0;
+        }
+
+        .profile-btn {
+            padding: 0.35rem 0.55rem;
+            font-size: 0.8rem;
+            border-radius: 6px;
+            background: #1e242b;
+            border: 1px solid #2d3743;
+            color: #e6edf3;
+        }
+
+        .profile-btn-danger {
+            background: #3b1a1a;
+            border-color: #7a3030;
+        }
+
+        .profile-empty {
+            font-size: 0.8rem;
+            color: #98a6b6;
+            margin: 0.2rem 0 0.4rem;
+        }
+
+        #refresh-diag-btn {
+            margin-top: 0.4rem;
+            padding: 0.3rem 0.55rem;
+            font-size: 0.78rem;
+            background: #1e242b;
+            border: 1px solid #2d3743;
+            border-radius: 6px;
+            color: #e6edf3;
+        }
+
+        .rag-link-btn {
+            display: block;
+            margin-top: 1rem;
+            padding: 0.55rem 0.75rem;
+            background: #1e242b;
+            border: 1px solid #2d3743;
+            border-radius: 8px;
+            color: #79c0ff;
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-align: center;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        .rag-link-btn:hover {
+            background: #262e38;
+            color: #a8d8ff;
+        }
+
+        .guide-panel {
+            margin-top: 1rem;
+            border: 1px solid #2d3743;
+            border-radius: 8px;
+            padding: 0.6rem;
+            background: #0f1317;
+        }
+
+        .guide-panel summary {
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            list-style: none;
+            padding: 0.1rem 0;
+        }
+
+        .guide-panel summary::after {
+            content: " ▸";
+            font-size: 0.75rem;
+            color: #98a6b6;
+        }
+
+        .guide-panel[open] summary::after {
+            content: " ▾";
+        }
+
+        .guide-item {
+            margin-top: 0.65rem;
+            padding-top: 0.5rem;
+            border-top: 1px solid #2d3743;
+        }
+
+        .guide-item:first-of-type {
+            border-top: none;
+            padding-top: 0.4rem;
+        }
+
+        .guide-item h3 {
+            margin: 0 0 0.2rem;
+            font-size: 0.82rem;
+            color: #c9d1d9;
+        }
+
+        .guide-item p {
+            margin: 0;
+            font-size: 0.77rem;
+            color: #98a6b6;
+            line-height: 1.45;
+        }
     </style>
 </head>
 
@@ -289,6 +479,57 @@
                 <div id="debug-history-content">No retrieval history yet.</div>
                 <button type="button" id="refresh-debug-btn">Refresh Debug</button>
             </div>
+            <details class="diag-panel">
+                <summary>Diagnostics</summary>
+                <div id="diag-content"><span class="diag-empty">No turns recorded yet.</span></div>
+                <button type="button" id="refresh-diag-btn">Refresh</button>
+            </details>
+            <details class="presets-panel"
+                     hx-get="/settings/profiles"
+                     hx-trigger="toggle once"
+                     hx-target="#presets-content"
+                     hx-swap="outerHTML">
+                <summary>Presets</summary>
+                <div id="presets-content">
+                    <span class="profile-empty">Loading…</span>
+                </div>
+            </details>
+            <a class="rag-link-btn" href="/rag">⚙ RAG Manager →</a>
+            <details class="guide-panel">
+                <summary>💡 How to use this chat</summary>
+                <div class="guide-item">
+                    <h3>Sending messages</h3>
+                    <p>Type in the box at the bottom and press <strong>Send</strong> (or hit Enter). The character will reply in real time. If the reply gets cut off, press <strong>Continue</strong> to pick up where it left off.</p>
+                </div>
+                <div class="guide-item">
+                    <h3>Clear &amp; Reload</h3>
+                    <p><strong>Clear</strong> removes messages from the screen but keeps the character loaded. <strong>Reload</strong> fully restarts the character — useful if responses drift off-topic or feel broken.</p>
+                </div>
+                <div class="guide-item">
+                    <h3>Sessions — saving &amp; loading</h3>
+                    <p>Type an optional name and press <strong>Save</strong> to store the current conversation. Use the dropdown to pick a past conversation and press <strong>Load</strong> to restore it. <strong>Load Latest</strong> skips the menu and restores your most recent save.</p>
+                </div>
+                <div class="guide-item">
+                    <h3>Copy Last &amp; Export</h3>
+                    <p><strong>Copy Last</strong> puts the character's most recent reply on your clipboard. The Export buttons let you download the full conversation as a plain text file, a structured JSON file, or a ZIP bundle that includes metadata.</p>
+                </div>
+                <div class="guide-item">
+                    <h3>RAG — the knowledge base</h3>
+                    <p>The <strong>RAG</strong> value at the top shows which knowledge collection the character is using. This is a database of text the AI can search through when answering your messages — think of it as the character's long-term memory or reference library. You can manage these collections in the <strong>RAG Manager</strong>.</p>
+                </div>
+                <div class="guide-item">
+                    <h3>Retrieval Debug</h3>
+                    <p>Shows what information was fetched from the knowledge base to help answer your last message — how many chunks were found, how they were ranked, and which collection was searched. Useful for understanding why the character knows (or doesn't know) something.</p>
+                </div>
+                <div class="guide-item">
+                    <h3>Diagnostics</h3>
+                    <p>Advanced statistics about response quality, token counts, and persona consistency scores. Mainly useful for developers fine-tuning the character.</p>
+                </div>
+                <div class="guide-item">
+                    <h3>Presets</h3>
+                    <p>Save and restore AI model settings (temperature, context size, repetition penalties, etc.). If you've found a configuration that works well, save it as a preset so you can switch back to it quickly.</p>
+                </div>
+            </details>
         </aside>
 
         <main class="main">
@@ -306,6 +547,7 @@
                     <button type="button" id="copy-last-btn">Copy Last</button>
                     <button type="button" id="export-txt-btn">Export TXT</button>
                     <button type="button" id="export-json-btn">Export JSON</button>
+                    <button type="button" id="export-bundle-btn">Export Bundle</button>
                 </div>
                 <form id="chat-form" hx-post="/chat/send" hx-target="#chat-log" hx-swap="beforeend">
                     <input id="user-input" name="message" placeholder="Type your message..." autocomplete="off"
@@ -330,6 +572,7 @@
         const copyLastButton = document.getElementById("copy-last-btn");
         const exportTxtButton = document.getElementById("export-txt-btn");
         const exportJsonButton = document.getElementById("export-json-btn");
+        const exportBundleButton = document.getElementById("export-bundle-btn");
         const clearButton = document.getElementById("clear-btn");
         const reloadButton = document.getElementById("reload-btn");
         const helpButton = document.getElementById("help-btn");
@@ -445,6 +688,22 @@
             }
         }
 
+        async function refreshDiagnosticsPanel() {
+            try {
+                const response = await fetch("/chat/diagnostics", { method: "GET" });
+                if (!response.ok) {
+                    return;
+                }
+                const html = await response.text();
+                const diagContent = document.getElementById("diag-content");
+                if (diagContent) {
+                    diagContent.outerHTML = html;
+                }
+            } catch {
+                // diagnostics panel is non-critical; fail silently
+            }
+        }
+
         async function refreshSessionList() {
             try {
                 const response = await fetch("/chat/session/list", { method: "GET" });
@@ -556,6 +815,7 @@
                 setStatus(receivedAnyToken ? "Response complete" : "No visible response");
                 await refreshDebugPanel();
                 await refreshDebugHistoryPanel();
+                await refreshDiagnosticsPanel();
             } catch (error) {
                 const reason = error?.name === "AbortError"
                     ? "[Timed out while waiting for model response]"
@@ -679,6 +939,10 @@
             setStatus("Ready");
         });
 
+        document.getElementById("refresh-diag-btn").addEventListener("click", async () => {
+            await refreshDiagnosticsPanel();
+        });
+
         continueButton.addEventListener("click", () => {
             requestContinuation();
         });
@@ -793,6 +1057,11 @@
             setStatus("Exported JSON");
         });
 
+        exportBundleButton.addEventListener("click", () => {
+            window.location.href = "/chat/export/bundle";
+            setStatus("Downloading bundle…");
+        });
+
         userInput.addEventListener("keydown", (event) => {
             if (event.key === "Enter" && event.ctrlKey) {
                 event.preventDefault();
@@ -855,6 +1124,7 @@
             scrollChatToBottom();
             refreshDebugPanel();
             refreshDebugHistoryPanel();
+            refreshDiagnosticsPanel();
             refreshSessionList();
         });
 
