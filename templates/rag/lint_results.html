@@ -1,0 +1,49 @@
+{% if fixed %}
+<div class="rag-msg rag-msg-ok">Auto-fix applied. Re-check results below.</div>
+{% endif %}
+
+{% if not reports %}
+<p class="rag-empty">No <code>*_message_examples.txt</code> files found in <code>rag_data/</code>.</p>
+{% else %}
+{% for rep in reports %}
+<div style="margin-bottom:1rem">
+    <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.35rem">
+        <strong style="font-size:0.85rem">{{ rep.file }}</strong>
+        {% if rep.valid %}
+        <span class="badge badge-ok">✓ PASS</span>
+        {% else %}
+        <span class="badge badge-error">✗ FAIL</span>
+        {% endif %}
+        {% if rep.auto_fixed %}
+        <span class="badge badge-warn">auto-fixed</span>
+        {% endif %}
+    </div>
+    {% if rep.violations %}
+    <table class="rag-table">
+        <thead>
+            <tr><th>Line</th><th>Rule</th><th>Severity</th><th>Message</th><th>Suggested Fix</th></tr>
+        </thead>
+        <tbody>
+        {% for v in rep.violations %}
+            <tr>
+                <td>{{ v.line_no }}</td>
+                <td><code>{{ v.rule_id }}</code></td>
+                <td>
+                    {% if v.severity == "error" %}
+                    <span class="badge badge-error">error</span>
+                    {% else %}
+                    <span class="badge badge-warn">warning</span>
+                    {% endif %}
+                </td>
+                <td>{{ v.message }}</td>
+                <td style="color:#98a6b6">{{ v.suggested_fix or "—" }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="rag-empty" style="margin:0.2rem 0">No violations.</p>
+    {% endif %}
+</div>
+{% endfor %}
+{% endif %}

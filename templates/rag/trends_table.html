@@ -1,0 +1,25 @@
+{% if trends %}
+<table class="rag-table">
+    <thead>
+        <tr><th>Date</th><th>Fixture</th><th>k</th><th>Mode</th><th>Eval</th><th>Skip</th><th>Recall@k</th><th>MRR</th><th>Precision@k</th><th>MAP@k</th></tr>
+    </thead>
+    <tbody>
+    {% for row in trends %}
+        <tr>
+            <td style="font-size:0.72rem;white-space:nowrap">{{ row.generated_at[:16] if row.generated_at else "—" }}</td>
+            <td class="truncate" style="max-width:140px" title="{{ row.fixture_file }}">{{ row.fixture_file | replace("tests/fixtures/", "") }}</td>
+            <td>{{ row.k }}</td>
+            <td>{{ row.retrieval_mode }}</td>
+            <td>{{ row.evaluated }}</td>
+            <td>{{ row.skipped }}</td>
+            <td>{{ "%.3f" | format(row.recall_at_k | float) }}</td>
+            <td>{{ "%.3f" | format(row.mrr | float) }}</td>
+            <td>{{ "%.3f" | format(row.precision_at_k | float) }}</td>
+            <td>{{ "%.3f" | format(row.map_at_k | float) }}</td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="rag-empty">No trend history yet. Run an evaluation to begin tracking.</p>
+{% endif %}

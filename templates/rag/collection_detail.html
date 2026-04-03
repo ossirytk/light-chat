@@ -1,0 +1,78 @@
+<div class="rag-section-header">
+    <button class="back-link rag-btn"
+        hx-get="/rag/collections" hx-target="#rag-main" hx-swap="innerHTML">← Collections</button>
+    Collection: <strong>{{ info.name }}</strong>
+</div>
+
+{% if backfilled %}
+<div class="rag-msg rag-msg-ok">Fingerprint backfilled: model={{ backfilled["embedding:model"] }}, dim={{ backfilled.get("embedding:dimension", "?") }}</div>
+{% endif %}
+
+<table class="rag-table" style="max-width:480px">
+    <tbody>
+        <tr><td><strong>Documents</strong></td><td>{{ info.count }}</td></tr>
+        <tr><td><strong>Embedding Model</strong></td><td>{{ info.embedding_model or "—" }}</td></tr>
+        <tr><td><strong>Dimension</strong></td><td>{{ info.embedding_dimension or "—" }}</td></tr>
+        <tr><td><strong>Normalize</strong></td><td>{{ info.embedding_normalize }}</td></tr>
+    </tbody>
+</table>
+
+<!-- Ad-hoc Query -->
+<div class="rag-subsection">
+    <div class="rag-subsection-header">Ad-hoc Query</div>
+    <form class="rag-form-row"
+        hx-post="/rag/collections/{{ info.name }}/query"
+        hx-target="#query-results" hx-swap="innerHTML"
+        hx-indicator="#query-spinner">
+        <input class="rag-input rag-input-wide" name="query" placeholder="Enter query text…" required />
+        <label class="rag-label">k</label>
+        <input class="rag-input" name="k" type="number" value="5" min="1" max="20" style="width:52px" />
+        <button type="submit" class="rag-btn rag-btn-primary">Search</button>
+        <span id="query-spinner" class="htmx-indicator">Searching…</span>
+    </form>
+    <div id="query-results"></div>
+</div>
+
+<!-- Rebuild (Push) -->
+<div class="rag-subsection">
+    <div class="rag-subsection-header">Rebuild Collection</div>
+    <form class="rag-form-row"
+        hx-post="/rag/collections/{{ info.name }}/push"
+        hx-target="#push-status" hx-swap="innerHTML"
+        hx-confirm="Rebuild '{{ info.name }}'? This overwrites the existing collection.">
+        <label class="rag-label">Source stem</label>
+        <input class="rag-input" name="stem" placeholder="e.g. shodan" value="{{ info.name }}" required />
+        <button type="submit" class="rag-btn rag-btn-primary">Rebuild</button>
+    </form>
+    <div id="push-status"></div>
+</div>
+
+<!-- Backfill Fingerprint -->
+<div class="rag-subsection">
+    <div class="rag-subsection-header">Fingerprint</div>
+    <div class="rag-btn-group">
+        <button class="rag-btn"
+            hx-post="/rag/collections/{{ info.name }}/backfill-fingerprint"
+            hx-target="#rag-main" hx-swap="innerHTML"
+            hx-confirm="Backfill embedding fingerprint for '{{ info.name }}'?">Backfill Fingerprint</button>
+    </div>
+</div>
+
+<!-- Sample Docs -->
+{% if info.sample_docs %}
+<div class="rag-subsection">
+    <div class="rag-subsection-header">Sample Documents (first {{ info.sample_docs | length }})</div>
+    <table class="rag-table">
+        <thead><tr><th style="width:40%">ID</th><th>Text Preview</th><th>Metadata Keys</th></tr></thead>
+        <tbody>
+        {% for doc in info.sample_docs %}
+            <tr>
+                <td class="truncate" style="font-size:0.72rem;color:#98a6b6">{{ doc.id }}</td>
+                <td class="truncate">{{ doc.text }}</td>
+                <td style="font-size:0.74rem;color:#98a6b6">{{ doc.metadata.keys() | list | join(", ") if doc.metadata else "—" }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}

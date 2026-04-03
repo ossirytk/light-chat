@@ -1,0 +1,22 @@
+{% if results %}
+<p style="font-size:0.8rem;color:#98a6b6;margin:0.4rem 0 0.6rem">
+    {{ results | length }} result(s) for: <em>{{ query }}</em>
+</p>
+<table class="rag-table">
+    <thead>
+        <tr><th>#</th><th>Score</th><th>Text</th><th>Metadata Keys</th></tr>
+    </thead>
+    <tbody>
+    {% for r in results %}
+        <tr>
+            <td>{{ r.rank }}</td>
+            <td>{{ r.score }}</td>
+            <td><pre class="rag-pre" style="max-height:120px;margin:0">{{ r.text }}</pre></td>
+            <td style="font-size:0.72rem;color:#98a6b6">{{ r.metadata.keys() | list | join(", ") if r.metadata else "—" }}</td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="rag-empty">No results returned.</p>
+{% endif %}

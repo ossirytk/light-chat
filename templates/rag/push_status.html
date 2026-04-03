@@ -1,0 +1,34 @@
+<div id="job-{{ job_id }}" class="job-widget"
+    {% if status in ("pending", "running") %}
+    hx-get="/rag/jobs/{{ job_id }}?kind={{ kind }}"
+    hx-trigger="every 2s"
+    hx-target="#job-{{ job_id }}"
+    hx-swap="outerHTML"
+    {% endif %}>
+
+    {% if status == "pending" %}
+    <span class="badge badge-muted">⏳ Queued</span>
+    <span style="font-size:0.78rem;color:#98a6b6;margin-left:0.4rem">{{ elapsed_s }}s</span>
+
+    {% elif status == "running" %}
+    <span class="badge badge-info">⚙ Running…</span>
+    <span style="font-size:0.78rem;color:#98a6b6;margin-left:0.4rem">{{ elapsed_s }}s</span>
+
+    {% elif status == "done" %}
+    <span class="badge badge-ok">✓ Done</span>
+    <span style="font-size:0.78rem;color:#98a6b6;margin-left:0.4rem">{{ elapsed_s }}s</span>
+    {% if kind == "push" and result %}
+    <p style="margin:0.45rem 0 0;font-size:0.82rem">
+        Pushed <strong>{{ result.doc_count }}</strong> chunks →
+        <strong>{{ result.collection }}</strong>
+        ({{ result.elapsed_s }}s).
+    </p>
+    {% elif result %}
+    <pre class="rag-pre" style="margin-top:0.45rem">{{ result | tojson(indent=2) }}</pre>
+    {% endif %}
+
+    {% elif status == "error" %}
+    <span class="badge badge-error">✗ Error</span>
+    <div class="rag-msg rag-msg-error" style="margin-top:0.45rem">{{ error }}</div>
+    {% endif %}
+</div>

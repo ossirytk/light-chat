@@ -1,22 +1,82 @@
 # UI Refinements Backlog
 
-Last updated: 2026-03-26
+Last updated: 2026-04-03
 
-Forward-looking improvements to the web interface. This covers both general UX polish (moved
-from `REFINEMENTS.md`) and the larger RAG management UI plan.
+Forward-looking improvements to the web interface. This covers chat UI enhancements and the larger
+RAG management UI plan.
 
 Implemented state lives in `docs/future_work/COPILOT_COMPACT_REFERENCE.md`.
 
 ---
 
-## A. General Web UX (Moved from REFINEMENTS.md §6)
+## A. Chat UI Enhancements
 
-- Add a compact run diagnostics panel (latency, tokens/chars, retrieval counts, guardrail
-  triggers per turn).
-- Add saveable preset profiles for debug mode and retrieval settings (toggle rerank, MMR,
-  sentence compression without editing config).
-- Add a one-click export bundle for support/debug sessions (conversation JSON + retrieval
-  traces + drift history in a single download).
+Quality-of-life improvements to the main chat view and diagnostics panel. These complement the
+backend features described in `docs/future_work/REFINEMENTS.md §§7–8`.
+
+### A.1 Token Budget Visualization
+
+Add a token budget bar to the diagnostics panel (or below the chat input area).
+
+- Displays real-time allocation breakdown: system prompt %, history %, RAG context %, headroom.
+- Updates after each turn alongside the persona drift score.
+- Colour-coded: green (< 70%) / yellow (70–90%) / red (> 90%) by fill pressure.
+- Data source: extend `ContextBudget` in `context_manager.py` to return percentage breakdowns;
+  emit alongside each response payload or via a dedicated `/diagnostics/budget` endpoint.
+
+### A.2 Per-Turn Token Usage Stats Panel
+
+Extend the existing diagnostics panel with turn-level token stats.
+
+- Show per-turn: prompt tokens, completion tokens, context window %, RAG chunks retrieved.
+- Show session-level cumulative totals at the bottom of the panel.
+- Backend: `context_manager.py` already computes budgets; add a `TokenUsageRecord` emitted
+  alongside each streamed response.
+- Depends on `REFINEMENTS.md §8` (per-turn token usage stats) for the backend data.
+
+### A.3 Conversation Branching Controls
+
+UI surface for the fork/restore feature described in `REFINEMENTS.md §7`.
+
+- **Fork button** in the chat header: prompts for an optional name, then snapshots current
+  conversation state as a named branch.
+- **Branch list** in the Sessions panel: shows all forks for the active session with timestamps
+  and restore buttons.
+- **Restore action**: rewinds the chat view and conversation state to the fork point; inserts a
+  visible `— Restored from fork: <name> —` divider in the chat history.
+- Backend: extend `export_conversation_state` / `import_conversation_state` to support a
+  `branches` key in the session JSON.
+- Depends on `REFINEMENTS.md §7` (conversation branching) for the backend state model.
+
+### A.4 Session History Search
+
+Full-text search across saved session JSON files, surfaced in the Sessions panel.
+
+- Search input with character name filter and optional date range.
+- Results show matching turns with surrounding context snippets.
+- Routes: `GET /sessions/search?q=<query>&character=<name>&from=<date>&to=<date>`.
+- Returns HTMX partial with a paginated results table; consistent with existing panel pattern.
+
+### A.5 Memory Panel
+
+UI surface for the persistent memory system described in `REFINEMENTS.md §6`. Deferred until
+Tier 1 markdown memory is implemented.
+
+- Add a "Memory" tab in the diagnostics sidebar.
+- Show which memory entries were injected for the current turn.
+- If Tier 2 RAG memory is active, show relevance scores alongside each entry.
+- Manual actions: add fact, forget entry (calls `/memory` endpoints).
+- Routes: `GET /memory`, `POST /memory/add`, `DELETE /memory/{id}`.
+
+### A.6 Skills / Macros Dropdown
+
+UI surface for the skills system described in `REFINEMENTS.md §7`. Deferred until the skills
+config backend is implemented.
+
+- Skills dropdown button adjacent to the chat input field.
+- Lists available `/skill` commands with their template previews; selecting one inserts the
+  expanded template into the input for editing before send.
+- Reflects live state from `configs/skills.json` without a page reload.
 
 ---
 
@@ -153,6 +213,10 @@ Or, given the project's existing pattern, call the CLI module functions directly
 
 ## Suggested Execution Order (UI)
 
-1. General UX polish items (§A) alongside any ongoing chat-quality work.
-2. RAG Management UI (§B) as a self-contained milestone — implement §B.6 steps in order.
-3. Diagnostics panel and preset profiles (§A) after RAG panel is stable.
+1. RAG Management UI (§B) as a self-contained milestone — implement §B.6 steps in order.
+2. Token budget visualization (§A.1) and per-turn token stats panel (§A.2) — low-risk extensions
+   to the existing diagnostics panel; depends on `REFINEMENTS.md §8` backend work.
+3. Session history search (§A.4) — stateless read-only feature, no new backend state model needed.
+4. Conversation branching controls (§A.3) — depends on `REFINEMENTS.md §7` session state changes.
+5. Memory panel (§A.5) — depends on `REFINEMENTS.md §6` Tier 1 memory being implemented first.
+6. Skills dropdown (§A.6) — depends on `REFINEMENTS.md §7` skills config backend.

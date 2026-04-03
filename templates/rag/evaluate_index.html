@@ -1,0 +1,33 @@
+<div class="rag-section-header">Fixture Evaluation</div>
+
+{% if fixture_packs %}
+<form class="rag-form-row"
+    hx-post="/rag/evaluate/run"
+    hx-target="#eval-results" hx-swap="innerHTML"
+    hx-indicator="#eval-spinner">
+    <label class="rag-label">Fixture pack</label>
+    <select class="rag-select" name="fixture_file">
+        {% for pack in fixture_packs %}
+        <option value="{{ pack }}">{{ pack }}</option>
+        {% endfor %}
+    </select>
+    <button type="submit" class="rag-btn rag-btn-primary">Run Evaluation</button>
+    <span id="eval-spinner" class="htmx-indicator">Running… (may take ~30–60 s)</span>
+</form>
+{% else %}
+<p class="rag-empty">No fixture files found in <code>tests/fixtures/</code>.</p>
+{% endif %}
+
+<div id="eval-results"></div>
+
+<div class="rag-subsection">
+    <div style="display:flex;align-items:center;gap:0.6rem">
+        <div class="rag-subsection-header" style="margin:0">Retrieval Trends</div>
+        <button class="rag-btn"
+            hx-get="/rag/evaluate/trends"
+            hx-target="#trends-content" hx-swap="innerHTML">↻ Refresh</button>
+    </div>
+    <div id="trends-content" style="margin-top:0.5rem">
+        {% include "rag/trends_table.html" %}
+    </div>
+</div>

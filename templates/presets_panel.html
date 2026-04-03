@@ -1,0 +1,40 @@
+<div id="presets-content">
+    {% if profiles %}
+    <form class="profile-row" hx-post="/settings/profiles/apply" hx-target="#presets-content" hx-swap="outerHTML">
+        <select name="name" id="profile-picker" class="profile-select">
+            {% for name in profiles %}
+            <option value="{{ name }}">{{ name }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="profile-btn">Apply</button>
+    </form>
+    <form class="profile-row" hx-post="/settings/profiles/delete" hx-target="#presets-content" hx-swap="outerHTML"
+          onsubmit="return confirm('Delete profile \'' + this.querySelector(\'select\').value + '\'?')">
+        <select name="name" class="profile-select">
+            {% for name in profiles %}
+            <option value="{{ name }}">{{ name }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="profile-btn profile-btn-danger">Delete</button>
+    </form>
+    {% else %}
+    <p class="profile-empty">No saved profiles.</p>
+    {% endif %}
+    <form class="profile-row" hx-post="/settings/profiles/save" hx-target="#presets-content" hx-swap="outerHTML">
+        <input type="text" name="name" placeholder="Profile name" maxlength="40" class="profile-input" required />
+        <button type="submit" class="profile-btn">Save Current</button>
+    </form>
+    <table class="diag-table profile-current-table">
+        <thead>
+            <tr><th>Setting</th><th>Value</th></tr>
+        </thead>
+        <tbody>
+            {% for key, val in current.items() %}
+            <tr>
+                <td>{{ key }}</td>
+                <td>{{ val }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
