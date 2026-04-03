@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
 from typing import TYPE_CHECKING
 
@@ -58,18 +59,23 @@ class ProfileStore:
             raise KeyError(msg)
         return dict(data[name])
 
-    def apply_profile(self, name: str, config: ConversationRuntimeConfig) -> list[str]:
-        """Write profile values onto *config* in place; return list of changed field names."""
+    def apply_profile(
+        self, name: str, config: ConversationRuntimeConfig
+    ) -> tuple[ConversationRuntimeConfig, list[str]]:
+        """Return a new config with profile values applied and list of changed field names."""
         profile = self.get_profile(name)
+        validated_updates: dict[str, object] = {}
         changed: list[str] = []
         for field, value in profile.items():
             if field not in PROFILE_FIELDS:
                 continue
             current = getattr(config, field, None)
             if current != value:
-                setattr(config, field, value)
+                validated_updates[field] = value
                 changed.append(field)
-        return changed
+        if validated_updates:
+            config = dataclasses.replace(config, **validated_updates)
+        return config, changed
 
     def delete_profile(self, name: str) -> None:
         """Remove *name* from the store (no-op if not found)."""

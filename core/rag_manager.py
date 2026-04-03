@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import csv
 import json
+import re
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -17,6 +18,13 @@ from chromadb.config import Settings
 
 if TYPE_CHECKING:
     from core.config import RagScriptConfig
+
+_SAFE_STEM_RE: re.Pattern[str] = re.compile(r"^[a-zA-Z0-9_-]+$")
+
+
+def is_valid_stem(stem: str) -> bool:
+    """Return True when *stem* contains only letters, digits, underscores, and hyphens."""
+    return bool(_SAFE_STEM_RE.match(stem))
 
 
 def _chroma_client(persist_dir: str) -> chromadb.PersistentClient:
@@ -242,9 +250,16 @@ def run_coverage(config: RagScriptConfig, stem: str) -> dict[str, Any] | None:
         load_metadata_file,
     )
 
-    rag_dir = Path(config.documents_directory)
-    source_file = rag_dir / f"{stem}.txt"
-    metadata_file = rag_dir / f"{stem}.json"
+    if not is_valid_stem(stem):
+        msg = f"Invalid stem {stem!r}: only letters, digits, underscores, and hyphens are allowed"
+        raise ValueError(msg)
+
+    rag_dir = Path(config.documents_directory).resolve()
+    source_file = (rag_dir / f"{stem}.txt").resolve()
+    metadata_file = (rag_dir / f"{stem}.json").resolve()
+    if not source_file.is_relative_to(rag_dir) or not metadata_file.is_relative_to(rag_dir):
+        msg = f"Stem {stem!r} resolves outside documents directory"
+        raise ValueError(msg)
     if not source_file.exists() or not metadata_file.exists():
         return None
     source_text = source_file.read_text(encoding="utf-8")
@@ -285,9 +300,16 @@ def run_evaluate_fixtures(
     from scripts.rag.manage_collections_core_evaluation import _execute_fixture_evaluation  # noqa: PLC0415
     from scripts.rag.manage_collections_core_types import FixtureEvalOptions  # noqa: PLC0415
 
-    fixture_path = Path(tests_dir) / fixture_file
-    if not fixture_path.exists():
-        return None
+    available_fixtures = set(list_fixture_packs(tests_dir))
+    if fixture_file not in available_fixtures:
+        msg = f"Unknown fixture pack: {fixture_file!r}"
+        raise FileNotFoundError(msg)
+
+    fixture_dir = Path(tests_dir).resolve()
+    fixture_path = (fixture_dir / fixture_file).resolve()
+    if not fixture_path.is_relative_to(fixture_dir) or not fixture_path.exists():
+        msg = f"Fixture pack not found: {fixture_file!r}"
+        raise FileNotFoundError(msg)
     options = FixtureEvalOptions(
         fixture_file=fixture_path,
         k=None,
@@ -363,8 +385,14 @@ def push_collection(
         resolve_metadata_file,
     )
 
-    rag_dir = Path(config.documents_directory)
-    file_path = rag_dir / f"{stem}.txt"
+    rag_dir = Path(config.documents_directory).resolve()
+    if not is_valid_stem(stem):
+        msg = f"Invalid stem {stem!r}: only letters, digits, underscores, and hyphens are allowed"
+        raise ValueError(msg)
+    file_path = (rag_dir / f"{stem}.txt").resolve()
+    if not file_path.is_relative_to(rag_dir):
+        msg = f"Stem {stem!r} resolves outside documents directory"
+        raise ValueError(msg)
     if not file_path.exists():
         msg = f"Source file not found: {file_path}"
         raise FileNotFoundError(msg)

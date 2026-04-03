@@ -54,8 +54,11 @@ class JobStore:
         job_id = uuid.uuid4().hex[:12]
         job = Job(job_id)
         with self._lock:
-            self._jobs[job_id] = job
             self._evict_old()
+            if len(self._jobs) >= self.MAX_JOBS:
+                msg = f"Job store is full ({self.MAX_JOBS} active jobs); please wait for a job to finish"
+                raise RuntimeError(msg)
+            self._jobs[job_id] = job
 
         def _run() -> None:
             job.status = "running"

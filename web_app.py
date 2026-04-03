@@ -2,6 +2,7 @@
 
 import asyncio
 import contextlib
+import html
 import io
 import json
 import threading
@@ -620,12 +621,16 @@ async def settings_profiles_apply(request: Request, name: str = Form(...)) -> HT
     """Apply a saved profile to the live runtime config, then re-render the panel."""
     runtime = _get_runtime(request)
     store = _get_profile_store(request)
-    try:
-        changed = store.apply_profile(name, runtime.manager.runtime_config)
-        logger.info("Applied profile {!r}; changed fields: {}", name, changed)
-    except KeyError:
-        logger.warning("Profile {!r} not found", name)
-    return _render_profiles_panel(request)
+    async with runtime.lock:
+        try:
+            new_config, changed = store.apply_profile(name, runtime.manager.runtime_config)
+            runtime.manager.runtime_config = new_config
+            runtime.manager.rag_k = new_config.rag_k
+            runtime.manager.rag_k_mes = new_config.rag_k_mes
+            logger.info("Applied profile {!r}; changed fields: {}", name, changed)
+        except KeyError:
+            logger.warning("Profile {!r} not found", name)
+        return _render_profiles_panel(request)
 
 
 @app.post("/settings/profiles/delete", response_class=HTMLResponse)
@@ -661,6 +666,10 @@ async def rag_collections(request: Request) -> HTMLResponse:
 async def rag_collection_detail(request: Request, name: str) -> HTMLResponse:
     config = _get_rag_config(request)
     info = await asyncio.to_thread(rag_manager.collection_info, config, name)
+    if info is None:
+        return HTMLResponse(
+            content=f"<p>Collection <b>{html.escape(name)}</b> not found.</p>", status_code=404
+        )
     return templates.TemplateResponse(
         "rag/collection_detail.html",
         {"request": request, "info": info},
@@ -670,7 +679,14 @@ async def rag_collection_detail(request: Request, name: str) -> HTMLResponse:
 @app.delete("/rag/collections/{name}", response_class=HTMLResponse)
 async def rag_collection_delete(request: Request, name: str) -> HTMLResponse:
     config = _get_rag_config(request)
-    await asyncio.to_thread(rag_manager.delete_collection, config, name)
+    try:
+        await asyncio.to_thread(rag_manager.delete_collection, config, name)
+    except Exception as exc:
+        logger.warning("Failed to delete collection {!r}: {}", name, exc)
+        return HTMLResponse(
+            content=f"<p class='text-error'>Could not delete collection <b>{html.escape(name)}</b>.</p>",
+            status_code=404,
+        )
     collections = await asyncio.to_thread(rag_manager.list_collections, config)
     return templates.TemplateResponse(
         "rag/collections_list.html",
@@ -686,7 +702,14 @@ async def rag_collection_query(
     k: int = Form(5),
 ) -> HTMLResponse:
     config = _get_rag_config(request)
-    results = await asyncio.to_thread(rag_manager.query_collection, config, name, query, k)
+    try:
+        results = await asyncio.to_thread(rag_manager.query_collection, config, name, query, k)
+    except Exception as exc:
+        logger.warning("Query failed for collection {!r}: {}", name, exc)
+        return HTMLResponse(
+            content="<p class='text-error'>Query failed. See server logs for details.</p>",
+            status_code=400,
+        )
     return templates.TemplateResponse(
         "rag/query_results.html",
         {"request": request, "results": results, "query": query, "collection": name},
@@ -699,9 +722,13 @@ async def rag_collection_push(
     name: str,
     stem: str = Form(...),
 ) -> HTMLResponse:
+    clean_stem = stem.strip()
+    if not rag_manager.is_valid_stem(clean_stem):
+        _msg = "Invalid stem: only letters, digits, underscores, and hyphens are allowed."
+        return HTMLResponse(content=f"<p class='text-error'>{_msg}</p>", status_code=400)
     config = _get_rag_config(request)
     job_store = _get_job_store(request)
-    job_id = job_store.submit(rag_manager.push_collection, config, stem.strip(), name)
+    job_id = job_store.submit(rag_manager.push_collection, config, clean_stem, name)
     return templates.TemplateResponse(
         "rag/push_status.html",
         {
@@ -741,6 +768,11 @@ async def rag_files(request: Request) -> HTMLResponse:
 async def rag_file_view(request: Request, filename: str) -> HTMLResponse:
     config = _get_rag_config(request)
     content = await asyncio.to_thread(rag_manager.file_content, config, filename)
+    if content is None:
+        return HTMLResponse(
+            content=f"<p>File <b>{html.escape(filename)}</b> not found or not accessible.</p>",
+            status_code=404,
+        )
     return templates.TemplateResponse(
         "rag/file_view.html",
         {"request": request, "filename": filename, "content": content},
@@ -769,8 +801,17 @@ async def rag_lint_fix(request: Request) -> HTMLResponse:
 
 @app.post("/rag/coverage", response_class=HTMLResponse)
 async def rag_coverage(request: Request, stem: str = Form(...)) -> HTMLResponse:
+    clean_stem = stem.strip()
+    if not rag_manager.is_valid_stem(clean_stem):
+        _msg = "Invalid stem: only letters, digits, underscores, and hyphens are allowed."
+        return HTMLResponse(content=f"<p class='text-error'>{_msg}</p>", status_code=400)
     config = _get_rag_config(request)
-    result = await asyncio.to_thread(rag_manager.run_coverage, config, stem.strip())
+    result = await asyncio.to_thread(rag_manager.run_coverage, config, clean_stem)
+    if result is None:
+        return HTMLResponse(
+            content="<p>Coverage data not found (missing .txt or .json pair).</p>",
+            status_code=404,
+        )
     return templates.TemplateResponse(
         "rag/coverage_report.html",
         {"request": request, "result": result},
@@ -792,6 +833,12 @@ async def rag_evaluate_run(
     request: Request,
     fixture_file: str = Form(...),
 ) -> HTMLResponse:
+    available = await asyncio.to_thread(rag_manager.list_fixture_packs)
+    if fixture_file not in available:
+        return HTMLResponse(
+            content="<p class='text-error'>Unknown fixture pack.</p>",
+            status_code=400,
+        )
     config = _get_rag_config(request)
     job_store = _get_job_store(request)
     job_id = job_store.submit(rag_manager.run_evaluate_fixtures, config, fixture_file)
