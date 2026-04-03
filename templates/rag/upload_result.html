@@ -1,0 +1,16 @@
+<div class="rag-msg rag-msg-ok">✓ Uploaded <strong>{{ filename }}</strong> to <code>rag_data/</code>.</div>
+
+<p style="font-size:0.82rem;color:#98a6b6;margin:0.25rem 0 0.75rem">
+    Building collection <strong>{{ collection_name }}</strong>…
+</p>
+
+{% include "rag/push_status.html" %}
+
+<p style="margin-top:0.85rem;font-size:0.78rem;color:#636e7b">
+    <button class="rag-btn"
+        hx-get="/rag/files"
+        hx-target="#rag-main" hx-swap="innerHTML">← Back to Files</button>
+    <button class="rag-btn" style="margin-left:0.4rem"
+        hx-get="/rag/collections"
+        hx-target="#rag-main" hx-swap="innerHTML">View Collections</button>
+</p>

@@ -1,0 +1,28 @@
+{% if results %}
+<p style="font-size:0.74rem;color:#98a6b6;margin:0.4rem 0 0.4rem">
+    {{ results | length }} session(s) found
+</p>
+{% for s in results %}
+<div class="search-result-item">
+    <div class="search-result-header">
+        <span class="search-result-name" title="{{ s.session_name }}">{{ s.session_name }}</span>
+        {% if s.character_name %}
+        <span class="badge-char">{{ s.character_name }}</span>
+        {% endif %}
+        <span class="search-result-date">{{ s.saved_at }}</span>
+    </div>
+    {% for snip in s.snippets %}
+    <div class="search-snippet">
+        <span class="snip-role">{{ snip.role }}</span>{{ snip.excerpt }}
+    </div>
+    {% endfor %}
+    <button type="button" class="search-load-btn"
+        hx-post="/chat/session/load"
+        hx-vals='{"session_id": "{{ s.session_id }}"}'
+        hx-target="#chat-log"
+        hx-swap="innerHTML">Load</button>
+</div>
+{% endfor %}
+{% else %}
+<p style="font-size:0.78rem;color:#98a6b6;margin:0.4rem 0 0">No matching sessions found.</p>
+{% endif %}

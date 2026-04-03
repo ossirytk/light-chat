@@ -41,3 +41,44 @@
 {% else %}
 <p class="rag-empty">No collections found in <code>character_storage/</code>.</p>
 {% endif %}
+
+<div class="rag-subsection">
+    <div class="rag-subsection-header">➕ Create New Collection</div>
+    <p style="font-size:0.78rem;color:#98a6b6;margin:0 0 0.65rem">
+        Build a searchable knowledge base from a source file already in <code>rag_data/</code>.
+        The embedding model and chunk settings from your current config will be used.
+        This may take a minute or two depending on file size.
+    </p>
+    <form hx-post="/rag/collections"
+          hx-target="#create-collection-result"
+          hx-swap="innerHTML"
+          hx-indicator="#create-spinner"
+          style="display:flex;flex-direction:column;gap:0.5rem">
+        <div class="rag-form-row">
+            <label class="rag-label">Collection name:</label>
+            <input type="text" name="collection_name" class="rag-input" style="width:180px"
+                   placeholder="e.g. shodan" required
+                   pattern="[a-zA-Z0-9_\-]+" title="Letters, digits, underscores and hyphens only" />
+        </div>
+        <div class="rag-form-row">
+            <label class="rag-label">Source file:</label>
+            {% if existing_stems %}
+            <select name="stem" class="rag-select">
+                {% for s in existing_stems %}
+                <option value="{{ s }}">{{ s }}.txt</option>
+                {% endfor %}
+            </select>
+            {% else %}
+            <input type="text" name="stem" class="rag-input" style="width:180px"
+                   placeholder="e.g. shodan"
+                   pattern="[a-zA-Z0-9_\-]+" required />
+            <span class="rag-label">(no files found in <code>rag_data/</code> — upload one first)</span>
+            {% endif %}
+        </div>
+        <div class="rag-btn-group" style="margin-bottom:0">
+            <button type="submit" class="rag-btn rag-btn-primary">Create Collection</button>
+            <span id="create-spinner" class="htmx-indicator">Building…</span>
+        </div>
+    </form>
+    <div id="create-collection-result" style="margin-top:0.65rem;"></div>
+</div>

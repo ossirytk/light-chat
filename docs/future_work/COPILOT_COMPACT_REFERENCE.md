@@ -1,6 +1,6 @@
 # Copilot Compact Reference — Implemented State
 
-Last verified: 2026-03-29
+Last verified: 2026-04-03
 
 Use this as the single compact reference for implemented work across conversation quality, RAG quality, and web app behavior.
 
@@ -143,18 +143,46 @@ Primary files:
 - **Per-turn diagnostics panel**: collapsible sidebar panel showing Turn, Latency (s), Chars, Main chunks, MES chunks, Cross-removed, and Drift score (colour-coded at warning/fail thresholds) for the last 40 turns. Auto-refreshes after each stream. Route: `GET /chat/diagnostics`.
 - **Saveable preset profiles**: collapsible sidebar panel for saving/applying/deleting named snapshots of 7 retrieval settings (`use_mmr`, `rag_rerank_enabled`, `rag_sentence_compression_enabled`, `rag_multi_query_enabled`, `rag_k`, `rag_k_mes`, `debug_context`). Profiles persisted in `configs/profiles.json`; applied in-place to the live `ConversationRuntimeConfig` without restart. Routes: `GET/POST /settings/profiles/*`.
 - **One-click export bundle**: `GET /chat/export/bundle` downloads a ZIP containing `manifest.json`, `conversation.json` (full session), `retrieval_traces.json` (per-turn history), and `drift_history.json`. Button in composer quick-actions.
+- **RAG Management UI** (`/rag`): Standalone dark-theme page with left nav. Sections: Collections (list, detail, delete, ad-hoc query, rebuild/push with async job, fingerprint backfill), Files (list, view, lint run/fix, coverage analysis), Evaluate (fixture pack selector, run evaluate-fixtures, results table, retrieval trend history), Benchmark (last-run model comparison table). Long-running ops (push, evaluate) use in-memory `JobStore` + HTMX polling (`every 2s`). Link from chat sidebar.
+- **Session history search**: Collapsible "Search sessions" panel inside the Sessions sidebar panel. Searches all saved `logs/web_sessions/session_*.json` files by free text (matches session name and message content), character name filter, and optional date range. Returns matching sessions with inline message excerpts and a Load button. Route: `GET /sessions/search?q=&character=&from_date=&to_date=`.
+- **Token budget visualization + per-turn stats** (`/chat/diagnostics`): A stacked colour-coded bar at the top of the Diagnostics panel shows the current context-window allocation split across System prompt, History, RAG context, Examples, User input, Reserved, and Free headroom (green/yellow/red by fill %). The per-turn table now shows estimated Prompt tokens, estimated Completion tokens (chars/4), Context window % fill (colour-coded), and RAG chunks retrieved. A session-totals row below the table shows cumulative prompt/completion tokens and average context %. Backend: `ConversationManager.last_token_budget` dict populated from `ContextBudget` + `allocate_content()` return values in `_prepare_dynamic_vector_context()`; stored per trace in `_record_retrieval_trace`.
+- **Character avatar display + tabbed sidebar**: The chat sidebar is restructured into three tabs
+  — 🎭 Character, 💾 Sessions, 🔍 Debug — with a compact always-visible header showing a small
+  avatar and character name. The Character tab displays the full avatar image (if present) alongside
+  card metadata. Route: `GET /characters/avatar` returns the avatar as a `FileResponse`;
+  `_character_avatar_path()` searches `character_storage/<stem>/avatar.{ext}` then `cards/<stem>.{ext}`.
+  `has_avatar` bool is passed to the index template context.
+- **RAG file upload + create-collection from UI**: The RAG Files page now includes an "Upload
+  Source File" panel — file picker (`.txt`), auto-filled stem, optional collection name for
+  immediate ingest. Uploading without a collection name saves the file and refreshes the file list.
+  With a collection name it triggers a push job. Each lore file row has an "Ingest →" toggle that
+  reveals an inline form to build a collection from that file. The Collections page has a "Create
+  New Collection" section with a dropdown of existing file stems. New routes:
+  `POST /rag/files/upload` (multipart), `POST /rag/collections`.
+  New backend: `rag_manager.save_rag_file()`, `rag_manager.list_rag_stems()`.
+- **Bug fix — creating new ChromaDB collections**: `push_to_collection()` in
+  `scripts/rag/push_rag_data.py` previously only caught `ValueError` when deleting a non-existent
+  collection before recreating it. ChromaDB raises `chromadb.errors.NotFoundError` for missing
+  collections; that exception was uncaught and crashed the entire push. Fixed by widening the
+  `except` clause to use the already-defined `MISSING_COLLECTION_ERRORS` tuple
+  (`ValueError | NotFoundError`). This was a latent bug exposed by the first UI-driven
+  collection creation.
 
 Primary files:
 
 - `web_app.py`
 - `main.py`
 - `core/preset_profiles.py`
+- `core/rag_manager.py` (+ `save_rag_file`, `list_rag_stems`, `_character_avatar_path` helpers)
+- `core/job_queue.py`
+- `scripts/rag/push_rag_data.py` (bug fix: `MISSING_COLLECTION_ERRORS` in `push_to_collection`)
 - `templates/index.html`
 - `templates/chat_message_pair.html`
 - `templates/chat_messages.html`
 - `templates/chat_single_message.html`
 - `templates/diagnostics_panel.html`
 - `templates/presets_panel.html`
+- `templates/rag/layout.html` (+ 13 RAG partial templates incl. `upload_result.html`)
 
 ## Current Defaults Snapshot
 

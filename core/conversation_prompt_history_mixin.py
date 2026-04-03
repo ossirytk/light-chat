@@ -186,6 +186,18 @@ class ConversationPromptHistoryMixin:
         vector_context = str(allocation["allocated_context"])
         allocated_history = str(allocation["allocated_history"])
 
+        self.last_token_budget = {
+            "system_prompt_tokens": budget.system_prompt_tokens,
+            "history_tokens": int(allocation["history_tokens"]),
+            "rag_tokens": int(allocation["context_tokens"]),
+            "examples_tokens": int(allocation["examples_tokens"]),
+            "input_tokens": int(allocation["input_tokens"]),
+            "total_estimated": int(allocation["total_allocated"]) + budget.system_prompt_tokens,
+            "context_window": budget.total_context,
+            "available_for_context": budget.available_for_context,
+            "reserved_for_response": budget.reserved_for_response,
+        }
+
         if self.runtime_config.debug_context:
             logger.debug(self.context_manager.get_context_info(budget, allocation))
 
