@@ -223,7 +223,7 @@ Show a character avatar image in the chat interface.
 - Display the avatar in the chat header next to the character name.
 - Optionally show a small avatar thumbnail next to each assistant message bubble.
 - Fall back to a coloured monogram/initial placeholder if no avatar is set.
-- Source: `GET /characters/{name}/avatar` — served by the web app, returns the stored image or a
+- Source: `GET /characters/avatar` — served by the web app, returns the stored image or a
   generated fallback.
 
 ### C.2 Avatar Upload

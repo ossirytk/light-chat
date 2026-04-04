@@ -39,6 +39,12 @@ _INVALID_STEM_HTML = (
     "Invalid stem: only letters, digits, underscores, and hyphens are allowed."
     "</p>"
 )
+_INVALID_COLL_HTML = (
+    "<p class='text-error'>"
+    "Invalid collection name: only letters, digits, underscores, and hyphens are allowed."
+    "</p>"
+)
+_MAX_UPLOAD_BYTES: int = 10 * 1024 * 1024  # 10 MB
 
 
 class ChatRuntime:
@@ -955,6 +961,26 @@ async def rag_file_view(request: Request, filename: str) -> HTMLResponse:
     )
 
 
+def _validate_upload_content(content: bytes) -> HTMLResponse | None:
+    """Validate uploaded file content; return an error HTMLResponse or None if valid."""
+    if len(content) > _MAX_UPLOAD_BYTES:
+        return HTMLResponse(
+            content=(
+                f"<p class='text-error'>File too large:"
+                f" maximum allowed size is {_MAX_UPLOAD_BYTES // (1024 * 1024)} MB.</p>"
+            ),
+            status_code=400,
+        )
+    try:
+        content.decode("utf-8")
+    except UnicodeDecodeError:
+        return HTMLResponse(
+            content="<p class='text-error'>Invalid file: only UTF-8 encoded text files are accepted.</p>",
+            status_code=400,
+        )
+    return None
+
+
 @app.post("/rag/files/upload", response_class=HTMLResponse)
 async def rag_file_upload(
     request: Request,
@@ -967,6 +993,8 @@ async def rag_file_upload(
     if not rag_manager.is_valid_stem(clean_stem):
         return HTMLResponse(content=_INVALID_STEM_HTML, status_code=400)
     content = await file.read()
+    if (err := _validate_upload_content(content)) is not None:
+        return err
     config = _get_rag_config(request)
     try:
         file_info = await asyncio.to_thread(rag_manager.save_rag_file, config, clean_stem, content)
@@ -978,6 +1006,8 @@ async def rag_file_upload(
         )
     clean_coll = collection_name.strip()
     if clean_coll:
+        if not rag_manager.is_valid_stem(clean_coll):
+            return HTMLResponse(content=_INVALID_COLL_HTML, status_code=400)
         job_store = _get_job_store(request)
         job_id = job_store.submit(rag_manager.push_collection, config, clean_stem, clean_coll)
         return templates.TemplateResponse(
