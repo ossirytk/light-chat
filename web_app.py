@@ -35,14 +35,10 @@ class StreamRequest(BaseModel):
 
 
 _INVALID_STEM_HTML = (
-    "<p class='text-error'>"
-    "Invalid stem: only letters, digits, underscores, and hyphens are allowed."
-    "</p>"
+    "<p class='text-error'>Invalid stem: only letters, digits, underscores, and hyphens are allowed.</p>"
 )
 _INVALID_COLL_HTML = (
-    "<p class='text-error'>"
-    "Invalid collection name: only letters, digits, underscores, and hyphens are allowed."
-    "</p>"
+    "<p class='text-error'>Invalid collection name: only letters, digits, underscores, and hyphens are allowed.</p>"
 )
 _MAX_UPLOAD_BYTES: int = 10 * 1024 * 1024  # 10 MB
 
