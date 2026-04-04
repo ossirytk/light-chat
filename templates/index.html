@@ -31,15 +31,120 @@
         }
 
         .sidebar h1 {
-            margin: 0 0 0.5rem;
-            font-size: 1.1rem;
+            margin: 0;
+            font-size: 1rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
-        .meta {
-            font-size: 0.9rem;
-            color: #98a6b6;
-            line-height: 1.5;
+        .sidebar-header {
+            display: flex;
+            align-items: center;
+            gap: 0.55rem;
+            margin-bottom: 0.75rem;
         }
+
+        .sidebar-avatar-sm {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            object-fit: cover;
+            flex-shrink: 0;
+            border: 2px solid #2d3743;
+        }
+
+        .sidebar-avatar-sm-placeholder {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            background: #1f2d3d;
+            border: 2px solid #2d3743;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #7cb3e8;
+            flex-shrink: 0;
+        }
+
+        /* Sidebar tabs */
+        .sidebar-tabs {
+            display: flex;
+            gap: 2px;
+            margin-bottom: 0;
+        }
+
+        .sidebar-tab {
+            flex: 1;
+            padding: 0.35rem 0.2rem;
+            font-size: 0.73rem;
+            font-weight: 600;
+            background: #0f1317;
+            border: 1px solid #2d3743;
+            border-bottom: none;
+            border-radius: 5px 5px 0 0;
+            color: #8b949e;
+            cursor: pointer;
+            text-align: center;
+            transition: color 0.15s, background 0.15s;
+        }
+
+        .sidebar-tab:hover { color: #c9d1d9; }
+
+        .sidebar-tab.active {
+            background: #161b22;
+            color: #e6edf3;
+            border-color: #3d4751;
+        }
+
+        .sidebar-pane {
+            display: none;
+            border: 1px solid #3d4751;
+            border-radius: 0 0 8px 8px;
+            padding: 0.75rem;
+            background: #0f1317;
+        }
+
+        .sidebar-pane.active { display: block; }
+
+        /* Character tab */
+        .char-avatar-wrap {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 0.75rem;
+        }
+
+        .char-avatar {
+            width: 180px;
+            height: 180px;
+            border-radius: 12px;
+            object-fit: cover;
+            border: 2px solid #2d3743;
+        }
+
+        .char-avatar-placeholder {
+            width: 180px;
+            height: 180px;
+            border-radius: 12px;
+            background: #1f2d3d;
+            border: 2px solid #2d3743;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 4rem;
+            font-weight: 700;
+            color: #7cb3e8;
+        }
+
+        .char-meta {
+            font-size: 0.82rem;
+            color: #98a6b6;
+            line-height: 1.7;
+        }
+
+        .char-meta strong { color: #c9d1d9; }
 
         .sidebar-actions {
             display: grid;
@@ -317,6 +422,65 @@
             color: #98a6b6;
         }
 
+        /* Token budget bar */
+        .budget-section {
+            margin: 0.5rem 0 0.75rem;
+        }
+        .budget-label {
+            font-size: 0.75rem;
+            color: #c5cdd6;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+        .budget-pct {
+            font-size: 0.7rem;
+            padding: 1px 5px;
+            border-radius: 3px;
+            font-weight: 600;
+        }
+        .bpct-green  { background: #1e3a2a; color: #a8d8a8; }
+        .bpct-yellow { background: #3a2e10; color: #ffd166; }
+        .bpct-red    { background: #3a1a1a; color: #f8b4b4; }
+        .budget-bar {
+            display: flex;
+            height: 12px;
+            border-radius: 4px;
+            overflow: hidden;
+            background: #1a1e2e;
+            cursor: help;
+        }
+        .budget-seg { min-width: 0; transition: width 0.4s; }
+        .seg-system   { background: #7c6fdc; }
+        .seg-history  { background: #3a9bd5; }
+        .seg-rag      { background: #48c774; }
+        .seg-examples { background: #f9a825; }
+        .seg-input    { background: #ff7043; }
+        .seg-reserved { background: #667788; }
+        .seg-headroom { background: #252840; flex: 1; }
+        .budget-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px 8px;
+            margin-top: 4px;
+        }
+        .budget-legend .leg {
+            font-size: 0.65rem;
+            padding: 1px 5px;
+            border-radius: 2px;
+            color: #0a0a14;
+            font-weight: 600;
+            opacity: 0.9;
+        }
+        .diag-totals {
+            font-size: 0.72rem;
+            color: #98a6b6;
+            margin-top: 0.5rem;
+            padding-top: 0.4rem;
+            border-top: 1px solid #2a2e3e;
+        }
+
         .profile-current-table {
             margin-top: 0.5rem;
         }
@@ -433,11 +597,139 @@
             color: #c9d1d9;
         }
 
-        .guide-item p {
-            margin: 0;
-            font-size: 0.77rem;
+        .search-result-item {
+            padding: 0.4rem 0.5rem;
+            border: 1px solid #2d3743;
+            border-radius: 6px;
+            background: #111418;
+            margin-top: 0.3rem;
+        }
+
+        .search-result-header {
+            display: flex;
+            align-items: baseline;
+            gap: 0.3rem;
+            margin-bottom: 0.2rem;
+            flex-wrap: wrap;
+        }
+
+        .search-result-name {
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: #c9d1d9;
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .badge-char {
+            font-size: 0.68rem;
+            background: #1a2b3b;
+            color: #79c0ff;
+            padding: 0.1rem 0.35rem;
+            border-radius: 8px;
+            white-space: nowrap;
+        }
+
+        .search-result-date {
+            font-size: 0.7rem;
             color: #98a6b6;
-            line-height: 1.45;
+            white-space: nowrap;
+        }
+
+        .search-snippet {
+            font-size: 0.73rem;
+            color: #98a6b6;
+            line-height: 1.35;
+            margin-bottom: 0.15rem;
+            word-break: break-word;
+        }
+
+        .snip-role {
+            font-size: 0.65rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #4e8bc4;
+            margin-right: 0.25rem;
+        }
+
+        .search-load-btn {
+            margin-top: 0.3rem;
+            padding: 0.22rem 0.45rem;
+            font-size: 0.74rem;
+            background: #1e242b;
+            border: 1px solid #2d3743;
+            border-radius: 5px;
+            color: #79c0ff;
+            cursor: pointer;
+        }
+
+        .search-load-btn:hover {
+            background: #262d36;
+        }
+
+        #session-search summary {
+            font-size: 0.8rem;
+            color: #98a6b6;
+            cursor: pointer;
+            list-style: none;
+            padding: 0.25rem 0;
+            margin-top: 0.35rem;
+        }
+
+        #session-search summary::after {
+            content: " ▸";
+            font-size: 0.7rem;
+        }
+
+        #session-search[open] summary::after {
+            content: " ▾";
+        }
+
+        .search-form {
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+            margin-top: 0.4rem;
+        }
+
+        .search-form input[type="text"],
+        .search-form input[type="date"] {
+            border: 1px solid #2d3743;
+            background: #111418;
+            color: #e6edf3;
+            border-radius: 5px;
+            padding: 0.3rem 0.45rem;
+            font-size: 0.78rem;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .search-form input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(0.65);
+        }
+
+        .search-date-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.3rem;
+        }
+
+        .search-submit-btn {
+            padding: 0.3rem 0.5rem;
+            font-size: 0.78rem;
+            background: #1f6feb;
+            border: 1px solid #1f6feb;
+            border-radius: 5px;
+            color: white;
+            cursor: pointer;
+        }
+
+        #session-search-results {
+            max-height: 360px;
+            overflow-y: auto;
         }
     </style>
 </head>
@@ -445,12 +737,17 @@
 <body>
     <div class="layout">
         <aside class="sidebar">
-            <h1>{{ character_name }}</h1>
-            <div class="meta">
-                <div><strong>Model:</strong> {{ model_name or "N/A" }}</div>
-                <div><strong>Type:</strong> {{ model_type or "N/A" }}</div>
-                <div><strong>RAG:</strong> {{ rag_collection or "N/A" }}</div>
+            <!-- Always-visible compact header -->
+            <div class="sidebar-header">
+                {% if has_avatar %}
+                <img class="sidebar-avatar-sm" src="/characters/avatar" alt="{{ character_name }}" />
+                {% else %}
+                <div class="sidebar-avatar-sm-placeholder">{{ character_name[0] | upper if character_name else "?" }}</div>
+                {% endif %}
+                <h1>{{ character_name }}</h1>
             </div>
+
+            <!-- Action buttons always visible -->
             <div class="sidebar-actions">
                 <button type="button" id="help-btn" hx-post="/chat/action/help" hx-target="#chat-log"
                     hx-swap="beforeend">Help</button>
@@ -461,8 +758,32 @@
                 <button type="button" id="load-latest-btn" hx-post="/chat/session/load-latest" hx-target="#chat-log"
                     hx-swap="innerHTML">Load Latest</button>
             </div>
-            <div class="session-panel">
-                <h2>Sessions</h2>
+
+            <!-- Tab bar -->
+            <div class="sidebar-tabs">
+                <button class="sidebar-tab active" data-tab="character">🎭 Character</button>
+                <button class="sidebar-tab" data-tab="sessions">💾 Sessions</button>
+                <button class="sidebar-tab" data-tab="debug">🔍 Debug</button>
+            </div>
+
+            <!-- Character tab -->
+            <div class="sidebar-pane active" id="tab-character">
+                <div class="char-avatar-wrap">
+                    {% if has_avatar %}
+                    <img class="char-avatar" src="/characters/avatar" alt="{{ character_name }}" />
+                    {% else %}
+                    <div class="char-avatar-placeholder">{{ character_name[0] | upper if character_name else "?" }}</div>
+                    {% endif %}
+                </div>
+                <div class="char-meta">
+                    <div><strong>Model:</strong> {{ model_name or "N/A" }}</div>
+                    <div><strong>Type:</strong> {{ model_type or "N/A" }}</div>
+                    <div><strong>RAG:</strong> {{ rag_collection or "N/A" }}</div>
+                </div>
+            </div>
+
+            <!-- Sessions tab -->
+            <div class="sidebar-pane" id="tab-sessions">
                 <div class="session-row">
                     <input id="session-name" type="text" placeholder="Session name (optional)" maxlength="80" />
                     <button type="button" id="save-named-btn">Save</button>
@@ -472,64 +793,85 @@
                     <button type="button" id="load-selected-btn">Load</button>
                 </div>
                 <button type="button" id="refresh-sessions-btn">Refresh List</button>
+                <details id="session-search">
+                    <summary>🔍 Search sessions</summary>
+                    <form class="search-form"
+                        hx-get="/sessions/search"
+                        hx-target="#session-search-results"
+                        hx-swap="innerHTML"
+                        hx-trigger="submit">
+                        <input type="text" name="q" placeholder="Search text in messages…" maxlength="200" />
+                        <input type="text" name="character" placeholder="Character name filter…" maxlength="80" />
+                        <div class="search-date-row">
+                            <input type="date" name="from_date" title="From date" />
+                            <input type="date" name="to_date" title="To date" />
+                        </div>
+                        <button type="submit" class="search-submit-btn">Search</button>
+                    </form>
+                    <div id="session-search-results"></div>
+                </details>
             </div>
-            <div class="debug-panel">
-                <h2>Retrieval Debug</h2>
-                <div id="debug-content">No retrievals yet.</div>
-                <div id="debug-history-content">No retrieval history yet.</div>
-                <button type="button" id="refresh-debug-btn">Refresh Debug</button>
+
+            <!-- Debug tab -->
+            <div class="sidebar-pane" id="tab-debug">
+                <div class="debug-panel">
+                    <h2>Retrieval Debug</h2>
+                    <div id="debug-content">No retrievals yet.</div>
+                    <div id="debug-history-content">No retrieval history yet.</div>
+                    <button type="button" id="refresh-debug-btn">Refresh Debug</button>
+                </div>
+                <details class="diag-panel">
+                    <summary>Diagnostics</summary>
+                    <div id="diag-content"><span class="diag-empty">No turns recorded yet.</span></div>
+                    <button type="button" id="refresh-diag-btn">Refresh</button>
+                </details>
+                <details class="presets-panel"
+                         hx-get="/settings/profiles"
+                         hx-trigger="toggle once"
+                         hx-target="#presets-content"
+                         hx-swap="outerHTML">
+                    <summary>Presets</summary>
+                    <div id="presets-content">
+                        <span class="profile-empty">Loading…</span>
+                    </div>
+                </details>
+                <a class="rag-link-btn" href="/rag">⚙ RAG Manager →</a>
+                <details class="guide-panel">
+                    <summary>💡 How to use this chat</summary>
+                    <div class="guide-item">
+                        <h3>Sending messages</h3>
+                        <p>Type in the box at the bottom and press <strong>Send</strong> (or hit Enter). The character will reply in real time. If the reply gets cut off, press <strong>Continue</strong> to pick up where it left off.</p>
+                    </div>
+                    <div class="guide-item">
+                        <h3>Clear &amp; Reload</h3>
+                        <p><strong>Clear</strong> removes messages from the screen but keeps the character loaded. <strong>Reload</strong> fully restarts the character — useful if responses drift off-topic or feel broken.</p>
+                    </div>
+                    <div class="guide-item">
+                        <h3>Sessions — saving &amp; loading</h3>
+                        <p>Type an optional name and press <strong>Save</strong> to store the current conversation. Use the dropdown to pick a past conversation and press <strong>Load</strong> to restore it. <strong>Load Latest</strong> skips the menu and restores your most recent save. Use <strong>Search sessions</strong> to find older conversations by keyword, character name, or date.</p>
+                    </div>
+                    <div class="guide-item">
+                        <h3>Copy Last &amp; Export</h3>
+                        <p><strong>Copy Last</strong> puts the character's most recent reply on your clipboard. The Export buttons let you download the full conversation as a plain text file, a structured JSON file, or a ZIP bundle that includes metadata.</p>
+                    </div>
+                    <div class="guide-item">
+                        <h3>RAG — the knowledge base</h3>
+                        <p>The <strong>RAG</strong> value at the top shows which knowledge collection the character is using. This is a database of text the AI can search through when answering your messages — think of it as the character's long-term memory or reference library. You can manage these collections in the <strong>RAG Manager</strong>.</p>
+                    </div>
+                    <div class="guide-item">
+                        <h3>Retrieval Debug</h3>
+                        <p>Shows what information was fetched from the knowledge base to help answer your last message — how many chunks were found, how they were ranked, and which collection was searched. Useful for understanding why the character knows (or doesn't know) something.</p>
+                    </div>
+                    <div class="guide-item">
+                        <h3>Diagnostics</h3>
+                        <p>Advanced statistics shown after each reply: a colour-coded bar shows how the AI's memory window is split between the character description, conversation history, retrieved knowledge, and your message. The table shows estimated token counts per turn and how full the context window is. Green = plenty of room; yellow = getting full; red = nearly at the limit.</p>
+                    </div>
+                    <div class="guide-item">
+                        <h3>Presets</h3>
+                        <p>Save and restore AI model settings (temperature, context size, repetition penalties, etc.). If you've found a configuration that works well, save it as a preset so you can switch back to it quickly.</p>
+                    </div>
+                </details>
             </div>
-            <details class="diag-panel">
-                <summary>Diagnostics</summary>
-                <div id="diag-content"><span class="diag-empty">No turns recorded yet.</span></div>
-                <button type="button" id="refresh-diag-btn">Refresh</button>
-            </details>
-            <details class="presets-panel"
-                     hx-get="/settings/profiles"
-                     hx-trigger="toggle once"
-                     hx-target="#presets-content"
-                     hx-swap="outerHTML">
-                <summary>Presets</summary>
-                <div id="presets-content">
-                    <span class="profile-empty">Loading…</span>
-                </div>
-            </details>
-            <a class="rag-link-btn" href="/rag">⚙ RAG Manager →</a>
-            <details class="guide-panel">
-                <summary>💡 How to use this chat</summary>
-                <div class="guide-item">
-                    <h3>Sending messages</h3>
-                    <p>Type in the box at the bottom and press <strong>Send</strong> (or hit Enter). The character will reply in real time. If the reply gets cut off, press <strong>Continue</strong> to pick up where it left off.</p>
-                </div>
-                <div class="guide-item">
-                    <h3>Clear &amp; Reload</h3>
-                    <p><strong>Clear</strong> removes messages from the screen but keeps the character loaded. <strong>Reload</strong> fully restarts the character — useful if responses drift off-topic or feel broken.</p>
-                </div>
-                <div class="guide-item">
-                    <h3>Sessions — saving &amp; loading</h3>
-                    <p>Type an optional name and press <strong>Save</strong> to store the current conversation. Use the dropdown to pick a past conversation and press <strong>Load</strong> to restore it. <strong>Load Latest</strong> skips the menu and restores your most recent save.</p>
-                </div>
-                <div class="guide-item">
-                    <h3>Copy Last &amp; Export</h3>
-                    <p><strong>Copy Last</strong> puts the character's most recent reply on your clipboard. The Export buttons let you download the full conversation as a plain text file, a structured JSON file, or a ZIP bundle that includes metadata.</p>
-                </div>
-                <div class="guide-item">
-                    <h3>RAG — the knowledge base</h3>
-                    <p>The <strong>RAG</strong> value at the top shows which knowledge collection the character is using. This is a database of text the AI can search through when answering your messages — think of it as the character's long-term memory or reference library. You can manage these collections in the <strong>RAG Manager</strong>.</p>
-                </div>
-                <div class="guide-item">
-                    <h3>Retrieval Debug</h3>
-                    <p>Shows what information was fetched from the knowledge base to help answer your last message — how many chunks were found, how they were ranked, and which collection was searched. Useful for understanding why the character knows (or doesn't know) something.</p>
-                </div>
-                <div class="guide-item">
-                    <h3>Diagnostics</h3>
-                    <p>Advanced statistics about response quality, token counts, and persona consistency scores. Mainly useful for developers fine-tuning the character.</p>
-                </div>
-                <div class="guide-item">
-                    <h3>Presets</h3>
-                    <p>Save and restore AI model settings (temperature, context size, repetition penalties, etc.). If you've found a configuration that works well, save it as a preset so you can switch back to it quickly.</p>
-                </div>
-            </details>
         </aside>
 
         <main class="main">
@@ -559,6 +901,17 @@
     </div>
 
     <script>
+        // Sidebar tab switching
+        document.querySelectorAll(".sidebar-tab").forEach((btn) => {
+            btn.addEventListener("click", () => {
+                document.querySelectorAll(".sidebar-tab").forEach((b) => b.classList.remove("active"));
+                document.querySelectorAll(".sidebar-pane").forEach((p) => p.classList.remove("active"));
+                btn.classList.add("active");
+                const pane = document.getElementById("tab-" + btn.dataset.tab);
+                if (pane) pane.classList.add("active");
+            });
+        });
+
         const chatForm = document.getElementById("chat-form");
         const chatLog = document.getElementById("chat-log");
         const userInput = document.getElementById("user-input");

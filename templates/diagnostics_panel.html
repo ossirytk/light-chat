@@ -1,29 +1,69 @@
 <div id="diag-content">
+{% if last_budget and last_budget.context_window > 0 %}
+{% set cw = last_budget.context_window %}
+{% set sys_pct  = (last_budget.system_prompt_tokens  / cw * 100) | round(1) %}
+{% set hist_pct = (last_budget.history_tokens         / cw * 100) | round(1) %}
+{% set rag_pct  = (last_budget.rag_tokens             / cw * 100) | round(1) %}
+{% set ex_pct   = (last_budget.examples_tokens        / cw * 100) | round(1) %}
+{% set inp_pct  = (last_budget.input_tokens           / cw * 100) | round(1) %}
+{% set res_pct  = (last_budget.reserved_for_response  / cw * 100) | round(1) %}
+{% set used_pct = (last_budget.total_estimated        / cw * 100) | round(1) %}
+<div class="budget-section">
+  <div class="budget-label">
+    Context window: <strong>{{ last_budget.total_estimated }}</strong> / {{ cw }} tokens
+    <span class="budget-pct {% if used_pct > 90 %}bpct-red{% elif used_pct > 70 %}bpct-yellow{% else %}bpct-green{% endif %}">{{ used_pct }}%</span>
+  </div>
+  <div class="budget-bar" title="System: {{ sys_pct }}% | History: {{ hist_pct }}% | RAG: {{ rag_pct }}% | Examples: {{ ex_pct }}% | Input: {{ inp_pct }}% | Reserved: {{ res_pct }}%">
+    <div class="budget-seg seg-system"   style="width:{{ sys_pct }}%"  title="System prompt: {{ last_budget.system_prompt_tokens }} tok ({{ sys_pct }}%)"></div>
+    <div class="budget-seg seg-history"  style="width:{{ hist_pct }}%" title="History: {{ last_budget.history_tokens }} tok ({{ hist_pct }}%)"></div>
+    <div class="budget-seg seg-rag"      style="width:{{ rag_pct }}%"  title="RAG context: {{ last_budget.rag_tokens }} tok ({{ rag_pct }}%)"></div>
+    <div class="budget-seg seg-examples" style="width:{{ ex_pct }}%"   title="Examples: {{ last_budget.examples_tokens }} tok ({{ ex_pct }}%)"></div>
+    <div class="budget-seg seg-input"    style="width:{{ inp_pct }}%"  title="User input: {{ last_budget.input_tokens }} tok ({{ inp_pct }}%)"></div>
+    <div class="budget-seg seg-reserved" style="width:{{ res_pct }}%"  title="Reserved for response: {{ last_budget.reserved_for_response }} tok ({{ res_pct }}%)"></div>
+    <div class="budget-seg seg-headroom" style="flex:1"                title="Headroom (free)"></div>
+  </div>
+  <div class="budget-legend">
+    <span class="leg seg-system">System</span>
+    <span class="leg seg-history">History</span>
+    <span class="leg seg-rag">RAG</span>
+    <span class="leg seg-examples">Examples</span>
+    <span class="leg seg-input">Input</span>
+    <span class="leg seg-reserved">Reserved</span>
+    <span class="leg seg-headroom">Free</span>
+  </div>
+</div>
+{% endif %}
 {% if history %}
 <table class="diag-table">
     <thead>
         <tr>
-            <th>T</th>
-            <th>Latency</th>
-            <th>Chars</th>
-            <th>Main</th>
-            <th>MES</th>
-            <th>Cross−</th>
-            <th>Drift</th>
+            <th title="Turn number">T</th>
+            <th title="Response latency">Latency</th>
+            <th title="Estimated prompt tokens">Prompt~</th>
+            <th title="Estimated completion tokens">Compl~</th>
+            <th title="Context window fill %">Ctx%</th>
+            <th title="RAG chunks retrieved (main)">RAG</th>
+            <th title="Persona drift score">Drift</th>
         </tr>
     </thead>
     <tbody>
     {% for entry in history %}
         {% set r = entry.retrieval if entry.retrieval else {} %}
-        {% set cl = r.cleanup if r.cleanup else {} %}
         {% set drift = entry.persona.drift_score if entry.persona else none %}
+        {% set tb = entry.token_budget if entry.token_budget else {} %}
+        {% set cw = tb.context_window if tb.context_window else 0 %}
+        {% set used = tb.total_estimated if tb.total_estimated else 0 %}
+        {% set ctx_pct = (used / cw * 100) | round(0) | int if cw > 0 else none %}
+        {% set main_chunks = r.main.returned if r.main is defined else 0 %}
         <tr>
             <td>{{ entry.turn }}</td>
             <td>{{ "%.2fs" | format(entry.latency_s) if entry.latency_s is not none else "—" }}</td>
-            <td>{{ entry.chars_emitted if entry.chars_emitted is not none else "—" }}</td>
-            <td>{{ cl.main if cl.main is defined else 0 }}</td>
-            <td>{{ cl.mes if cl.mes is defined else 0 }}</td>
-            <td>{{ cl.cross_removed if cl.cross_removed is defined else 0 }}</td>
+            <td>{{ used if used > 0 else "—" }}</td>
+            <td>{{ entry.estimated_completion_tokens if entry.estimated_completion_tokens is not none else "—" }}</td>
+            <td{% if ctx_pct is not none %} style="color: {% if ctx_pct > 90 %}#f8b4b4{% elif ctx_pct > 70 %}#ffd166{% else %}#a8d8a8{% endif %}"{% endif %}>
+                {{ ctx_pct ~ "%" if ctx_pct is not none else "—" }}
+            </td>
+            <td>{{ main_chunks }}</td>
             <td{% if drift is not none %} style="color: {% if drift >= fail_threshold %}#f8b4b4{% elif drift >= warn_threshold %}#ffd166{% else %}#a8d8a8{% endif %}"{% endif %}>
                 {{ "%.3f" | format(drift) if drift is not none else "—" }}
             </td>
@@ -31,6 +71,23 @@
     {% endfor %}
     </tbody>
 </table>
+{% set ns = namespace(total_prompt=0, total_compl=0, count=0) %}
+{% for entry in history %}
+    {% set tb = entry.token_budget if entry.token_budget else {} %}
+    {% if tb.total_estimated and tb.total_estimated > 0 %}
+        {% set ns.total_prompt = ns.total_prompt + tb.total_estimated %}
+        {% set ns.total_compl  = ns.total_compl  + (entry.estimated_completion_tokens or 0) %}
+        {% set ns.count = ns.count + 1 %}
+    {% endif %}
+{% endfor %}
+{% if ns.count > 0 %}
+<div class="diag-totals">
+  Session totals — Prompt: <strong>{{ ns.total_prompt }}</strong> tok &nbsp;·&nbsp;
+  Completion: <strong>{{ ns.total_compl }}</strong> tok &nbsp;·&nbsp;
+  Avg ctx: <strong>{{ (ns.total_prompt / ns.count / (last_budget.context_window or 1) * 100) | round(1) if last_budget and last_budget.context_window else "—" }}%</strong>
+  ({{ ns.count }} turn{{ "s" if ns.count != 1 else "" }})
+</div>
+{% endif %}
 {% else %}
 <span class="diag-empty">No turns recorded yet.</span>
 {% endif %}

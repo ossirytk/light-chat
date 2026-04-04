@@ -13,10 +13,11 @@ Character-focused local chatbot with RAG support (ChromaDB + LangChain), CLI and
 ## What It Includes
 
 - Local chat runtime backed by `llama-cpp-python`
-- Character-card-driven prompting (`cards/*.json`)
+- Character-card-driven prompting (`cards/*.json`) with avatar display
 - RAG retrieval from ChromaDB collections
 - Dynamic context budgeting and history management
 - GPU offload auto-layer calculation and KV cache quant support
+- Web UI (FastAPI + Jinja2 + HTMX): chat, session management, RAG management, diagnostics
 - Scripted workflows for analyzing, pushing, and managing RAG data
 
 ## Current Runtime Entry Points
@@ -75,9 +76,20 @@ Notes for web chat behavior:
 
 - Shows status updates (`Ready`, `Sending`, `Thinking`, `Streaming`, `Timed out`).
 - Applies a stream timeout and surfaces a `Retry` button on stream failure.
-- Supports named session save + explicit session picker load in the sidebar.
-- Shows both latest retrieval debug stats and per-turn retrieval trace history.
-- Provides quick actions for copy/export and command-equivalent controls (`clear`, `reload`, `help`).
+- Sidebar has three tabs: **Character** (avatar + card info), **Sessions** (save/load/search), **Debug** (per-turn retrieval trace + diagnostics).
+- Named session save/load and full-text session search with character and date filters.
+- Token budget bar in the Diagnostics tab shows real-time context-window allocation (system / history / RAG / examples / input / reserved / free).
+- Per-turn stats: estimated prompt and completion tokens, context window fill %, RAG chunks used.
+- Quick actions for copy/export (TXT, JSON, ZIP bundle) and command-equivalent controls (`clear`, `reload`, `help`).
+- Saveable preset profiles for retrieval settings (MMR, rerank, multi-query, k values).
+
+RAG management UI at **`/rag`** (link in the chat sidebar):
+
+- Upload new source files (`.txt`) and create ChromaDB collections directly from the browser.
+- View, lint, and run coverage analysis on `rag_data/` files.
+- List, query, rebuild, and delete collections.
+- Run fixture evaluations and view retrieval trend history.
+- View embedding benchmark results.
 
 ## Setup
 

@@ -143,6 +143,17 @@ class ConversationManager(
             "mes": {"mode": "unknown", "returned": 0, "candidates": 0, "queries": 0, "rerank_applied": False},
             "cleanup": {"main": 0, "mes": 0, "cross_removed": 0},
         }
+        self.last_token_budget: dict[str, int] = {
+            "system_prompt_tokens": 0,
+            "history_tokens": 0,
+            "rag_tokens": 0,
+            "examples_tokens": 0,
+            "input_tokens": 0,
+            "total_estimated": 0,
+            "context_window": 0,
+            "available_for_context": 0,
+            "reserved_for_response": 0,
+        }
         self._vector_client: object | None = None
         self._vector_embedder: object | None = None
         self._cross_encoder: object | None = None

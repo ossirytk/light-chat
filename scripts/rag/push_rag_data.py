@@ -236,7 +236,7 @@ def push_to_collection(
         try:
             context.client.delete_collection(collection_name)
             logger.info(f"Deleted existing collection: {collection_name}")
-        except ValueError:
+        except MISSING_COLLECTION_ERRORS:
             logger.debug(f"Collection {collection_name} doesn't exist, creating new")
     else:
         assert_collection_fingerprint_compatible(context.client, collection_name, expected_fingerprint)

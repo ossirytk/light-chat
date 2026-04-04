@@ -14,8 +14,8 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 
-from fastapi import FastAPI, Form, Query, Request
-from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
+from fastapi import FastAPI, File, Form, Query, Request, UploadFile
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from loguru import logger
 from pydantic import BaseModel
@@ -32,6 +32,19 @@ class StreamRequest(BaseModel):
 
     message: str
     continue_mode: bool = False
+
+
+_INVALID_STEM_HTML = (
+    "<p class='text-error'>"
+    "Invalid stem: only letters, digits, underscores, and hyphens are allowed."
+    "</p>"
+)
+_INVALID_COLL_HTML = (
+    "<p class='text-error'>"
+    "Invalid collection name: only letters, digits, underscores, and hyphens are allowed."
+    "</p>"
+)
+_MAX_UPLOAD_BYTES: int = 10 * 1024 * 1024  # 10 MB
 
 
 class ChatRuntime:
@@ -178,6 +191,125 @@ def _session_listing(runtime: ChatRuntime) -> list[dict[str, str]]:
     return sessions
 
 
+class _SessionSearchParams:
+    """Parsed search parameters for _search_sessions."""
+
+    ISO_DATE_LEN: int = 10
+
+    def __init__(  # noqa: PLR0913
+        self,
+        q: str = "",
+        character: str = "",
+        from_date: str = "",
+        to_date: str = "",
+        max_results: int = 30,
+        max_snippets: int = 3,
+    ) -> None:
+        self.q_lower = q.strip().lower()
+        self.char_lower = character.strip().lower()
+        self.max_results = max_results
+        self.max_snippets = max_snippets
+        self.from_dt = self._parse_date(from_date)
+        self.to_dt = self._parse_date(to_date, end_of_day=True)
+
+    @staticmethod
+    def _parse_date(date_str: str, *, end_of_day: bool = False) -> datetime | None:
+        if not date_str:
+            return None
+        with contextlib.suppress(ValueError):
+            dt = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=UTC)
+            return dt.replace(hour=23, minute=59, second=59) if end_of_day else dt
+        return None
+
+
+def _session_in_date_range(saved_at_str: str, from_dt: datetime | None, to_dt: datetime | None) -> bool:
+    """Return True when the session's saved_at falls within the given range."""
+    if not from_dt and not to_dt:
+        return True
+    saved_dt: datetime | None = None
+    with contextlib.suppress(ValueError):
+        saved_dt = datetime.fromisoformat(saved_at_str)
+        if saved_dt.tzinfo is None:
+            saved_dt = saved_dt.replace(tzinfo=UTC)
+    if saved_dt is None:
+        return True
+    if from_dt and saved_dt < from_dt:
+        return False
+    return not (to_dt and saved_dt > to_dt)
+
+
+def _build_snippets(ui_messages: list[dict[str, str]], q_lower: str, max_snippets: int) -> list[dict[str, str]]:
+    """Extract text excerpts from messages that contain q_lower."""
+    snippets: list[dict[str, str]] = []
+    for msg in ui_messages:
+        content = msg.get("content", "")
+        idx = content.lower().find(q_lower)
+        if idx >= 0:
+            start = max(0, idx - 45)
+            end = min(len(content), idx + len(q_lower) + 100)
+            prefix = "…" if start > 0 else ""
+            suffix = "…" if end < len(content) else ""
+            snippets.append({"role": msg["role"], "excerpt": prefix + content[start:end] + suffix})
+            if len(snippets) >= max_snippets:
+                break
+    return snippets
+
+
+def _search_sessions(  # noqa: PLR0913
+    runtime: ChatRuntime,
+    q: str = "",
+    character: str = "",
+    from_date: str = "",
+    to_date: str = "",
+    max_results: int = 30,
+    max_snippets: int = 3,
+) -> list[dict[str, object]]:
+    """Full-text search across saved session JSON files."""
+    params = _SessionSearchParams(q, character, from_date, to_date, max_results, max_snippets)
+    results: list[dict[str, object]] = []
+
+    for path in _list_session_files(runtime):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            logger.warning("Could not parse session file {}", path.name)
+            continue
+        if not isinstance(payload, dict):
+            continue
+
+        session_name = str(payload.get("session_name") or path.stem.removeprefix("session_"))
+        char_name = str(payload.get("character_name") or "")
+        saved_at_str = str(payload.get("saved_at") or "")
+        ui_messages = _coerce_ui_messages(payload.get("ui_messages"))
+        session_id = path.stem.removeprefix("session_")
+
+        if params.char_lower and params.char_lower not in char_name.lower():
+            continue
+        if not _session_in_date_range(saved_at_str, params.from_dt, params.to_dt):
+            continue
+
+        snippets: list[dict[str, str]] = []
+        if params.q_lower:
+            name_match = params.q_lower in session_name.lower()
+            snippets = _build_snippets(ui_messages, params.q_lower, params.max_snippets)
+            if not name_match and not snippets:
+                continue
+
+        results.append(
+            {
+                "session_id": session_id,
+                "session_name": session_name,
+                "character_name": char_name,
+                "saved_at": saved_at_str[: _SessionSearchParams.ISO_DATE_LEN],
+                "snippets": snippets,
+            }
+        )
+        if len(results) >= params.max_results:
+            break
+
+    return results
+
+
 def _record_retrieval_trace(
     runtime: ChatRuntime,
     message: str,
@@ -192,8 +324,10 @@ def _record_retrieval_trace(
         "query": message[:200],
         "latency_s": round(latency_s, 2) if latency_s is not None else None,
         "chars_emitted": chars_emitted,
+        "estimated_completion_tokens": round(chars_emitted / 4) if chars_emitted is not None else None,
         "retrieval": manager.last_retrieval_debug,
         "persona": manager.last_persona_drift,
+        "token_budget": dict(manager.last_token_budget),
     }
     runtime.retrieval_history.append(trace)
     history_cap = runtime.MAX_RETRIEVAL_HISTORY_ENTRIES
@@ -218,6 +352,22 @@ def _coerce_ui_messages(raw_messages: object) -> list[dict[str, str]]:
     return parsed
 
 
+def _character_avatar_path(character_name: str) -> Path | None:
+    """Return path to the character's avatar image, or None if not found."""
+    stem = "".join(ch.lower() if ch.isalnum() else "_" for ch in character_name).strip("_")
+    # Check character_storage first (dedicated asset folder; supports uploads)
+    for ext in ("png", "jpg", "jpeg", "webp"):
+        storage = Path("character_storage") / stem / f"avatar.{ext}"
+        if storage.exists():
+            return storage
+    # Fall back to a matching image in cards/ (e.g. PNG card = its own avatar)
+    for ext in ("png", "jpg", "jpeg", "webp"):
+        card = Path("cards") / f"{stem}.{ext}"
+        if card.exists():
+            return card
+    return None
+
+
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request) -> HTMLResponse:
     """Render chat page."""
@@ -229,8 +379,21 @@ async def index(request: Request) -> HTMLResponse:
         "model_name": str(runtime.manager.configs.get("MODEL", "")),
         "model_type": str(runtime.manager.configs.get("MODEL_TYPE", "")),
         "rag_collection": str(runtime.manager.rag_collection),
+        "has_avatar": _character_avatar_path(runtime.manager.character_name) is not None,
     }
     return templates.TemplateResponse(request=request, name="index.html", context=context)
+
+
+@app.get("/characters/avatar")
+async def character_avatar(request: Request) -> FileResponse:
+    """Serve the current character's avatar image."""
+    runtime = _get_runtime(request)
+    path = _character_avatar_path(runtime.manager.character_name)
+    if path is None:
+        from fastapi import HTTPException  # noqa: PLC0415
+
+        raise HTTPException(status_code=404, detail="No avatar found")
+    return FileResponse(path)
 
 
 @app.get("/health")
@@ -319,6 +482,7 @@ async def chat_diagnostics(request: Request) -> HTMLResponse:
     history = list(reversed(runtime.retrieval_history))
     html = templates.get_template("diagnostics_panel.html").render(
         history=history,
+        last_budget=dict(manager.last_token_budget),
         warn_threshold=manager.runtime_config.persona_drift_warning_threshold,
         fail_threshold=manager.runtime_config.persona_drift_fail_threshold,
     )
@@ -589,14 +753,33 @@ async def chat_session_load(request: Request, session_id: str = Form(...)) -> HT
         return HTMLResponse(content=_render_chat_log(runtime.ui_messages))
 
 
+@app.get("/sessions/search", response_class=HTMLResponse)
+async def sessions_search(
+    request: Request,
+    q: str = Query(default=""),
+    character: str = Query(default=""),
+    from_date: str = Query(default=""),
+    to_date: str = Query(default=""),
+) -> HTMLResponse:
+    """Full-text search across saved session JSON files; returns an HTMX partial."""
+    if not q.strip() and not character.strip() and not from_date and not to_date:
+        return HTMLResponse(content="")
+    runtime = _get_runtime(request)
+    results = await asyncio.to_thread(_search_sessions, runtime, q, character, from_date, to_date)
+    return templates.TemplateResponse(
+        "sessions_search_results.html",
+        {"request": request, "results": results, "q": q},
+    )
+
+
 def _render_profiles_panel(request: Request) -> HTMLResponse:
     runtime = _get_runtime(request)
     store = _get_profile_store(request)
-    html = templates.get_template("presets_panel.html").render(
+    rendered_html = templates.get_template("presets_panel.html").render(
         profiles=store.list_profiles(),
         current=store.current_values(runtime.manager.runtime_config),
     )
-    return HTMLResponse(content=html)
+    return HTMLResponse(content=rendered_html)
 
 
 @app.get("/settings/profiles", response_class=HTMLResponse)
@@ -656,9 +839,10 @@ async def rag_page(request: Request) -> HTMLResponse:
 async def rag_collections(request: Request) -> HTMLResponse:
     config = _get_rag_config(request)
     collections = await asyncio.to_thread(rag_manager.list_collections, config)
+    stems = await asyncio.to_thread(rag_manager.list_rag_stems, config)
     return templates.TemplateResponse(
         "rag/collections_list.html",
-        {"request": request, "collections": collections},
+        {"request": request, "collections": collections, "existing_stems": stems},
     )
 
 
@@ -667,9 +851,7 @@ async def rag_collection_detail(request: Request, name: str) -> HTMLResponse:
     config = _get_rag_config(request)
     info = await asyncio.to_thread(rag_manager.collection_info, config, name)
     if info is None:
-        return HTMLResponse(
-            content=f"<p>Collection <b>{html.escape(name)}</b> not found.</p>", status_code=404
-        )
+        return HTMLResponse(content=f"<p>Collection <b>{html.escape(name)}</b> not found.</p>", status_code=404)
     return templates.TemplateResponse(
         "rag/collection_detail.html",
         {"request": request, "info": info},
@@ -776,6 +958,109 @@ async def rag_file_view(request: Request, filename: str) -> HTMLResponse:
     return templates.TemplateResponse(
         "rag/file_view.html",
         {"request": request, "filename": filename, "content": content},
+    )
+
+
+def _validate_upload_content(content: bytes) -> HTMLResponse | None:
+    """Validate uploaded file content; return an error HTMLResponse or None if valid."""
+    if len(content) > _MAX_UPLOAD_BYTES:
+        return HTMLResponse(
+            content=(
+                f"<p class='text-error'>File too large:"
+                f" maximum allowed size is {_MAX_UPLOAD_BYTES // (1024 * 1024)} MB.</p>"
+            ),
+            status_code=400,
+        )
+    try:
+        content.decode("utf-8")
+    except UnicodeDecodeError:
+        return HTMLResponse(
+            content="<p class='text-error'>Invalid file: only UTF-8 encoded text files are accepted.</p>",
+            status_code=400,
+        )
+    return None
+
+
+@app.post("/rag/files/upload", response_class=HTMLResponse)
+async def rag_file_upload(
+    request: Request,
+    stem: str = Form(...),
+    file: UploadFile = File(...),  # noqa: B008
+    collection_name: str = Form(""),
+) -> HTMLResponse:
+    """Upload a .txt source file to rag_data/. Optionally create a collection immediately."""
+    clean_stem = stem.strip()
+    if not rag_manager.is_valid_stem(clean_stem):
+        return HTMLResponse(content=_INVALID_STEM_HTML, status_code=400)
+    content = await file.read()
+    if (err := _validate_upload_content(content)) is not None:
+        return err
+    config = _get_rag_config(request)
+    try:
+        file_info = await asyncio.to_thread(rag_manager.save_rag_file, config, clean_stem, content)
+    except Exception as exc:
+        logger.warning("Failed to save uploaded file {!r}: {}", clean_stem, exc)
+        return HTMLResponse(
+            content=f"<p class='text-error'>Upload failed: {html.escape(str(exc))}</p>",
+            status_code=500,
+        )
+    clean_coll = collection_name.strip()
+    if clean_coll:
+        if not rag_manager.is_valid_stem(clean_coll):
+            return HTMLResponse(content=_INVALID_COLL_HTML, status_code=400)
+        job_store = _get_job_store(request)
+        job_id = job_store.submit(rag_manager.push_collection, config, clean_stem, clean_coll)
+        return templates.TemplateResponse(
+            "rag/upload_result.html",
+            {
+                "request": request,
+                "filename": file_info["name"],
+                "collection_name": clean_coll,
+                "job_id": job_id,
+                "status": "pending",
+                "elapsed_s": 0,
+                "result": None,
+                "error": None,
+                "kind": "push",
+            },
+        )
+    files = await asyncio.to_thread(rag_manager.list_rag_files, config)
+    return templates.TemplateResponse(
+        "rag/files_list.html",
+        {"request": request, "files": files, "uploaded": file_info["name"]},
+    )
+
+
+@app.post("/rag/collections", response_class=HTMLResponse)
+async def rag_collection_create(
+    request: Request,
+    collection_name: str = Form(...),
+    stem: str = Form(...),
+) -> HTMLResponse:
+    """Create a new collection by ingesting an existing rag_data source file."""
+    clean_stem = stem.strip()
+    clean_name = collection_name.strip()
+    if not rag_manager.is_valid_stem(clean_stem):
+        return HTMLResponse(content=_INVALID_STEM_HTML, status_code=400)
+    if not clean_name:
+        return HTMLResponse(
+            content="<p class='text-error'>Collection name is required.</p>",
+            status_code=400,
+        )
+    config = _get_rag_config(request)
+    job_store = _get_job_store(request)
+    job_id = job_store.submit(rag_manager.push_collection, config, clean_stem, clean_name)
+    return templates.TemplateResponse(
+        "rag/push_status.html",
+        {
+            "request": request,
+            "job_id": job_id,
+            "status": "pending",
+            "elapsed_s": 0,
+            "result": None,
+            "error": None,
+            "kind": "push",
+        },
     )
 
 

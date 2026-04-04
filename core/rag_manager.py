@@ -204,6 +204,36 @@ def file_content(config: RagScriptConfig, filename: str) -> str | None:
     return candidate.read_text(encoding="utf-8")
 
 
+def save_rag_file(config: RagScriptConfig, stem: str, content: bytes) -> dict[str, Any]:
+    """Save *content* as ``{stem}.txt`` in the rag_data directory.
+
+    Raises ``ValueError`` if *stem* is invalid.
+    Returns a file-info dict matching the shape produced by :func:`list_rag_files`.
+    """
+    if not is_valid_stem(stem):
+        msg = f"Invalid stem {stem!r}: only letters, digits, underscores, and hyphens are allowed."
+        raise ValueError(msg)
+    rag_dir = Path(config.documents_directory)
+    rag_dir.mkdir(parents=True, exist_ok=True)
+    dest = rag_dir / f"{stem}.txt"
+    dest.write_bytes(content)
+    return {
+        "name": dest.name,
+        "stem": stem,
+        "type": "message_examples" if stem.endswith("_message_examples") else "lore",
+        "size": len(content),
+        "has_metadata": (rag_dir / f"{stem}.json").exists(),
+    }
+
+
+def list_rag_stems(config: RagScriptConfig) -> list[str]:
+    """Return a sorted list of stems for all .txt files in rag_data/."""
+    rag_dir = Path(config.documents_directory)
+    if not rag_dir.exists():
+        return []
+    return sorted(p.stem for p in rag_dir.glob("*.txt"))
+
+
 # ---------------------------------------------------------------------------
 # Linting
 # ---------------------------------------------------------------------------

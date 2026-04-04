@@ -1,5 +1,52 @@
 <div class="rag-section-header">RAG Files</div>
 
+{% if uploaded %}
+<div class="rag-msg rag-msg-ok">✓ Uploaded <strong>{{ uploaded }}</strong> to <code>rag_data/</code>.</div>
+{% endif %}
+
+<div style="border:1px solid #2d3743;border-radius:8px;padding:0.85rem;margin-bottom:1rem;background:#0f1317;">
+    <div class="rag-subsection-header" style="margin-bottom:0.55rem;">📤 Upload Source File</div>
+    <p style="font-size:0.78rem;color:#98a6b6;margin:0 0 0.65rem">
+        Upload a <code>.txt</code> file to <code>rag_data/</code>.
+        Optionally enter a collection name to build the knowledge base immediately after uploading.
+    </p>
+    <form hx-post="/rag/files/upload"
+          hx-target="#rag-main"
+          hx-swap="innerHTML"
+          hx-encoding="multipart/form-data"
+          hx-indicator="#upload-spinner"
+          style="display:flex;flex-direction:column;gap:0.5rem">
+        <div class="rag-form-row">
+            <label class="rag-label">File (.txt):</label>
+            <input type="file" name="file" accept=".txt" required
+                   class="rag-input"
+                   onchange="
+                     var n = this.files[0] ? this.files[0].name.replace(/\.txt$/i,'') : '';
+                     var s = n.toLowerCase().replace(/[^a-z0-9_-]/g,'_').replace(/^_+|_+$/g,'');
+                     document.getElementById('upload-stem').value = s;
+                     document.getElementById('upload-collection').value = s;
+                   " />
+        </div>
+        <div class="rag-form-row">
+            <label class="rag-label">Stem:</label>
+            <input type="text" name="stem" id="upload-stem" required
+                   class="rag-input rag-input-wide"
+                   placeholder="Auto-filled from filename"
+                   pattern="[a-zA-Z0-9_\-]+" title="Letters, digits, underscores and hyphens only" />
+        </div>
+        <div class="rag-form-row">
+            <label class="rag-label">Collection name <span style="color:#636e7b">(optional)</span>:</label>
+            <input type="text" name="collection_name" id="upload-collection"
+                   class="rag-input rag-input-wide"
+                   placeholder="Leave blank to upload only" />
+        </div>
+        <div class="rag-btn-group" style="margin-bottom:0">
+            <button type="submit" class="rag-btn rag-btn-primary">Upload</button>
+            <span id="upload-spinner" class="htmx-indicator">Uploading…</span>
+        </div>
+    </form>
+</div>
+
 <div class="rag-btn-group">
     <button class="rag-btn"
         hx-post="/rag/lint" hx-target="#lint-results" hx-swap="innerHTML"
@@ -47,6 +94,29 @@
                     hx-vals='{"stem": "{{ f.stem }}"}'
                     hx-target="#coverage-results" hx-swap="innerHTML"
                     hx-indicator="#coverage-spinner">Coverage</button>
+                {% endif %}
+                {% if f.type == "lore" %}
+                <button class="rag-btn"
+                    onclick="
+                      var d=document.getElementById('ingest-{{ f.stem }}');
+                      d.style.display = d.style.display==='none' ? 'block' : 'none';
+                    ">Ingest →</button>
+                <div id="ingest-{{ f.stem }}" style="display:none;margin-top:0.45rem">
+                    <form hx-post="/rag/collections"
+                          hx-target="#ingest-result-{{ f.stem }}"
+                          hx-swap="innerHTML"
+                          hx-indicator="#ingest-spin-{{ f.stem }}"
+                          style="display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap">
+                        <input type="hidden" name="stem" value="{{ f.stem }}" />
+                        <input type="text" name="collection_name"
+                               class="rag-input" style="width:150px"
+                               placeholder="Collection name"
+                               value="{{ f.stem }}" required />
+                        <button type="submit" class="rag-btn rag-btn-primary">Build</button>
+                        <span id="ingest-spin-{{ f.stem }}" class="htmx-indicator">Building…</span>
+                    </form>
+                    <div id="ingest-result-{{ f.stem }}" style="margin-top:0.4rem"></div>
+                </div>
                 {% endif %}
             </td>
         </tr>

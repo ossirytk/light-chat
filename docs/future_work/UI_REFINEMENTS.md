@@ -90,15 +90,14 @@ the `scripts/rag/` CLI toolset, accessible from the browser without a terminal.
 
 | Area | Features |
 |------|---------|
-| **RAG data files** | List, view, run linting, run coverage analysis |
-| **Collections** | List, inspect, delete, rebuild, query test |
+| **RAG data files** | List, view, upload new files, run linting, run coverage analysis |
+| **Collections** | List, inspect, delete, rebuild, create from uploaded file, query test |
 | **Fixture evaluation** | Run evaluate-fixtures, view results, view trend history |
 | **Embedding benchmarking** | Trigger benchmark run, view results |
 | **Collection migration** | Re-embed to new model, backfill fingerprints |
 
 Out of scope for this plan (requires broader changes):
 - In-browser text editing of `rag_data/` source files
-- File upload / new character creation
 - Real-time log streaming during long-running jobs (deferred to async job tracker)
 
 ### B.2 Routes
@@ -109,12 +108,14 @@ imports (no subprocess); UI responses use HTMX partial renders consistent with e
 | Method | Path | Purpose |
 |--------|------|---------|
 | GET | `/rag` | RAG management root panel |
-| GET | `/rag/files` | List `rag_data/` files with status badges |
+| GET | `/rag/files` | List `rag_data/` files with status badges; upload panel |
 | GET | `/rag/files/{filename}` | View file content (read-only) |
+| POST | `/rag/files/upload` | Upload a new `.txt` source file; optional immediate ingest |
 | POST | `/rag/lint` | Run message-example linting; return results table |
 | POST | `/rag/lint/fix` | Run linting with auto-fix; return diff summary |
 | POST | `/rag/coverage` | Run coverage analysis on a lore file; return score + report |
 | GET | `/rag/collections` | List ChromaDB collections with counts and fingerprints |
+| POST | `/rag/collections` | Create a new collection from an existing source file |
 | GET | `/rag/collections/{name}` | Collection detail: model, dimensions, sample docs |
 | DELETE | `/rag/collections/{name}` | Delete collection (with confirmation step) |
 | POST | `/rag/collections/{name}/query` | Ad-hoc test query; return top-k chunks with scores |
@@ -205,18 +206,97 @@ Or, given the project's existing pattern, call the CLI module functions directly
 ### B.8 Non-Goals (Deferred)
 
 - In-browser text editor for `rag_data/` source files (use VS Code or a dedicated CMS).
-- File upload for new character data (filesystem write from web raises deployment concerns).
 - Real-time log streaming for long-running jobs (stdout pipe to WebSocket — separate effort).
 - Multi-user / authentication (single-user local tool assumption).
 
 ---
 
+## C. Character Management UI
+
+UI surfaces for character card import, avatar upload, and character switching. Depends on
+`REFINEMENTS.md §11` backend work for card parsing and avatar storage.
+
+### C.1 Character Avatar Display
+
+Show a character avatar image in the chat interface.
+
+- Display the avatar in the chat header next to the character name.
+- Optionally show a small avatar thumbnail next to each assistant message bubble.
+- Fall back to a coloured monogram/initial placeholder if no avatar is set.
+- Source: `GET /characters/avatar` — served by the web app, returns the stored image or a
+  generated fallback.
+
+### C.2 Avatar Upload
+
+Allow uploading a custom avatar image for the active character.
+
+- Upload button in the character settings area (or a dedicated character management page).
+- Accepts PNG, JPEG, or WebP; server resizes to ≤ 512 px and saves to
+  `character_storage/<name>/avatar.png`.
+- Instant preview update after upload via HTMX partial replace.
+
+### C.3 Character Card Import
+
+A drag-and-drop or file-picker import flow for standard character card files.
+
+- Accepts: PNG (V2 `chara` chunk or V3 `ccv3` chunk), plain JSON (CCv2 or CCv3), and CHARX zip.
+- On import: extracts card fields, normalises to the project's JSON format, saves to `cards/`,
+  and optionally extracts the embedded avatar.
+- Shows a preview of extracted fields (name, description snippet, scenario snippet) before
+  confirming the import.
+- After import, allows immediately switching to the new character without restarting.
+- Route: `POST /characters/import` (multipart form upload).
+
+### C.4 Character Selector / Switcher
+
+A UI for browsing and switching the active character without restarting the server.
+
+- Lists all cards in `cards/` with avatar thumbnails, name, and a brief description snippet.
+- "Switch" button triggers a hot-reload (see `REFINEMENTS.md §7` character hot-reload).
+- Shows which character is currently active.
+- Route: `GET /characters` (list), `POST /characters/{name}/activate`.
+
+### C.5 In-App Character Card Editor
+
+A form-based editor for creating and editing character cards within the web UI. Several
+open-source implementations already exist and could be referenced or adapted:
+
+- [ZoltanAI/character-editor](https://github.com/ZoltanAI/character-editor) — standalone
+  browser-based editor for V1/V2 cards; good reference for field layout and PNG embedding.
+- SillyTavern has a built-in card editor that supports V2 and lorebook editing.
+- [character-card-spec-v3](https://github.com/kwaroran/character-card-spec-v3) provides the
+  canonical field reference for a V3-compatible editor.
+
+Scope for this project:
+
+- Edit core fields: name, description, scenario, personality, first message, mes_example,
+  voice instructions, tags.
+- Avatar upload inline (replaces §C.2 standalone upload).
+- Save as JSON to `cards/` and optionally export as CCv2/CCv3 PNG (embed in tEXt chunk).
+- Route: `GET /characters/{name}/edit`, `POST /characters/{name}/edit`.
+- Depends on `REFINEMENTS.md §11` card format backend and §C.3 import pipeline (shared parsing).
+
+**Note on avatar management without a full editor:** Until §C.5 is built, the simplest path
+is to drop an image file (`avatar.png`, `.jpg`, or `.webp`) into
+`character_storage/<character_stem>/` — the web app serves it automatically via
+`GET /characters/avatar`. The stem is the character name lowercased with spaces → underscores
+(e.g., "SHODAN" → `character_storage/shodan/avatar.jpg`).
+
+---
+
 ## Suggested Execution Order (UI)
 
-1. RAG Management UI (§B) as a self-contained milestone — implement §B.6 steps in order.
-2. Token budget visualization (§A.1) and per-turn token stats panel (§A.2) — low-risk extensions
+1. ✅ RAG Management UI (§B) as a self-contained milestone — implement §B.6 steps in order.
+2. ✅ Token budget visualization (§A.1) and per-turn token stats panel (§A.2) — low-risk extensions
    to the existing diagnostics panel; depends on `REFINEMENTS.md §8` backend work.
-3. Session history search (§A.4) — stateless read-only feature, no new backend state model needed.
-4. Conversation branching controls (§A.3) — depends on `REFINEMENTS.md §7` session state changes.
-5. Memory panel (§A.5) — depends on `REFINEMENTS.md §6` Tier 1 memory being implemented first.
-6. Skills dropdown (§A.6) — depends on `REFINEMENTS.md §7` skills config backend.
+3. ✅ Session history search (§A.4) — stateless read-only feature, no new backend state model needed.
+4. ✅ Character avatar display + tab sidebar (§C.1) — avatar served from `character_storage/<stem>/`.
+5. ✅ RAG file upload + create collection from UI (§B.1/B.2 extension) — `POST /rag/files/upload`,
+   `POST /rag/collections`; "Ingest →" per-file action; upload-and-ingest combined flow.
+6. Conversation branching controls (§A.3) — depends on `REFINEMENTS.md §7` session state changes.
+7. Memory panel (§A.5) — depends on `REFINEMENTS.md §6` Tier 1 memory being implemented first.
+8. Skills dropdown (§A.6) — depends on `REFINEMENTS.md §7` skills config backend.
+9. Avatar upload UI (§C.2) — small addition; no major backend dependency.
+10. Character card import UI (§C.3) — depends on `REFINEMENTS.md §11.2` import backend.
+11. Character switcher (§C.4) — depends on `REFINEMENTS.md §7` character hot-reload.
+12. In-app character card editor (§C.5) — largest UI item; depends on §C.3 + §C.4.
