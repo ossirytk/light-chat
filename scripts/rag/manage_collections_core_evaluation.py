@@ -1,20 +1,21 @@
 """Fixture evaluation orchestration and report IO for collection management core."""
 
+from __future__ import annotations
+
 import csv
 import json
 from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import chromadb
 import click
 from chromadb.config import Settings
-from langchain_chroma import Chroma
-from langchain_huggingface import HuggingFaceEmbeddings
 
 from core.config import load_app_config, load_rag_script_config, load_runtime_config
 from core.conversation_manager import ConversationManager
+from core.rag_dependencies import import_vector_dependencies
 from scripts.rag.manage_collections_core_collection import (
     assert_collection_fingerprint_compatible,
     build_embedding_fingerprint,
@@ -31,6 +32,9 @@ from scripts.rag.manage_collections_core_types import (
     FixtureEvalOptions,
     FixtureEvalRun,
 )
+
+if TYPE_CHECKING:
+    from langchain_chroma import Chroma
 
 
 def _load_fixture_payload(fixture_file: Path) -> tuple[str, int, list[int], list[dict[str, Any]]]:
@@ -449,7 +453,8 @@ def _setup_embedder_and_db_cache(
     embedding_model = options.embedding_model or script_config.embedding_model  # type: ignore[attr-defined]
     embedding_cache = script_config.embedding_cache  # type: ignore[attr-defined]
     normalize_embeddings = True
-    embedder = HuggingFaceEmbeddings(
+    _chromadb_module, _settings_cls, chroma_cls, huggingface_embeddings_cls = import_vector_dependencies()
+    embedder = huggingface_embeddings_cls(
         model_name=embedding_model,
         model_kwargs={"device": embedding_device},
         encode_kwargs={"normalize_embeddings": normalize_embeddings},
@@ -465,7 +470,7 @@ def _setup_embedder_and_db_cache(
     for collection_name in available_collections:
         assert_collection_fingerprint_compatible(client, collection_name, expected_fingerprint)
     db_cache = {
-        collection_name: Chroma(
+        collection_name: chroma_cls(
             client=client,
             collection_name=collection_name,
             persist_directory=persist_directory,

@@ -97,6 +97,16 @@ RAG management UI at **`/rag`** (link in the chat sidebar):
 uv sync
 ```
 
+Optional extras:
+
+```bash
+uv sync --extra rag
+uv sync --extra gpu
+uv sync --extra rag --extra gpu
+```
+
+Use `rag` to enable embedding-based retrieval and reranking. That extra pulls in `sentence-transformers` and `torch`, which on Linux can also install CUDA-linked NVIDIA wheels. Use `gpu` to enable NVIDIA VRAM detection via NVML. A plain `uv sync` keeps those optional pieces out of the base environment.
+
 Python requirement is defined in `pyproject.toml` (`>=3.13`).
 
 ## Quick RAG Workflow

@@ -53,7 +53,7 @@ def get_gpu_memory_info() -> GPUMemoryInfo | None:
 
         pynvml.nvmlShutdown()
     except ImportError:
-        logger.warning("pynvml not available. Install with: uv add nvidia-ml-py")
+        logger.warning("pynvml not available. Install with: uv sync --extra gpu")
         return None
     except Exception as e:
         logger.warning("Failed to get GPU info: {}", e)

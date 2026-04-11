@@ -6,8 +6,10 @@ import unittest
 from collections import deque
 from collections.abc import AsyncIterator
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 from core.conversation_manager import ConversationManager
+from core.rag_dependencies import MissingRagDependenciesError
 
 
 def _make_manager(
@@ -373,6 +375,44 @@ class TestAskQuestionHistoryProgression(unittest.TestCase):
         asyncio.run(mgr.ask_question("Proceed"))
 
         self.assertEqual(captured_history["value"], allocated_history)
+
+
+class TestVectorContextFallbacks(unittest.TestCase):
+    """Validate graceful fallback when optional RAG dependencies are missing."""
+
+    def test_prepare_vector_context_skips_rag_when_optional_dependencies_are_missing(self) -> None:
+        mgr = _make_manager(character_name="Shodan")
+        mgr.mes_example = "Base style example"
+        mgr.use_dynamic_context = False
+        mgr._prepare_static_vector_context = MagicMock(  # type: ignore[method-assign]  # noqa: SLF001
+            side_effect=MissingRagDependenciesError("install rag extra")
+        )
+
+        vector_context, mes_example, allocated_history = mgr._prepare_vector_context("Tell me about Citadel Station")  # noqa: SLF001
+
+        self.assertEqual(vector_context, " ")
+        self.assertEqual(mes_example, "Base style example")
+        self.assertIsNone(allocated_history)
+
+    def test_dynamic_vector_fallback_does_not_retry_missing_rag_dependencies_forever(self) -> None:
+        mgr = _make_manager(character_name="Shodan")
+        mgr.mes_example = "Base style example"
+        mgr.use_dynamic_context = True
+        mgr.user_message_history.append("Earlier question")
+        mgr.ai_message_history.append("Earlier answer")
+        mgr._should_skip_rag_for_followup = lambda _msg: False  # type: ignore[method-assign]  # noqa: SLF001
+        static_prepare = MagicMock(side_effect=MissingRagDependenciesError("install rag extra"))
+        mgr._prepare_dynamic_vector_context = MagicMock(  # type: ignore[method-assign]  # noqa: SLF001
+            side_effect=RuntimeError("budget calculation failed")
+        )
+        mgr._prepare_static_vector_context = static_prepare  # type: ignore[method-assign]  # noqa: SLF001
+
+        vector_context, mes_example, allocated_history = mgr._prepare_vector_context("Tell me about Citadel Station")  # noqa: SLF001
+
+        self.assertEqual(vector_context, " ")
+        self.assertEqual(mes_example, "")
+        self.assertIsNone(allocated_history)
+        static_prepare.assert_called_once()
 
 
 class TestMistralPromptBuilder(unittest.TestCase):

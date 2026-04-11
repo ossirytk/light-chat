@@ -2,7 +2,7 @@
 
 import unittest
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from click.testing import CliRunner
 
@@ -45,6 +45,7 @@ class TestBackfillEmbeddingFingerprint(unittest.TestCase):
             embedding_device="cpu",
             embedding_cache="./embedding_models",
         )
+        fake_embedder_cls = MagicMock()
 
         with (
             patch("scripts.rag.manage_collections_commands_collections.load_app_config", return_value=object()),
@@ -60,7 +61,10 @@ class TestBackfillEmbeddingFingerprint(unittest.TestCase):
                     "./embedding_models",
                 ),
             ),
-            patch("scripts.rag.manage_collections_commands_collections.HuggingFaceEmbeddings"),
+            patch(
+                "scripts.rag.manage_collections_commands_collections.import_vector_dependencies",
+                return_value=(object(), object(), object(), fake_embedder_cls),
+            ),
             patch(
                 "scripts.rag.manage_collections_commands_collections.infer_embedding_dimension",
                 return_value=768,

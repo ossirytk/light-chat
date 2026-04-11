@@ -18,24 +18,29 @@ Benchmark configuration JSON format::
 A bare list ``[{"model_id": ..., ...}]`` is also accepted.
 """
 
+from __future__ import annotations
+
 import csv
 import json
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import chromadb
 import click
 from chromadb.config import Settings
 from langchain_chroma import Chroma
-from langchain_huggingface import HuggingFaceEmbeddings
 from loguru import logger
 
 from core.config import load_app_config, load_rag_script_config
+from core.rag_dependencies import import_vector_dependencies
 from scripts.rag.manage_collections_core_evaluation import _load_fixture_payload
 from scripts.rag.manage_collections_core_metrics import compute_case_match_details, compute_run_metrics
 from scripts.rag.manage_collections_core_types import FixtureCaseResult
+
+if TYPE_CHECKING:
+    from langchain_huggingface import HuggingFaceEmbeddings
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -286,7 +291,8 @@ def _run_model_benchmark(
 ) -> BenchmarkModelResult:
     """Embed the corpus with *spec*, run all fixture cases, and return results."""
     click.echo(f"\n[{spec.label}] {spec.model_id}")
-    embedder = HuggingFaceEmbeddings(
+    _chromadb_module, _settings_cls, _chroma_cls, huggingface_embeddings_cls = import_vector_dependencies()
+    embedder = huggingface_embeddings_cls(
         model_name=spec.model_id,
         model_kwargs={"device": spec.device},
         encode_kwargs={"normalize_embeddings": spec.normalize},

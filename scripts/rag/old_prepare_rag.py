@@ -1,21 +1,27 @@
+from __future__ import annotations
+
 import json
 import time
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import chromadb
 import click
 from chromadb.config import Settings
 from langchain_chroma import Chroma
 from langchain_community.document_loaders import TextLoader
-from langchain_core.documents.base import Document
-from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from loguru import logger
 
 from core.config import configure_logging, load_app_config, load_rag_script_config
+from core.rag_dependencies import import_vector_dependencies
+
+if TYPE_CHECKING:
+    from langchain_core.documents.base import Document
+    from langchain_huggingface import HuggingFaceEmbeddings
 
 
 @dataclass
@@ -204,7 +210,8 @@ def main(**kwargs: object) -> None:
     model_kwargs = {"device": embedding_device}
     encode_kwargs = {"normalize_embeddings": False}
     cache_folder = str(Path(embedding_cache))
-    embedder = HuggingFaceEmbeddings(
+    _chromadb_module, _settings_cls, _chroma_cls, huggingface_embeddings_cls = import_vector_dependencies()
+    embedder = huggingface_embeddings_cls(
         model_kwargs=model_kwargs,
         encode_kwargs=encode_kwargs,
         cache_folder=cache_folder,

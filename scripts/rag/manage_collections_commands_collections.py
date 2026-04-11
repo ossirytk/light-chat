@@ -1,16 +1,18 @@
 """Collection management CLI commands."""
 
+from __future__ import annotations
+
 import fnmatch
 import json
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import chromadb
 import click
 from chromadb.config import Settings
-from langchain_chroma import Chroma
-from langchain_huggingface import HuggingFaceEmbeddings
 
 from core.config import load_app_config, load_rag_script_config
+from core.rag_dependencies import import_vector_dependencies
 from scripts.rag.manage_collections_core import (
     _resolve_embedding_runtime,
     assert_collection_fingerprint_compatible,
@@ -21,6 +23,9 @@ from scripts.rag.manage_collections_core import (
     infer_embedding_dimension,
     normalize_keyfile,
 )
+
+if TYPE_CHECKING:
+    from langchain_chroma import Chroma
 
 
 def _load_key_filters(key_storage: str, collection_name: str, query: str) -> list[dict[str, object] | None]:
@@ -232,8 +237,9 @@ def test(**kwargs: object) -> None:
     embedding_device = str(kwargs.get("embedding_device") or script_config.embedding_device)
     embedding_cache = script_config.embedding_cache
     normalize_embeddings = True
+    _chromadb_module, _settings_cls, chroma_cls, huggingface_embeddings_cls = import_vector_dependencies()
 
-    embedder = HuggingFaceEmbeddings(
+    embedder = huggingface_embeddings_cls(
         model_name=embedding_model,
         model_kwargs={"device": embedding_device},
         encode_kwargs={"normalize_embeddings": normalize_embeddings},
@@ -259,7 +265,7 @@ def test(**kwargs: object) -> None:
 
     filters = _load_key_filters(key_storage, collection_name, query)
 
-    db = Chroma(
+    db = chroma_cls(
         client=client,
         collection_name=collection_name,
         persist_directory=persist_directory,
@@ -383,7 +389,8 @@ def backfill_embedding_fingerprint(**kwargs: object) -> None:
         embedding_model=kwargs.get("embedding_model"),
         embedding_device=kwargs.get("embedding_device"),
     )
-    embedder = HuggingFaceEmbeddings(
+    _chromadb_module, _settings_cls, _chroma_cls, huggingface_embeddings_cls = import_vector_dependencies()
+    embedder = huggingface_embeddings_cls(
         model_name=embedding_model,
         model_kwargs={"device": embedding_device},
         encode_kwargs={"normalize_embeddings": True},

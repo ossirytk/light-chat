@@ -1,12 +1,16 @@
 """Shared types and data models for collection management core."""
 
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any
+from __future__ import annotations
 
-import chromadb
-from langchain_chroma import Chroma
-from langchain_huggingface import HuggingFaceEmbeddings
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    import chromadb
+    from langchain_chroma import Chroma
+    from langchain_huggingface import HuggingFaceEmbeddings
 
 type KeyItem = dict[str, object]
 type KeyMatch = dict[str, str]

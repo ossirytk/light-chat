@@ -12,6 +12,12 @@ uv run python -m scripts.rag.<script_name> ...
 
 Top-level wrappers in `scripts/*.py` still exist for compatibility, but the recommended workflow uses the package form above.
 
+Install the optional RAG embedding stack before running retrieval, push, or rerank workflows:
+
+```bash
+uv sync --extra rag
+```
+
 ## Scope
 
 - Metadata analysis and generation

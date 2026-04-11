@@ -1179,14 +1179,20 @@ dependencies = [
     { name = "langchain" },
     { name = "langchain-chroma" },
     { name = "langchain-community" },
-    { name = "langchain-huggingface" },
     { name = "llama-cpp-python" },
     { name = "loguru" },
-    { name = "nvidia-ml-py" },
     { name = "python-multipart" },
     { name = "requests" },
-    { name = "sentence-transformers" },
     { name = "uvicorn" },
+]
+
+[package.optional-dependencies]
+gpu = [
+    { name = "nvidia-ml-py" },
+]
+rag = [
+    { name = "langchain-huggingface" },
+    { name = "sentence-transformers" },
 ]
 
 [package.dev-dependencies]
@@ -1210,15 +1216,16 @@ requires-dist = [
     { name = "langchain", specifier = ">=0.3.27" },
     { name = "langchain-chroma", specifier = ">=1.1.0" },
     { name = "langchain-community", specifier = ">=0.3.27" },
-    { name = "langchain-huggingface", specifier = ">=1.2.0" },
+    { name = "langchain-huggingface", marker = "extra == 'rag'", specifier = ">=1.2.0" },
     { name = "llama-cpp-python", specifier = ">=0.3.16" },
     { name = "loguru", specifier = ">=0.7.0" },
-    { name = "nvidia-ml-py", specifier = ">=13.590.48" },
+    { name = "nvidia-ml-py", marker = "extra == 'gpu'", specifier = ">=13.590.48" },
     { name = "python-multipart", specifier = ">=0.0.20" },
     { name = "requests", specifier = ">=2.31.0" },
-    { name = "sentence-transformers", specifier = ">=5.2.2" },
+    { name = "sentence-transformers", marker = "extra == 'rag'", specifier = ">=5.2.2" },
     { name = "uvicorn", specifier = ">=0.35.0" },
 ]
+provides-extras = ["gpu", "rag"]
 
 [package.metadata.requires-dev]
 dev = [
