@@ -1,8 +1,11 @@
 """Collection and embedding helpers for collection management core."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import chromadb
 import click
-from langchain_huggingface import HuggingFaceEmbeddings
 
 from core.config import load_app_config, load_rag_script_config
 from scripts.rag.manage_collections_core_types import (
@@ -13,6 +16,9 @@ from scripts.rag.manage_collections_core_types import (
     KeyMatch,
     WhereFilter,
 )
+
+if TYPE_CHECKING:
+    from langchain_huggingface import HuggingFaceEmbeddings
 
 MISSING_COLLECTION_ERRORS = (ValueError, chromadb.errors.NotFoundError)
 

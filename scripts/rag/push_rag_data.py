@@ -8,6 +8,8 @@ This script provides comprehensive features for managing RAG data:
 - Dry-run mode for testing
 """
 
+from __future__ import annotations
+
 import json
 import multiprocessing as mp
 import re
@@ -16,19 +18,23 @@ from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import chromadb
 import click
 from chromadb.config import Settings
 from langchain_chroma import Chroma
 from langchain_community.document_loaders import TextLoader
-from langchain_core.documents.base import Document
-from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from loguru import logger
 
 from core.config import RagScriptConfig, configure_logging, load_app_config, load_rag_script_config
+from core.rag_dependencies import import_vector_dependencies
 from scripts.rag.analyze_rag_coverage import extract_coverage_metrics, format_coverage_report, load_metadata_file
+
+if TYPE_CHECKING:
+    from langchain_core.documents.base import Document
+    from langchain_huggingface import HuggingFaceEmbeddings
 
 type MetadataItem = dict[str, object]
 type MetadataList = list[MetadataItem]
@@ -413,7 +419,8 @@ def build_processing_context(options: CliOptions, embedding_cache: str) -> tuple
     """Create the embedder/client context and collection fingerprint metadata."""
     logger.info("Initializing ChromaDB client and embedder...")
     normalize_embeddings = True
-    embedder = HuggingFaceEmbeddings(
+    _chromadb_module, _settings_cls, _chroma_cls, huggingface_embeddings_cls = import_vector_dependencies()
+    embedder = huggingface_embeddings_cls(
         model_name=options.embedding_model,
         model_kwargs={"device": options.embedding_device},
         encode_kwargs={"normalize_embeddings": normalize_embeddings},

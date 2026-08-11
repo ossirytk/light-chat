@@ -3,6 +3,8 @@ import re
 from langchain_core.output_parsers import StrOutputParser
 from loguru import logger
 
+from core.rag_dependencies import MissingRagDependenciesError
+
 
 class ConversationPromptHistoryMixin:
     def get_history(self) -> str:
@@ -223,9 +225,16 @@ class ConversationPromptHistoryMixin:
                 )
             else:
                 vector_context, mes_example = self._prepare_static_vector_context(message, mes_example)
+        except MissingRagDependenciesError as e:
+            logger.warning("{} Continuing without vector retrieval.", e)
+            return " ", mes_example, allocated_history
         except Exception as e:
             logger.warning("Error in dynamic context allocation: {}. Using static fallback.", e)
-            vector_context, mes_example = self._prepare_static_vector_context(message, mes_example)
+            try:
+                vector_context, mes_example = self._prepare_static_vector_context(message, mes_example)
+            except MissingRagDependenciesError as missing_dependency_error:
+                logger.warning("{} Continuing without vector retrieval.", missing_dependency_error)
+                return " ", mes_example, allocated_history
 
         vector_context = (
             (

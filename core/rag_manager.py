@@ -16,6 +16,8 @@ from typing import TYPE_CHECKING, Any
 import chromadb
 from chromadb.config import Settings
 
+from core.rag_dependencies import import_vector_dependencies
+
 if TYPE_CHECKING:
     from core.config import RagScriptConfig
 
@@ -111,17 +113,16 @@ def query_collection(
     k: int = 5,
 ) -> list[dict[str, Any]]:
     """Run ad-hoc similarity search. Returns top-k chunks with scores."""
-    from langchain_chroma import Chroma  # noqa: PLC0415
-    from langchain_huggingface import HuggingFaceEmbeddings  # noqa: PLC0415
+    _chromadb_module, _settings_cls, chroma_cls, huggingface_embeddings_cls = import_vector_dependencies()
 
-    embedder = HuggingFaceEmbeddings(
+    embedder = huggingface_embeddings_cls(
         model_name=config.embedding_model,
         model_kwargs={"device": config.embedding_device},
         encode_kwargs={"normalize_embeddings": True},
         cache_folder=config.embedding_cache,
     )
     client = _chroma_client(config.persist_directory)
-    db = Chroma(
+    db = chroma_cls(
         client=client,
         collection_name=name,
         embedding_function=embedder,
@@ -140,14 +141,14 @@ def query_collection(
 
 def backfill_fingerprint(config: RagScriptConfig, name: str) -> dict[str, Any]:
     """Write embedding fingerprint metadata onto an existing collection."""
-    from langchain_huggingface import HuggingFaceEmbeddings  # noqa: PLC0415
+    _chromadb_module, _settings_cls, _chroma_cls, huggingface_embeddings_cls = import_vector_dependencies()
 
     from scripts.rag.manage_collections_core_collection import (  # noqa: PLC0415
         build_embedding_fingerprint,
         infer_embedding_dimension,
     )
 
-    embedder = HuggingFaceEmbeddings(
+    embedder = huggingface_embeddings_cls(
         model_name=config.embedding_model,
         model_kwargs={"device": config.embedding_device},
         encode_kwargs={"normalize_embeddings": True},
@@ -401,8 +402,7 @@ def push_collection(
     overwrite: bool = True,
 ) -> dict[str, Any]:
     """Chunk, enrich, and push a rag_data text file into a ChromaDB collection."""
-
-    from langchain_huggingface import HuggingFaceEmbeddings  # noqa: PLC0415
+    _chromadb_module, _settings_cls, _chroma_cls, huggingface_embeddings_cls = import_vector_dependencies()
 
     from scripts.rag.push_rag_data import (  # noqa: PLC0415
         ProcessingContext,
@@ -427,7 +427,7 @@ def push_collection(
         msg = f"Source file not found: {file_path}"
         raise FileNotFoundError(msg)
 
-    embedder = HuggingFaceEmbeddings(
+    embedder = huggingface_embeddings_cls(
         model_name=config.embedding_model,
         model_kwargs={"device": config.embedding_device},
         encode_kwargs={"normalize_embeddings": True},

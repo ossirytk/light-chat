@@ -12,21 +12,22 @@ atomic alias-swap pattern:
 Dry-run mode completes steps 1-2 but skips the destructive rename/delete.
 """
 
+from __future__ import annotations
+
 import csv
 import json
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import chromadb
 import click
 from chromadb.config import Settings
 from langchain_chroma import Chroma
-from langchain_huggingface import HuggingFaceEmbeddings
 from loguru import logger
 
 from core.config import load_app_config, load_rag_script_config
+from core.rag_dependencies import import_vector_dependencies
 from scripts.rag.manage_collections_core_collection import (
     build_embedding_fingerprint,
     infer_embedding_dimension,
@@ -38,6 +39,11 @@ from scripts.rag.manage_collections_core_types import (
     EMBEDDING_NORMALIZE_METADATA_KEY,
     FixtureEvalOptions,
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from langchain_huggingface import HuggingFaceEmbeddings
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -325,7 +331,8 @@ def migrate_collection(  # noqa: PLR0911
             error="No documents in source collection",
         )
 
-    embedder = HuggingFaceEmbeddings(
+    _chromadb_module, _settings_cls, _chroma_cls, huggingface_embeddings_cls = import_vector_dependencies()
+    embedder = huggingface_embeddings_cls(
         model_name=spec.target_model_id,
         model_kwargs={"device": spec.target_device},
         encode_kwargs={"normalize_embeddings": spec.target_normalize},

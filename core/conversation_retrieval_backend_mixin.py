@@ -1,10 +1,6 @@
-import chromadb
-from chromadb.config import Settings
-from langchain_chroma import Chroma
-from langchain_huggingface import HuggingFaceEmbeddings
 from loguru import logger
-from sentence_transformers import CrossEncoder
 
+from core.rag_dependencies import import_cross_encoder, import_vector_dependencies
 from core.retrieval_shared_types import WhereFilter
 
 EMBEDDING_MODEL_METADATA_KEY = "embedding:model"
@@ -13,19 +9,21 @@ EMBEDDING_NORMALIZE_METADATA_KEY = "embedding:normalize"
 
 
 class ConversationRetrievalBackendMixin:
-    def _get_vector_client(self) -> chromadb.PersistentClient:
+    def _get_vector_client(self) -> object:
         if self._vector_client is None:
-            self._vector_client = chromadb.PersistentClient(
+            chromadb_module, settings_cls, _chroma_cls, _huggingface_embeddings_cls = import_vector_dependencies()
+            self._vector_client = chromadb_module.PersistentClient(
                 path=self.persist_directory,
-                settings=Settings(anonymized_telemetry=False),
+                settings=settings_cls(anonymized_telemetry=False),
             )
         return self._vector_client
 
-    def _get_vector_embedder(self) -> HuggingFaceEmbeddings:
+    def _get_vector_embedder(self) -> object:
         if self._vector_embedder is None:
+            _chromadb_module, _settings_cls, _chroma_cls, huggingface_embeddings_cls = import_vector_dependencies()
             model_kwargs = {"device": self.runtime_config.embedding_device}
             encode_kwargs = {"normalize_embeddings": True}
-            self._vector_embedder = HuggingFaceEmbeddings(
+            self._vector_embedder = huggingface_embeddings_cls(
                 model_name=self.runtime_config.embedding_model,
                 model_kwargs=model_kwargs,
                 encode_kwargs=encode_kwargs,
@@ -33,10 +31,11 @@ class ConversationRetrievalBackendMixin:
             )
         return self._vector_embedder
 
-    def _get_vector_db(self, collection_name: str) -> Chroma:
+    def _get_vector_db(self, collection_name: str) -> object:
         if collection_name not in self._vector_dbs:
+            _chromadb_module, _settings_cls, chroma_cls, _huggingface_embeddings_cls = import_vector_dependencies()
             self._assert_collection_embedding_fingerprint(collection_name)
-            self._vector_dbs[collection_name] = Chroma(
+            self._vector_dbs[collection_name] = chroma_cls(
                 client=self._get_vector_client(),
                 collection_name=collection_name,
                 persist_directory=self.persist_directory,
@@ -97,9 +96,10 @@ class ConversationRetrievalBackendMixin:
         )
         raise RuntimeError(msg)
 
-    def _get_cross_encoder(self) -> CrossEncoder:
+    def _get_cross_encoder(self) -> object:
         if self._cross_encoder is None:
-            self._cross_encoder = CrossEncoder(self.runtime_config.rag_rerank_model, device="cpu")
+            cross_encoder_cls = import_cross_encoder()
+            self._cross_encoder = cross_encoder_cls(self.runtime_config.rag_rerank_model, device="cpu")
         return self._cross_encoder
 
     def _rerank_chunks(self, query: str, chunks: list[str], k: int) -> list[str]:
@@ -135,7 +135,7 @@ class ConversationRetrievalBackendMixin:
 
     @staticmethod
     def _run_mmr_search(
-        db: Chroma,
+        db: object,
         query: str,
         where: WhereFilter,
         search_options: dict[str, object],
@@ -153,7 +153,7 @@ class ConversationRetrievalBackendMixin:
 
     @staticmethod
     def _run_similarity_search(
-        db: Chroma,
+        db: object,
         query: str,
         where: WhereFilter,
         retrieval_k: int,

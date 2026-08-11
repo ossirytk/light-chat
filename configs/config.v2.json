@@ -19,8 +19,8 @@
         "threads": 6
     },
     "model": {
-        "path": "mistral_v0.1/mistral-7b-instruct-v0.1.Q4_K_M.gguf",
-        "type": "mistral",
+        "path": "qwen2_5_7b/qwen2.5-7b-instruct-heretic-q4_k_m.gguf",
+        "type": "qwen2",
         "layers": "auto",
         "target_vram_usage": 0.8,
         "kv_cache_quant": "f16",
